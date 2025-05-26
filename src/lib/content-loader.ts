@@ -1,7 +1,13 @@
 
-import type { ContentItem, SourceConfig, PlaybackURL, PlaybackSourceGroup } from '@/types';
+import type { ContentItem, SourceConfig, PlaybackURL, PlaybackSourceGroup, ApiCategory, PaginatedContentResponse } from '@/types';
 
 // Mock data to be used if fetching fails or no sources are configured
+const mockCategories: ApiCategory[] = [
+  { id: '1', name: '电影 (模拟)' },
+  { id: '2', name: '电视剧 (模拟)' },
+  { id: '3', name: '动漫 (模拟)' },
+];
+
 const mockContentItems: ContentItem[] = [
   {
     id: 'mock-1',
@@ -52,14 +58,15 @@ const mockContentItems: ContentItem[] = [
 ];
 
 function mapApiItemToContentItem(apiItem: any): ContentItem | null {
-  if (!apiItem || !apiItem.vod_id || !apiItem.vod_name || !apiItem.vod_pic) {
+  if (!apiItem || !apiItem.vod_id || !apiItem.vod_name) { // vod_pic can be optional for robustness
+    console.warn('Skipping item due to missing essential fields (vod_id, vod_name):', apiItem);
     return null;
   }
 
   const playbackSources: PlaybackSourceGroup[] = [];
   if (apiItem.vod_play_from && apiItem.vod_play_url) {
-    const sourceNames = apiItem.vod_play_from.split('$$$');
-    const urlGroups = apiItem.vod_play_url.split('$$$');
+    const sourceNames = String(apiItem.vod_play_from).split('$$$');
+    const urlGroups = String(apiItem.vod_play_url).split('$$$');
 
     sourceNames.forEach((sourceName: string, index: number) => {
       if (urlGroups[index]) {
@@ -67,9 +74,9 @@ function mapApiItemToContentItem(apiItem: any): ContentItem | null {
           .split('#')
           .map((episode: string) => {
             const parts = episode.split('$');
-            return parts.length === 2 ? { name: parts[0], url: parts[1] } : null;
+            return parts.length === 2 ? { name: parts[0] || `Ep ${index+1}`, url: parts[1] } : null;
           })
-          .filter((u: PlaybackURL | null): u is PlaybackURL => u !== null);
+          .filter((u: PlaybackURL | null): u is PlaybackURL => u !== null && u.url !== '');
         
         if (urls.length > 0) {
           playbackSources.push({ sourceName, urls });
@@ -78,15 +85,15 @@ function mapApiItemToContentItem(apiItem: any): ContentItem | null {
     });
   }
   
-  let type: 'movie' | 'tv_show' = 'movie'; // Default to movie
-  if (apiItem.type_name && typeof apiItem.type_name === 'string') {
-    if (apiItem.type_name.includes('剧') || apiItem.type_name.includes('电视剧') || apiItem.type_name.includes('动漫') || apiItem.type_name.includes('综艺')) {
+  let type: 'movie' | 'tv_show' = 'movie';
+  const typeNameStr = String(apiItem.type_name || '').toLowerCase();
+  if (typeNameStr) {
+    if (typeNameStr.includes('剧') || typeNameStr.includes('电视剧') || typeNameStr.includes('动漫') || typeNameStr.includes('综艺') || typeNameStr.includes('series') || typeNameStr.includes('show')) {
       type = 'tv_show';
     }
-  } else if (apiItem.tid) { // Fallback for some APIs that use tid for type
-     // Common TIDs: 1=电影, 2=电视剧, 3=综艺, 4=动漫. This can vary by API.
-    if (apiItem.tid === 2 || apiItem.tid === 3 || apiItem.tid === 4 || 
-        (typeof apiItem.type_name === 'string' && (apiItem.type_name.toLowerCase().includes('series') || apiItem.type_name.toLowerCase().includes('show')))) {
+  } else if (apiItem.tid) {
+    const tid = parseInt(String(apiItem.tid), 10);
+    if (tid === 2 || tid === 3 || tid === 4) { // Common TIDs for TV shows, anime, variety
       type = 'tv_show';
     }
   }
@@ -96,88 +103,124 @@ function mapApiItemToContentItem(apiItem: any): ContentItem | null {
     id: String(apiItem.vod_id),
     title: apiItem.vod_name,
     description: apiItem.vod_blurb || apiItem.vod_content || '暂无简介',
-    posterUrl: apiItem.vod_pic,
-    backdropUrl: apiItem.vod_pic_slide || apiItem.vod_pic, // Use poster if backdrop not available
-    cast: apiItem.vod_actor ? apiItem.vod_actor.split(/[,，、\s]+/).filter(Boolean) : [],
-    director: apiItem.vod_director ? apiItem.vod_director.split(/[,，、\s]+/).filter(Boolean) : [],
+    posterUrl: apiItem.vod_pic || `https://placehold.co/400x600.png?text=${encodeURIComponent(apiItem.vod_name)}`,
+    backdropUrl: apiItem.vod_pic_slide || apiItem.vod_pic || `https://placehold.co/1280x720.png?text=${encodeURIComponent(apiItem.vod_name)} backdrop`,
+    cast: apiItem.vod_actor ? String(apiItem.vod_actor).split(/[,，、\s]+/).filter(Boolean) : [],
+    director: apiItem.vod_director ? String(apiItem.vod_director).split(/[,，、\s]+/).filter(Boolean) : [],
     userRating: parseFloat(apiItem.vod_douban_score) || parseFloat(apiItem.vod_score) || undefined,
-    genres: apiItem.type_name ? apiItem.type_name.split(/[,，、\s]+/).filter(Boolean) : [],
+    genres: apiItem.type_name ? String(apiItem.type_name).split(/[,，、\s]+/).filter(Boolean) : [],
     releaseYear: parseInt(apiItem.vod_year) || undefined,
     runtime: apiItem.vod_duration || undefined,
     type: type,
-    availableQualities: apiItem.vod_quality ? apiItem.vod_quality.split(',') : (apiItem.vod_remarks && apiItem.vod_remarks.match(/[0-9]+[pP]/g) ? apiItem.vod_remarks.match(/[0-9]+[pP]/g) : undefined),
+    availableQualities: apiItem.vod_quality ? String(apiItem.vod_quality).split(',') : (apiItem.vod_remarks && String(apiItem.vod_remarks).match(/[0-9]+[pP]/g) ? String(apiItem.vod_remarks).match(/[0-9]+[pP]/g) : undefined),
     playbackSources: playbackSources.length > 0 ? playbackSources : undefined,
   };
 }
 
+async function fetchViaProxy(targetUrl: string, sourceName?: string): Promise<any> {
+  const proxyRequestUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+  const response = await fetch(proxyRequestUrl);
 
-export async function fetchContentFromSource(source: SourceConfig): Promise<ContentItem[]> {
+  if (!response.ok) {
+    let errorDetails = `Status: ${response.status}`;
+    try {
+      const errorJson = await response.json();
+      errorDetails = errorJson.error || errorJson.message || errorDetails;
+    } catch (e) { /* ignore */ }
+    const errorMessage = `Error fetching from ${sourceName || 'source'} (via proxy ${proxyRequestUrl}): ${errorDetails}`;
+    console.error(errorMessage);
+    throw new Error(errorMessage);
+  }
+
+  const data = await response.json();
+  if (data && data.nonJsonData) {
+    const errorMessage = `Proxy returned non-JSON data for ${sourceName || 'source'} (${proxyRequestUrl}): ${data.nonJsonData.substring(0,100)}...`;
+    console.error(errorMessage);
+    throw new Error(errorMessage);
+  }
+  return data;
+}
+
+export async function fetchApiCategories(sourceUrl: string): Promise<ApiCategory[]> {
   try {
-    const apiUrl = new URL(source.url);
-    apiUrl.searchParams.set('ac', 'detail');
-    // Page is usually managed by the API or could be a parameter later.
-    // For now, we fetch the default first page from the source.
-    // apiUrl.searchParams.set('pg', '1'); 
-
-    const fullTargetUrl = apiUrl.toString();
-    // Use the Next.js API proxy route
-    const proxyRequestUrl = `/api/proxy?url=${encodeURIComponent(fullTargetUrl)}`;
-    
-    const response = await fetch(proxyRequestUrl);
-
-    if (!response.ok) {
-      let errorDetails = `Status: ${response.status}`;
-      try {
-        // Attempt to parse error from proxy response
-        const errorJson = await response.json();
-        errorDetails = errorJson.error || errorJson.message || errorDetails;
-      } catch (e) { /* ignore if error response is not json */ }
-      console.error(`Error fetching from ${source.name} (via proxy ${proxyRequestUrl}): ${errorDetails}`);
-      return [];
+    const data = await fetchViaProxy(sourceUrl, `categories from ${sourceUrl}`);
+    if (data && Array.isArray(data.class)) {
+      return data.class.map((cat: any) => ({
+        id: String(cat.type_id),
+        name: cat.type_name,
+      })).filter((cat: ApiCategory | null): cat is ApiCategory => cat !== null && cat.id !== '' && cat.name !== '');
     }
-
-    const data = await response.json();
-
-    if (data && data.list && Array.isArray(data.list)) {
-      return data.list.map((item: any) => mapApiItemToContentItem(item)).filter((item: ContentItem | null): item is ContentItem => item !== null);
-    } else if (data && data.nonJsonData) {
-      // Handle case where proxy returned non-JSON data
-      console.error(`Proxy returned non-JSON data for ${source.name} (${proxyRequestUrl}): ${data.nonJsonData.substring(0,100)}...`);
-      return [];
-    }
-     else {
-      console.error(`Invalid data format from ${source.name} (via proxy ${proxyRequestUrl}). Expected 'list' array. Got:`, data);
-      return [];
-    }
+    console.warn(`No 'class' array found in category data from ${sourceUrl}`, data);
+    return [];
   } catch (error) {
-    console.error(`Exception fetching from ${source.name} (${source.url}) using proxy:`, error);
+    console.error(`Failed to fetch categories from ${sourceUrl}:`, error);
     return [];
   }
 }
 
+export async function fetchApiContentList(
+  sourceUrl: string,
+  params: { page?: number; categoryId?: string; searchTerm?: string }
+): Promise<PaginatedContentResponse> {
+  const apiUrl = new URL(sourceUrl);
+  apiUrl.searchParams.set('ac', 'detail');
+  if (params.page) apiUrl.searchParams.set('pg', String(params.page));
+  if (params.categoryId && params.categoryId !== 'all') apiUrl.searchParams.set('t', params.categoryId);
+  if (params.searchTerm) apiUrl.searchParams.set('wd', params.searchTerm);
+
+  try {
+    const data = await fetchViaProxy(apiUrl.toString(), `content list from ${sourceUrl}`);
+    const items = (data.list && Array.isArray(data.list))
+      ? data.list.map(mapApiItemToContentItem).filter((item: ContentItem | null): item is ContentItem => item !== null)
+      : [];
+    
+    return {
+      items,
+      page: parseInt(String(data.page), 10) || 1,
+      pageCount: parseInt(String(data.pagecount), 10) || 1,
+      limit: parseInt(String(data.limit), 10) || 20, // Default limit if not provided
+      total: parseInt(String(data.total), 10) || 0,
+    };
+  } catch (error) {
+    console.error(`Failed to fetch content list from ${sourceUrl} with params ${JSON.stringify(params)}:`, error);
+    return { items: [], page: 1, pageCount: 1, limit: 20, total: 0 }; // Return empty valid structure
+  }
+}
+
+
+// --- Potentially keep or adapt old fetchAllContent if a global, non-categorized view is needed ---
+// For now, we assume HomePage will use the new category-focused fetching from a single source.
+// The old fetchContentFromSource is effectively replaced by fetchApiContentList
 export async function fetchAllContent(sources: SourceConfig[]): Promise<ContentItem[]> {
   if (!sources || sources.length === 0) {
-    console.warn("No sources configured, returning mock data.");
+    console.warn("No sources configured for fetchAllContent, returning mock data.");
     return getMockContentItems();
   }
 
-  const allContentPromises = sources.map(source => fetchContentFromSource(source));
+  // This function might need rethinking. For now, it fetches page 1 from all sources.
+  const allContentPromises = sources.map(source => 
+    fetchApiContentList(source.url, { page: 1 })
+      .then(response => response.items)
+      .catch(err => {
+        console.error(`Error in fetchAllContent for source ${source.name}:`, err);
+        return []; // return empty array for this source on error
+      })
+  );
   
   try {
     const results = await Promise.all(allContentPromises);
     const combinedContent = results.flat();
     
-    if (combinedContent.length === 0) {
-      console.warn("All sources returned no content, falling back to mock data.");
+    if (combinedContent.length === 0 && sources.length > 0) {
+      console.warn("All sources returned no content in fetchAllContent, falling back to mock data.");
       return getMockContentItems();
     }
     
-    // Remove duplicates by id, preferring the first encountered version
     const uniqueContent = Array.from(new Map(combinedContent.map(item => [item.id, item])).values());
     return uniqueContent;
 
   } catch (error) {
-    console.error("Error fetching content from one or more sources, returning mock data.", error);
+    console.error("Error fetching content from one or more sources in fetchAllContent, returning mock data.", error);
     return getMockContentItems();
   }
 }
@@ -188,10 +231,31 @@ export function getMockContentItemById(id: string): ContentItem | undefined {
 }
 
 export function getMockContentItems(): ContentItem[] {
-  // Ensure mock items have placeholder data-ai-hint conceptually
-  return mockContentItems.map(item => ({
-    ...item,
-    // posterUrl: item.posterUrl.startsWith('https://placehold.co') ? `${item.posterUrl}&text=${encodeURIComponent(item.title)}` : item.posterUrl,
-    // backdropUrl: item.backdropUrl?.startsWith('https://placehold.co') ? `${item.backdropUrl}&text=${encodeURIComponent(item.title + ' backdrop')}` : item.backdropUrl,
-  }));
+  return mockContentItems;
+}
+
+export function getMockApiCategories(): ApiCategory[] {
+  return mockCategories;
+}
+
+export function getMockPaginatedResponse(page: number = 1, categoryId?: string, searchTerm?: string): PaginatedContentResponse {
+  let items = mockContentItems;
+  if (categoryId && categoryId !== 'all' && categoryId !== '1') { // mock category '1' is movie
+      items = items.filter(item => item.type === (categoryId === '2' ? 'tv_show' : 'movie'));
+  }
+  if (searchTerm) {
+      items = items.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
+  }
+  const limit = 2; // Mock limit
+  const total = items.length;
+  const pageCount = Math.ceil(total / limit);
+  const startIndex = (page - 1) * limit;
+  
+  return {
+    items: items.slice(startIndex, startIndex + limit),
+    page,
+    pageCount,
+    limit,
+    total,
+  };
 }
