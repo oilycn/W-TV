@@ -14,7 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from '@/components/ui/button';
 import ReactPlayer from 'react-player/lazy';
-
+import 'hls.js'; // Import for side-effects to make hls.js available to ReactPlayer
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 
@@ -105,7 +105,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
       message = error;
     } else if (error && error.message) {
       message = error.message;
-    } else if (error && error.type) { // HLS.js specific errors might be nested
+    } else if (error && error.type) { 
         if (error.details) {
             message = `播放错误: ${error.type} - ${error.details}`;
         } else {
@@ -181,11 +181,13 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                     config={{
                         file: {
                         attributes: {
-                            crossOrigin: 'anonymous', // Useful for some HLS streams or if you use WebVTT tracks
+                            crossOrigin: 'anonymous', 
                         },
                         hlsOptions: {
-                            // You can pass hls.js specific options here if needed
-                            // e.g. abrMaxSwitches: 5,
+                           // HLS.js specific options can be passed here.
+                           // For example, to adjust fragment loading retry parameters:
+                           // fragLoadingMaxRetry: 5,
+                           // fragLoadingRetryDelay: 1000,
                         }
                         }
                     }}
@@ -304,7 +306,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
 }
 
 
-// Added Suspense for better loading UX, especially around `use(paramsProp)`
 export default function ContentDetailPage(props: ContentDetailPageProps) {
   return (
     <Suspense fallback={
