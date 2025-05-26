@@ -92,7 +92,7 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
   useEffect(() => {
     if (currentPlayUrl && videoRef.current) {
       const videoElement = videoRef.current;
-      // Destroy previous HLS instance if it exists
+      
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
@@ -102,21 +102,23 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
         if (Hls.isSupported()) {
           const hls = new Hls({
             // Optional: Add HLS.js specific configurations here if needed
-            // E.g., for more aggressive retries, though defaults are usually robust
-            // fragLoadingMaxRetry: 5, 
-            // manifestLoadingMaxRetry: 3,
+            // e.g., fragLoadingMaxRetry: 10, // Example: Increase retry attempts
           });
           hlsRef.current = hls;
           hls.loadSource(currentPlayUrl);
           hls.attachMedia(videoElement);
 
           hls.on(Hls.Events.ERROR, (event, data) => {
-            console.error('HLS.js error - Type:', data.type, 'Details:', data.details, 'Fatal:', data.fatal, 'Raw Data:', JSON.stringify(data, null, 2));
+            if (data.fatal) {
+              console.error('HLS.js FATAL error - Type:', data.type, 'Details:', data.details, 'Raw Data:', JSON.stringify(data, null, 2));
+            } else {
+              // Log less verbosely for non-fatal errors, as HLS.js is attempting to recover
+              console.warn('HLS.js non-fatal error - Type:', data.type, 'Details:', data.details, '(retrying)');
+            }
             
-            // Display an error message for significant HLS issues
             if (data.type === Hls.ErrorTypes.NETWORK_ERROR || 
                 data.type === Hls.ErrorTypes.MEDIA_ERROR ||
-                data.fatal) { // Catch network/media errors, or any other fatal error
+                data.fatal) { 
               
               let messagePrefix = '';
               switch (data.type) {
@@ -126,32 +128,27 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
                 case Hls.ErrorTypes.MEDIA_ERROR:
                   messagePrefix = '媒体错误导致视频加载失败';
                   break;
-                default:
-                  messagePrefix = '加载视频失败'; // Generic for other fatal errors
+                default: 
+                  messagePrefix = '加载视频失败'; 
                   break;
               }
-              setVideoPlayerError(`${messagePrefix}: ${data.details}${data.fatal ? ' (严重)' : ''}`);
+              const detailMessage = data.details ? `: ${data.details}` : '';
+              const fatalMessage = data.fatal ? ' (严重)' : ' (尝试恢复中)'; // Indicate recovery attempt for non-fatal
+              setVideoPlayerError(`${messagePrefix}${detailMessage}${fatalMessage}`);
             }
           });
-          // Optional: Listen for manifest parsed to start playback
-          // hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          //   videoElement.play().catch(playError => console.warn("Autoplay prevented:", playError));
-          // });
         } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
-          // Native HLS support (e.g., Safari)
           videoElement.src = currentPlayUrl;
           videoElement.play().catch(playError => console.warn("Autoplay prevented for native HLS:", playError));
         } else {
           setVideoPlayerError('您的浏览器不支持播放此M3U8视频格式。');
         }
       } else {
-        // Not an m3u8 URL, use standard src
         videoElement.src = currentPlayUrl;
         videoElement.play().catch(playError => console.warn("Autoplay prevented for standard video:", playError));
       }
     }
 
-    // Cleanup effect
     return () => {
       if (hlsRef.current) {
         hlsRef.current.destroy();
@@ -166,7 +163,7 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
     setCurrentVideoTitle(`${item?.title} - ${name}`);
     setVideoPlayerError(null); 
     if (videoRef.current) {
-      videoRef.current.load(); // Call load to reset player for new source
+      videoRef.current.load(); 
     }
   };
 
@@ -223,10 +220,9 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
                 autoPlay
                 title={currentVideoTitle}
                 className="w-full h-full bg-black"
-                onCanPlay={() => setVideoPlayerError(null)} // Clear error if video becomes playable
+                onCanPlay={() => setVideoPlayerError(null)} 
                 onError={(e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
-                  // This handler is for standard <video> errors, HLS errors are handled by hls.on(Hls.Events.ERROR)
-                  if (!currentPlayUrl?.includes('.m3u8')) { // Only set error if not an HLS stream (HLS has its own handler)
+                  if (!currentPlayUrl?.includes('.m3u8')) { 
                     const videoElement = e.target as HTMLVideoElement;
                     let message = '视频播放时发生未知错误。';
                     if (videoElement.error) {
@@ -367,4 +363,6 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
     </div>
   );
 }
+    
+
     
