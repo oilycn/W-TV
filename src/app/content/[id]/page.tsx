@@ -14,7 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from '@/components/ui/button';
 import ReactPlayer from 'react-player/lazy';
-import 'hls.js'; // Import for side-effects to make hls.js available to ReactPlayer
+import 'dashjs'; // Import for side-effects to make dash.js available to ReactPlayer
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 
@@ -180,15 +180,10 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                     onPlay={() => setVideoPlayerError(null)} // Clear error when playback starts
                     config={{
                         file: {
-                        attributes: {
-                            crossOrigin: 'anonymous', 
-                        },
-                        hlsOptions: {
-                           // HLS.js specific options can be passed here.
-                           // For example, to adjust fragment loading retry parameters:
-                           // fragLoadingMaxRetry: 5,
-                           // fragLoadingRetryDelay: 1000,
-                        }
+                          attributes: {
+                              crossOrigin: 'anonymous', 
+                          },
+                          // dashOptions can be added here if needed
                         }
                     }}
                     style={{ display: isPlayerReady || videoPlayerError ? 'block' : 'none' }}
