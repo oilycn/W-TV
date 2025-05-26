@@ -148,8 +148,9 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
               autoPlay
               title={currentVideoTitle}
               className="w-full h-full bg-black"
-              onError={(e) => {
-                console.error("Video player error:", e);
+              onError={(e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+                const videoElement = e.target as HTMLVideoElement;
+                console.error("Video player error:", videoElement.error);
                 // You could show a custom error message to the user here
               }}
             >
@@ -265,3 +266,4 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
     </div>
   );
 }
+
