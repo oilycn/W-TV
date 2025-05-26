@@ -7,20 +7,31 @@ import { createContext, useContext, useState, ReactNode, useCallback } from 'rea
 interface CategoryContextType {
   categories: ApiCategory[];
   setCategories: (categories: ApiCategory[]) => void;
-  // isLoading: boolean; // Kept for potential future use if context fetches its own data
-  // error: string | null;  // Kept for potential future use
 }
 
 const CategoryContext = createContext<CategoryContextType | undefined>(undefined);
 
+function arraysEqual(arr1: ApiCategory[], arr2: ApiCategory[]): boolean {
+  if (arr1.length !== arr2.length) return false;
+  for (let i = 0; i < arr1.length; i++) {
+    if (arr1[i].id !== arr2[i].id || arr1[i].name !== arr2[i].name) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export function CategoryProvider({ children }: { children: ReactNode }) {
   const [categories, setCategoriesState] = useState<ApiCategory[]>([]);
-  // const [isLoading, setIsLoading] = useState<boolean>(false); 
-  // const [error, setError] = useState<string | null>(null); 
 
   const setCategories = useCallback((newCategories: ApiCategory[]) => {
-    setCategoriesState(newCategories);
-  }, []);
+    setCategoriesState(prevCategories => {
+      if (arraysEqual(prevCategories, newCategories)) {
+        return prevCategories; // Return the old state to prevent re-render if categories are the same
+      }
+      return newCategories; // Update state only if categories have actually changed
+    });
+  }, []); // Empty dependency array means setCategories function itself is stable
   
   return (
     <CategoryContext.Provider value={{ categories, setCategories }}>
