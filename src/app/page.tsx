@@ -29,8 +29,6 @@ function HomePageContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const [apiCategoriesForSelect, setApiCategoriesForSelect] = useState<ApiCategory[]>([]); 
   
   const selectedCategoryId = useMemo(() => searchParams.get('category') || 'all', [searchParams]);
   const currentSearchTermQuery = useMemo(() => searchParams.get('q') || '', [searchParams]);
@@ -79,7 +77,7 @@ function HomePageContent() {
     if (primarySourceUrl) {
       try {
         fetchedCategories = await fetchApiCategories(primarySourceUrl);
-        if (fetchedCategories.length === 0 && categories.length === 0) { // Only use mock if no global and no fetched
+        if (fetchedCategories.length === 0 && categories.length === 0) { 
             fetchedCategories = getMockApiCategories();
         }
       } catch (e) {
@@ -92,10 +90,7 @@ function HomePageContent() {
     }
 
     if(fetchedCategories.length > 0) {
-        setApiCategoriesForSelect(fetchedCategories);
         setGlobalCategories(fetchedCategories);
-    } else if (categories.length > 0) {
-        setApiCategoriesForSelect(categories); // Use existing global if fetch yields nothing new
     }
     setIsLoadingCategories(false);
 
@@ -117,7 +112,7 @@ function HomePageContent() {
       }
 
       setContentItems(response.items);
-      setTotalPages(response.pageCount || 1); // Ensure totalPages is at least 1
+      setTotalPages(response.pageCount || 1); 
       setTotalItems(response.total);
 
     } catch (e) {
@@ -155,10 +150,6 @@ function HomePageContent() {
     setSearchInput(e.target.value);
   };
   
-  const handleCategoryChange = (newCategoryId: string) => {
-    updateURLParams({ category: newCategoryId, page: 1, q: searchInput || undefined }); // Keep search term
-  };
-
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
       updateURLParams({ page: newPage });
@@ -173,7 +164,7 @@ function HomePageContent() {
   }, [contentItems, typeFilter]);
 
 
-  if (sources.length === 0 && !primarySourceUrl && !isLoading && !isLoadingCategories && (!apiCategoriesForSelect.length || apiCategoriesForSelect.every(c => c.name.includes('(模拟)'))) ) {
+  if (sources.length === 0 && !primarySourceUrl && !isLoading && !isLoadingCategories && (!categories.length || categories.every(c => c.name.includes('(模拟)'))) ) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-10rem)] text-center">
         <Tv2 className="w-24 h-24 mb-6 text-muted-foreground" />
@@ -200,8 +191,8 @@ function HomePageContent() {
       )}
 
       <div className="space-y-4 p-4 bg-card rounded-lg shadow">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          <div className="relative sm:col-span-2 md:col-span-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="relative sm:col-span-1">
             <Input 
               type="search"
               placeholder="搜索标题..."
@@ -211,17 +202,6 @@ function HomePageContent() {
             />
             <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           </div>
-          {isLoadingCategories && apiCategoriesForSelect.length === 0 ? ( // Show skeleton only if categories are truly loading AND empty
-            <Skeleton className="h-10 w-full" />
-          ) : (
-            <Select value={selectedCategoryId} onValueChange={handleCategoryChange} disabled={apiCategoriesForSelect.length === 0}>
-              <SelectTrigger><SelectValue placeholder="按分类筛选" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">所有分类</SelectItem>
-                {apiCategoriesForSelect.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          )}
           <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as 'all' | 'movie' | 'tv_show')}>
             <SelectTrigger><SelectValue placeholder="按格式筛选 (客户端)" /></SelectTrigger>
             <SelectContent>
@@ -284,9 +264,8 @@ function HomePageSkeleton() {
   return (
     <div className="space-y-6">
       <div className="space-y-4 p-4 bg-card rounded-lg shadow">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          <Skeleton className="h-10 sm:col-span-2 md:col-span-1" />
-          <Skeleton className="h-10" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Skeleton className="h-10 sm:col-span-1" />
           <Skeleton className="h-10" />
         </div>
         <div className="flex items-center justify-between pt-2">
@@ -310,4 +289,3 @@ function HomePageSkeleton() {
     </div>
   )
 }
-

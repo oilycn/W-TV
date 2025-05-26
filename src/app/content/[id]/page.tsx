@@ -1,7 +1,7 @@
 
 "use client";
 
-import { use, useEffect, useState } from 'react'; 
+import { use, useEffect, useState } from 'react';
 import type { ContentItem, PlaybackSourceGroup, SourceConfig } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, fetchAllContent, getMockContentItemById } from '@/lib/content-loader';
@@ -9,13 +9,13 @@ import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Star, CalendarDays, Clock, Video } from 'lucide-react';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from '@/components/ui/button';
-import Link from 'next/link';
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
+const DEFAULT_PLAYER_BASE_URL = "https://jx.oily.cn:7443/?v=";
 
 interface ContentDetailPageParams {
   id: string;
@@ -26,23 +26,25 @@ interface ContentDetailPageProps {
 }
 
 export default function ContentDetailPage({ params: paramsProp }: ContentDetailPageProps) {
-  const resolvedParams = use(paramsProp as any); 
+  const resolvedParams = use(paramsProp as any);
 
   const [pageId, setPageId] = useState<string | null>(null);
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
-  const [item, setItem] = useState<ContentItem | null | undefined>(undefined); 
+  const [item, setItem] = useState<ContentItem | null | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentPlayUrl, setCurrentPlayUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (resolvedParams && resolvedParams.id) {
       setPageId(resolvedParams.id);
+      setCurrentPlayUrl(null); // Reset player when ID changes
     } else {
       setPageId(null);
     }
-  }, [resolvedParams]); 
+  }, [resolvedParams]);
 
   useEffect(() => {
-    if (!pageId) { 
+    if (!pageId) {
       setIsLoading(false);
       setItem(null);
       return;
@@ -65,9 +67,9 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
         console.log("Detail page: No primary source URL available.");
       }
 
-      if (!foundItem) {
-        console.log(`Detail page: Item ID ${pageId} not found by direct fetch. Trying fetchAllContent...`);
-        const allItems = await fetchAllContent(sources); 
+      if (!foundItem && sources.length > 0) { // Try all sources if not found in primary
+        console.log(`Detail page: Item ID ${pageId} not found by direct fetch from primary. Trying fetchAllContent from all ${sources.length} sources...`);
+        const allItems = await fetchAllContent(sources);
         foundItem = allItems.find(i => i.id === pageId);
         if (foundItem) {
           console.log(`Detail page: Found item ID ${pageId} via fetchAllContent.`);
@@ -78,7 +80,7 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
       
       if (!foundItem) {
         console.log(`Detail page: Item ID ${pageId} not found in any sources. Trying mock data...`);
-        foundItem = getMockContentItemById(pageId); 
+        foundItem = getMockContentItemById(pageId);
         if (foundItem) {
           console.log(`Detail page: Found item ID ${pageId} in mock data.`);
         } else {
@@ -92,11 +94,16 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
     
     loadContentDetail();
     
-  }, [pageId, sources]); 
+  }, [pageId, sources]);
+
+  const handlePlayVideo = (url: string) => {
+    setCurrentPlayUrl(DEFAULT_PLAYER_BASE_URL + encodeURIComponent(url));
+  };
 
   if (isLoading || item === undefined) {
     return (
       <div className="container mx-auto py-8">
+        <Skeleton className="w-full aspect-video mb-8 rounded-lg" />
         <Skeleton className="h-12 w-3/4 mb-4" />
         <Skeleton className="h-8 w-1/2 mb-8" />
         <div className="grid md:grid-cols-3 gap-8">
@@ -106,10 +113,6 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
             <Skeleton className="h-6 w-5/6" />
             <Skeleton className="h-6 w-full" />
             <Skeleton className="h-20 w-full" />
-            <div className="flex gap-2 mt-4">
-              <Skeleton className="h-8 w-20 rounded-full" />
-              <Skeleton className="h-8 w-20 rounded-full" />
-            </div>
           </div>
         </div>
       </div>
@@ -132,25 +135,22 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
     return currentItem.title.split(" ")[0].toLowerCase() || "movie poster";
   }
 
-
   return (
     <div className="container mx-auto py-8">
-      {item.backdropUrl && (
-        <div className="mb-8 rounded-lg overflow-hidden shadow-lg">
-          <AspectRatio ratio={16 / 9} className="bg-muted">
-            <Image
-              src={item.backdropUrl}
-              alt={`${item.title} backdrop`}
-              fill
-              style={{ objectFit: "cover" }}
-              className="rounded-lg"
-              data-ai-hint={getAiHint(item) + " landscape"}
-              unoptimized={item.backdropUrl.startsWith('https://placehold.co')}
-              priority
-            />
+      {currentPlayUrl && (
+        <div className="mb-8 rounded-lg overflow-hidden shadow-lg bg-card">
+          <AspectRatio ratio={16 / 9}>
+            <iframe
+              src={currentPlayUrl}
+              title={`播放器 - ${item.title}`}
+              className="w-full h-full border-0"
+              allow="autoplay; encrypted-media"
+              allowFullScreen
+            ></iframe>
           </AspectRatio>
         </div>
       )}
+
       <div className="grid md:grid-cols-3 gap-8">
         <div className="md:col-span-1">
           <Card className="overflow-hidden shadow-lg">
@@ -222,7 +222,7 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
           {item.playbackSources && item.playbackSources.length > 0 && (
             <div className="mt-8">
               <h2 className="text-2xl font-semibold mb-3 text-foreground">播放源</h2>
-              <Accordion type="single" collapsible className="w-full">
+              <Accordion type="single" collapsible className="w-full" defaultValue="item-0">
                 {item.playbackSources.map((sourceGroup: PlaybackSourceGroup, index: number) => (
                   <AccordionItem value={`item-${index}`} key={`${pageId || `fallbackKey-${index}`}-source-${index}`}>
                     <AccordionTrigger className="text-lg hover:no-underline">
@@ -231,10 +231,13 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
                     <AccordionContent>
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 pt-2">
                         {sourceGroup.urls.map((playUrl, urlIndex) => (
-                          <Button key={`${pageId || `fallbackKey-${index}`}-source-${index}-url-${urlIndex}`} variant="outline" asChild>
-                            <Link href={playUrl.url} target="_blank" rel="noopener noreferrer" title={`播放 ${item.title} - ${playUrl.name}`}>
-                              {playUrl.name}
-                            </Link>
+                          <Button 
+                            key={`${pageId || `fallbackKey-${index}`}-source-${index}-url-${urlIndex}`} 
+                            variant="outline" 
+                            onClick={() => handlePlayVideo(playUrl.url)}
+                            title={`播放 ${item.title} - ${playUrl.name}`}
+                          >
+                            {playUrl.name}
                           </Button>
                         ))}
                       </div>
