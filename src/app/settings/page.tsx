@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { SourceConfig } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { Button } from "@/components/ui/button";
@@ -11,12 +12,37 @@ import { useToast } from "@/hooks/use-toast";
 import { Trash2, PlusCircle } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY = 'cinemaViewSources';
+const DEFAULT_SOURCE_PROCESSED_FLAG_KEY = 'cinemaViewDefaultSourceProcessed';
 
 export default function SettingsPage() {
   const [sources, setSources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY, []);
   const [newSourceName, setNewSourceName] = useState('');
   const [newSourceUrl, setNewSourceUrl] = useState('');
   const { toast } = useToast();
+
+  useEffect(() => {
+    const hasBeenProcessed = localStorage.getItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY);
+
+    // Check if sources are loaded (not undefined) before assessing length
+    if (sources && sources.length === 0 && !hasBeenProcessed) {
+      const defaultSource: SourceConfig = {
+        id: `default-ffzy-${Date.now().toString()}`,
+        name: "采集资源 FFZY",
+        url: "https://cj.ffzyapi.com/api.php/provide/vod"
+      };
+      setSources([defaultSource]);
+      localStorage.setItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY, 'true');
+      
+      // Delay toast slightly to ensure UI context is ready
+      setTimeout(() => {
+        toast({
+          title: "默认内容源已添加",
+          description: "“采集资源 FFZY” 已作为默认源添加。您可以在下方管理它。",
+          duration: 5000,
+        });
+      }, 100);
+    }
+  }, [sources, setSources, toast]);
 
   const handleAddSource = () => {
     if (!newSourceName.trim() || !newSourceUrl.trim()) {
@@ -48,6 +74,10 @@ export default function SettingsPage() {
       title: "成功",
       description: "内容源已添加。",
     });
+    // If user manually adds a source, we can consider the "default source processed" flag as set.
+    if (!localStorage.getItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY)) {
+      localStorage.setItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY, 'true');
+    }
   };
 
   const handleRemoveSource = (id: string) => {
@@ -56,6 +86,11 @@ export default function SettingsPage() {
       title: "成功",
       description: "内容源已移除。",
     });
+     // If user removes all sources, including potentially the default one,
+     // ensure the flag is set so it doesn't re-add automatically on next visit.
+    if (!localStorage.getItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY) && sources.length === 1 && sources[0].id === id) {
+        localStorage.setItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY, 'true');
+    }
   };
 
   return (
@@ -100,11 +135,11 @@ export default function SettingsPage() {
       </Card>
 
       <h2 className="text-2xl font-semibold mb-4 text-foreground">当前内容源</h2>
-      {sources.length === 0 ? (
+      {sources && sources.length === 0 ? (
         <p className="text-muted-foreground">暂无内容源。请添加一个以上的内容源以开始浏览。</p>
       ) : (
         <div className="space-y-4">
-          {sources.map(source => (
+          {sources && sources.map(source => (
             <Card key={source.id} className="flex items-center justify-between p-4 shadow-md">
               <div>
                 <p className="font-medium text-foreground">{source.name}</p>
