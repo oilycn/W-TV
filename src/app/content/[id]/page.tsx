@@ -1,7 +1,7 @@
 
 "use client";
 
-import { use, useEffect, useState, useRef } from 'react';
+import { use, useEffect, useState, Suspense } from 'react';
 import type { ContentItem, PlaybackSourceGroup, SourceConfig } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, fetchAllContent, getMockContentItemById } from '@/lib/content-loader';
@@ -9,11 +9,12 @@ import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Star, CalendarDays, Clock, Video, AlertCircle } from 'lucide-react';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from '@/components/ui/button';
-import Hls from 'hls.js';
+import ReactPlayer from 'react-player/lazy';
+
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 
@@ -25,7 +26,7 @@ interface ContentDetailPageProps {
   params: ContentDetailPageParams;
 }
 
-export default function ContentDetailPage({ params: paramsProp }: ContentDetailPageProps) {
+function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
   const resolvedParams = use(paramsProp as any);
 
   const [pageId, setPageId] = useState<string | null>(null);
@@ -35,15 +36,15 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
   const [currentPlayUrl, setCurrentPlayUrl] = useState<string | null>(null);
   const [currentVideoTitle, setCurrentVideoTitle] = useState<string>('');
   const [videoPlayerError, setVideoPlayerError] = useState<string | null>(null);
+  const [isPlayerReady, setIsPlayerReady] = useState(false);
 
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const hlsRef = useRef<Hls | null>(null);
 
   useEffect(() => {
     if (resolvedParams && resolvedParams.id) {
       setPageId(resolvedParams.id);
       setCurrentPlayUrl(null); 
       setVideoPlayerError(null);
+      setIsPlayerReady(false);
     } else {
       setPageId(null);
     }
@@ -52,6 +53,7 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
   useEffect(() => {
     if (currentPlayUrl) {
       setVideoPlayerError(null); 
+      setIsPlayerReady(false); // Reset ready state when URL changes
     }
   }, [currentPlayUrl]);
 
@@ -89,86 +91,28 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
   }, [pageId, sources]);
 
 
-  useEffect(() => {
-    if (currentPlayUrl && videoRef.current) {
-      const videoElement = videoRef.current;
-      
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
-
-      if (currentPlayUrl.includes('.m3u8')) {
-        if (Hls.isSupported()) {
-          const hls = new Hls();
-          hlsRef.current = hls;
-          hls.loadSource(currentPlayUrl);
-          hls.attachMedia(videoElement);
-
-          hls.on(Hls.Events.ERROR, (event, data) => {
-            if (data.fatal) {
-              console.error('HLS.js FATAL error - Type:', data.type, 'Details:', data.details, 'Raw Data:', JSON.stringify(data, null, 2));
-            } else {
-              console.warn('HLS.js non-fatal error - Type:', data.type, 'Details:', data.details, '(retrying) Raw Data:', JSON.stringify(data, null, 2));
-            }
-            
-            if (data.type === Hls.ErrorTypes.NETWORK_ERROR || 
-                data.type === Hls.ErrorTypes.MEDIA_ERROR ||
-                data.fatal) { 
-              
-              let finalMessage = '';
-              const isRecovering = !data.fatal && (data.type === Hls.ErrorTypes.NETWORK_ERROR || data.type === Hls.ErrorTypes.MEDIA_ERROR);
-              const recoverySuffix = isRecovering ? ' (尝试恢复中)' : (data.fatal ? ' (严重错误)' : '');
-
-              if (data.type === Hls.ErrorTypes.MEDIA_ERROR && data.details === 'bufferStalledError') {
-                finalMessage = `视频缓冲卡顿${recoverySuffix}`;
-              } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR && data.details === 'fragLoadError') {
-                 finalMessage = `视频片段加载失败${recoverySuffix}`;
-              } else {
-                let messagePrefix = '';
-                switch (data.type) {
-                  case Hls.ErrorTypes.NETWORK_ERROR:
-                    messagePrefix = '网络错误导致视频加载失败';
-                    break;
-                  case Hls.ErrorTypes.MEDIA_ERROR:
-                    messagePrefix = '媒体错误导致视频加载失败';
-                    break;
-                  default: 
-                    messagePrefix = data.fatal ? '加载视频严重错误' : '加载视频失败'; 
-                    break;
-                }
-                const detailString = data.details ? `: ${data.details}` : '';
-                finalMessage = `${messagePrefix}${detailString}${recoverySuffix}`;
-              }
-              setVideoPlayerError(finalMessage);
-            }
-          });
-        } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
-          videoElement.src = currentPlayUrl;
-          videoElement.play().catch(playError => console.warn("Autoplay prevented for native HLS:", playError));
-        } else {
-          setVideoPlayerError('您的浏览器不支持播放此M3U8视频格式。');
-        }
-      } else {
-        videoElement.src = currentPlayUrl;
-        videoElement.play().catch(playError => console.warn("Autoplay prevented for standard video:", playError));
-      }
-    }
-
-    return () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
-    };
-  }, [currentPlayUrl]);
-
-
   const handlePlayVideo = (url: string, name: string) => {
     setCurrentPlayUrl(url);
-    setCurrentVideoTitle(`${item?.title} - ${name}`);
-    setVideoPlayerError(null); 
-    // videoRef.current?.load(); // Generally not needed when HLS.js or src change handles loading
+    setCurrentVideoTitle(`${item?.title || '视频'} - ${name}`);
+    setVideoPlayerError(null);
+    setIsPlayerReady(false);
+  };
+  
+  const handlePlayerError = (error: any) => {
+    console.error('ReactPlayer Error:', error);
+    let message = '视频播放时发生未知错误。';
+    if (typeof error === 'string') {
+      message = error;
+    } else if (error && error.message) {
+      message = error.message;
+    } else if (error && error.type) { // HLS.js specific errors might be nested
+        if (error.details) {
+            message = `播放错误: ${error.type} - ${error.details}`;
+        } else {
+            message = `播放错误: ${error.type}`;
+        }
+    }
+    setVideoPlayerError(message);
   };
 
   if (isLoading || item === undefined) {
@@ -210,7 +154,7 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
     <div className="container mx-auto py-8">
       {currentPlayUrl && (
         <div className="mb-8 rounded-lg overflow-hidden shadow-lg bg-card">
-          <AspectRatio ratio={16 / 9}>
+          <AspectRatio ratio={16 / 9} className="bg-black">
             {videoPlayerError ? (
               <div className="w-full h-full flex flex-col items-center justify-center bg-black text-destructive-foreground p-4 text-center">
                 <AlertCircle className="w-12 h-12 mb-2 text-destructive" />
@@ -218,50 +162,41 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
                 <p className="text-sm">{videoPlayerError}</p>
               </div>
             ) : (
-              <video
-                ref={videoRef}
-                controls
-                autoPlay
-                title={currentVideoTitle}
-                className="w-full h-full bg-black"
-                onCanPlay={() => setVideoPlayerError(null)} 
-                onError={(e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
-                  if (!currentPlayUrl?.includes('.m3u8')) { 
-                    const videoElement = e.target as HTMLVideoElement;
-                    let message = '视频播放时发生未知错误。';
-                    if (videoElement.error) {
-                      console.error("Video player error code:", videoElement.error.code);
-                      console.error("Video player error message:", videoElement.error.message);
-                      switch (videoElement.error.code) {
-                        case MediaError.MEDIA_ERR_ABORTED:
-                          message = '视频加载被中止。';
-                          break;
-                        case MediaError.MEDIA_ERR_NETWORK:
-                          message = '网络错误导致视频加载失败。';
-                          break;
-                        case MediaError.MEDIA_ERR_DECODE:
-                          message = '视频解码错误。文件可能已损坏或格式不受支持。';
-                          break;
-                        case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
-                          message = '视频格式不受支持或无法找到视频源。请尝试其他播放源或检查网络连接。';
-                          break;
-                        default:
-                          message = `发生未知媒体错误 (代码: ${videoElement.error.code})。`;
-                      }
-                    } else {
-                      console.error("Video player error: An unknown error occurred.", e);
-                    }
-                    setVideoPlayerError(message);
-                  }
-                }}
-              >
-                您的浏览器不支持视频播放。
-              </video>
+              <>
+                {!isPlayerReady && !videoPlayerError && (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Skeleton className="w-full h-full" />
+                     <p className="absolute text-muted-foreground">播放器准备中...</p>
+                  </div>
+                )}
+                 <ReactPlayer
+                    url={currentPlayUrl}
+                    playing={true}
+                    controls={true}
+                    width="100%"
+                    height="100%"
+                    onError={handlePlayerError}
+                    onReady={() => setIsPlayerReady(true)}
+                    onPlay={() => setVideoPlayerError(null)} // Clear error when playback starts
+                    config={{
+                        file: {
+                        attributes: {
+                            crossOrigin: 'anonymous', // Useful for some HLS streams or if you use WebVTT tracks
+                        },
+                        hlsOptions: {
+                            // You can pass hls.js specific options here if needed
+                            // e.g. abrMaxSwitches: 5,
+                        }
+                        }
+                    }}
+                    style={{ display: isPlayerReady || videoPlayerError ? 'block' : 'none' }}
+                  />
+              </>
             )}
           </AspectRatio>
            <p className="p-2 text-sm text-muted-foreground">正在播放: {currentVideoTitle}</p>
            <p className="p-2 text-xs text-muted-foreground">
-            提示：部分m3u8链接可能需要浏览器原生支持或特定扩展。为获得最佳体验，请确保浏览器更新。如果播放失败，请尝试其他播放源。
+            提示：如果播放失败或卡顿，请尝试其他播放源或检查网络连接。部分视频格式可能需要现代浏览器支持。
           </p>
         </div>
       )}
@@ -367,6 +302,19 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
     </div>
   );
 }
-    
 
-    
+
+// Added Suspense for better loading UX, especially around `use(paramsProp)`
+export default function ContentDetailPage(props: ContentDetailPageProps) {
+  return (
+    <Suspense fallback={
+      <div className="container mx-auto py-8">
+        <Skeleton className="w-full aspect-video mb-8 rounded-lg" />
+        <Skeleton className="h-12 w-3/4 mb-4" />
+        <Skeleton className="h-8 w-1/2 mb-8" />
+      </div>
+    }>
+      <ContentDetailDisplay {...props} />
+    </Suspense>
+  );
+}
