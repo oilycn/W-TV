@@ -1,7 +1,7 @@
 
 "use client";
 
-import { use, useEffect, useState, Suspense } from 'react';
+import { use, useEffect, useState, Suspense, useRef } from 'react';
 import type { ContentItem, PlaybackSourceGroup, SourceConfig } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, fetchAllContent, getMockContentItemById } from '@/lib/content-loader';
@@ -14,7 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from '@/components/ui/button';
 import ReactPlayer from 'react-player/lazy';
-import 'dashjs'; // Import for side-effects to make dash.js available to ReactPlayer
+// Removed: import 'dashjs'; // This line caused "self is not defined" during SSR
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 
@@ -60,7 +60,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
   useEffect(() => {
     if (!pageId) {
       setIsLoading(false);
-      setItem(null);
+      setItem(null); // Set to null if no pageId, indicating not found or invalid
       return;
     }
 
@@ -70,19 +70,22 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
       const primarySourceUrl = sources.length > 0 ? sources[0].url : null;
 
       if (primarySourceUrl) {
+        console.log(`Fetching item ${pageId} from primary source: ${primarySourceUrl}`);
         foundItem = await fetchContentItemById(primarySourceUrl, pageId);
       }
       
       if (!foundItem && sources.length > 0) { 
+        console.log(`Item ${pageId} not in primary source, checking all sources.`);
         const allItems = await fetchAllContent(sources); 
         foundItem = allItems.find(i => i.id === pageId);
       }
       
       if (!foundItem) {
+        console.log(`Item ${pageId} not in any dynamic source, trying mock data.`);
         foundItem = getMockContentItemById(pageId); 
       }
       
-      setItem(foundItem || null);
+      setItem(foundItem || null); // Ensure item is null if not found, not undefined
       setIsLoading(false);
     }
     
@@ -101,17 +104,43 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
   const handlePlayerError = (error: any) => {
     console.error('ReactPlayer Error:', error);
     let message = '视频播放时发生未知错误。';
+    
+    // Attempt to get more specific error messages from ReactPlayer's error object
     if (typeof error === 'string') {
       message = error;
-    } else if (error && error.message) {
+    } else if (error && error.message) { // Standard JS error
       message = error.message;
-    } else if (error && error.type) { 
+    } else if (error && error.type) { // HLS.js or DASH.js like error structure
+        // Example: error might be { type: 'networkError', details: 'manifestLoadError', fatal: true, ... }
         if (error.details) {
             message = `播放错误: ${error.type} - ${error.details}`;
         } else {
             message = `播放错误: ${error.type}`;
         }
+        if (error.fatal === false) {
+            message += ' (尝试恢复中)';
+        }
+    } else if (error && error.target && error.target.error) { // HTMLMediaElement error
+        const mediaError = error.target.error;
+        switch (mediaError.code) {
+            case mediaError.MEDIA_ERR_ABORTED:
+                message = '视频加载已中止。';
+                break;
+            case mediaError.MEDIA_ERR_NETWORK:
+                message = '网络错误导致视频加载失败。';
+                break;
+            case mediaError.MEDIA_ERR_DECODE:
+                message = '视频解码错误。';
+                break;
+            case mediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                message = '视频源格式不支持或无法访问。';
+                break;
+            default:
+                message = `发生媒体错误 (代码: ${mediaError.code})。`;
+                break;
+        }
     }
+
     setVideoPlayerError(message);
   };
 
@@ -181,9 +210,9 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                     config={{
                         file: {
                           attributes: {
-                              crossOrigin: 'anonymous', 
+                              crossOrigin: 'anonymous', // May help with some CORS issues for subtitles/captions
                           },
-                          // dashOptions can be added here if needed
+                          // dashOptions can be added here if needed for DASH.js specific configurations
                         }
                     }}
                     style={{ display: isPlayerReady || videoPlayerError ? 'block' : 'none' }}
@@ -314,3 +343,4 @@ export default function ContentDetailPage(props: ContentDetailPageProps) {
     </Suspense>
   );
 }
+
