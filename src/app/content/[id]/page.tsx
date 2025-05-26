@@ -155,7 +155,6 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
               }}
             >
               您的浏览器不支持视频播放。
-              {/* For m3u8, you'd typically need a library like HLS.js and integrate it here */}
             </video>
           </AspectRatio>
            <p className="p-2 text-sm text-muted-foreground">正在播放: {currentVideoTitle}</p>
@@ -266,4 +265,3 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
     </div>
   );
 }
-
