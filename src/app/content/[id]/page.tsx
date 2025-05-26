@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { use, useEffect, useState } from 'react'; // Import 'use'
 import type { ContentItem, PlaybackSourceGroup, SourceConfig } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchAllContent, getMockContentItemById } from '@/lib/content-loader';
@@ -17,34 +17,38 @@ import Link from 'next/link';
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 
-export default function ContentDetailPage({ params }: { params: { id: string } }) {
-  const [pageId, setPageId] = useState<string | null>(null); // State for pageId
+interface ContentDetailPageParams {
+  id: string;
+}
+
+interface ContentDetailPageProps {
+  params: ContentDetailPageParams;
+}
+
+export default function ContentDetailPage({ params: paramsProp }: ContentDetailPageProps) {
+  // Use React.use to unwrap params as suggested by the Next.js warning.
+  // Casting to 'any' because the declared type isn't a Promise, but this is to follow the warning's advice.
+  const resolvedParams = use(paramsProp as any);
+
+  const [pageId, setPageId] = useState<string | null>(null);
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
   const [item, setItem] = useState<ContentItem | null | undefined>(undefined); // undefined for loading, null for not found
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Set pageId from params when params are available or change
-    if (params && params.id) {
-      setPageId(params.id);
+    // Set pageId from resolvedParams
+    if (resolvedParams && resolvedParams.id) {
+      setPageId(resolvedParams.id);
     } else {
-      setPageId(null); // Explicitly set to null if params.id is not valid
+      setPageId(null);
     }
-  }, [params]); // Depend on the params object
+  }, [resolvedParams]); // Depend on the unwrapped resolvedParams
 
   useEffect(() => {
     if (!pageId) { 
-      // If pageId is null, it means either params were invalid or we are in an initial render cycle
-      // before the first useEffect sets pageId. Show loading or not found.
-      // If params were indeed invalid from the start, item will eventually be set to null.
-      if (params && params.id) {
-        // params.id is available, so we are likely just waiting for pageId state to update.
-        // Let the loading state handle this.
-      } else {
-        // params.id was not available, so no valid pageId can be derived.
-        setIsLoading(false);
-        setItem(null);
-      }
+      // This handles cases where pageId is null (e.g., invalid initial params or not yet set)
+      setIsLoading(false);
+      setItem(null);
       return;
     }
 
@@ -63,13 +67,11 @@ export default function ContentDetailPage({ params }: { params: { id: string } }
     
     loadContentDetail();
     
-  }, [pageId, sources]); // Depend on pageId (state) and sources
+  }, [pageId, sources]); // Depend on state pageId and sources
 
-  if (isLoading || item === undefined || (params && params.id && !pageId)) {
-    // Show skeleton if:
-    // 1. isLoading is true
-    // 2. item is still undefined (initial state before any fetch attempt or if pageId was null)
-    // 3. params.id exists but pageId state hasn't updated yet (covers the flicker between params arriving and pageId state setting)
+  // Simplified skeleton condition: show if actively loading or if item data hasn't been determined yet.
+  // The second useEffect handles setting item to null if pageId is invalid.
+  if (isLoading || item === undefined) {
     return (
       <div className="container mx-auto py-8">
         <Skeleton className="h-12 w-3/4 mb-4" />
@@ -95,6 +97,7 @@ export default function ContentDetailPage({ params }: { params: { id: string } }
     return (
       <div className="container mx-auto py-8 text-center">
         <h1 className="text-2xl font-semibold text-destructive">内容未找到</h1>
+        {/* Use the pageId state for displaying the ID */}
         <p className="text-muted-foreground">抱歉，我们找不到您请求的内容 (ID: {pageId || "无效的ID"})。</p>
       </div>
     );
@@ -224,3 +227,4 @@ export default function ContentDetailPage({ params }: { params: { id: string } }
     </div>
   );
 }
+
