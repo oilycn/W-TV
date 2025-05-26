@@ -1,10 +1,10 @@
 
 "use client";
 
-import { use, useEffect, useState } from 'react'; // Import 'use'
+import { use, useEffect, useState } from 'react'; 
 import type { ContentItem, PlaybackSourceGroup, SourceConfig } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { fetchAllContent, getMockContentItemById } from '@/lib/content-loader';
+import { fetchContentItemById, fetchAllContent, getMockContentItemById } from '@/lib/content-loader';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Star, CalendarDays, Clock, Video } from 'lucide-react';
@@ -26,27 +26,23 @@ interface ContentDetailPageProps {
 }
 
 export default function ContentDetailPage({ params: paramsProp }: ContentDetailPageProps) {
-  // Use React.use to unwrap params as suggested by the Next.js warning.
-  // Casting to 'any' because the declared type isn't a Promise, but this is to follow the warning's advice.
-  const resolvedParams = use(paramsProp as any);
+  const resolvedParams = use(paramsProp as any); 
 
   const [pageId, setPageId] = useState<string | null>(null);
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
-  const [item, setItem] = useState<ContentItem | null | undefined>(undefined); // undefined for loading, null for not found
+  const [item, setItem] = useState<ContentItem | null | undefined>(undefined); 
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Set pageId from resolvedParams
     if (resolvedParams && resolvedParams.id) {
       setPageId(resolvedParams.id);
     } else {
       setPageId(null);
     }
-  }, [resolvedParams]); // Depend on the unwrapped resolvedParams
+  }, [resolvedParams]); 
 
   useEffect(() => {
     if (!pageId) { 
-      // This handles cases where pageId is null (e.g., invalid initial params or not yet set)
       setIsLoading(false);
       setItem(null);
       return;
@@ -54,11 +50,40 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
 
     async function loadContentDetail() {
       setIsLoading(true);
-      const allItems = await fetchAllContent(sources);
-      let foundItem = allItems.find(i => i.id === pageId);
+      let foundItem: ContentItem | null | undefined = undefined;
+      const primarySourceUrl = sources.length > 0 ? sources[0].url : null;
+
+      if (primarySourceUrl) {
+        console.log(`Detail page: Attempting to fetch item ID ${pageId} from primary source ${primarySourceUrl}`);
+        foundItem = await fetchContentItemById(primarySourceUrl, pageId);
+        if (foundItem) {
+          console.log(`Detail page: Found item ID ${pageId} from primary source.`);
+        } else {
+          console.log(`Detail page: Item ID ${pageId} not found in primary source.`);
+        }
+      } else {
+        console.log("Detail page: No primary source URL available.");
+      }
 
       if (!foundItem) {
-        foundItem = getMockContentItemById(pageId);
+        console.log(`Detail page: Item ID ${pageId} not found by direct fetch. Trying fetchAllContent...`);
+        const allItems = await fetchAllContent(sources); 
+        foundItem = allItems.find(i => i.id === pageId);
+        if (foundItem) {
+          console.log(`Detail page: Found item ID ${pageId} via fetchAllContent.`);
+        } else {
+          console.log(`Detail page: Item ID ${pageId} not found via fetchAllContent.`);
+        }
+      }
+      
+      if (!foundItem) {
+        console.log(`Detail page: Item ID ${pageId} not found in any sources. Trying mock data...`);
+        foundItem = getMockContentItemById(pageId); 
+        if (foundItem) {
+          console.log(`Detail page: Found item ID ${pageId} in mock data.`);
+        } else {
+          console.log(`Detail page: Item ID ${pageId} not found in mock data.`);
+        }
       }
       
       setItem(foundItem || null);
@@ -67,10 +92,8 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
     
     loadContentDetail();
     
-  }, [pageId, sources]); // Depend on state pageId and sources
+  }, [pageId, sources]); 
 
-  // Simplified skeleton condition: show if actively loading or if item data hasn't been determined yet.
-  // The second useEffect handles setting item to null if pageId is invalid.
   if (isLoading || item === undefined) {
     return (
       <div className="container mx-auto py-8">
@@ -97,7 +120,6 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
     return (
       <div className="container mx-auto py-8 text-center">
         <h1 className="text-2xl font-semibold text-destructive">内容未找到</h1>
-        {/* Use the pageId state for displaying the ID */}
         <p className="text-muted-foreground">抱歉，我们找不到您请求的内容 (ID: {pageId || "无效的ID"})。</p>
       </div>
     );
@@ -227,4 +249,3 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
     </div>
   );
 }
-

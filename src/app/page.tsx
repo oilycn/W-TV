@@ -1,7 +1,8 @@
 
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, Suspense } from 'react';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import type { ContentItem, SourceConfig, ApiCategory, PaginatedContentResponse } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchApiCategories, fetchApiContentList, getMockApiCategories, getMockPaginatedResponse } from '@/lib/content-loader';
@@ -13,62 +14,96 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, Tv2, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useCategories } from '@/contexts/CategoryContext'; 
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 
-const uniqueSortedClientFilter = (arr: (string | undefined)[] = []): string[] => {
-  const filtered = arr.filter((item): item is string => typeof item === 'string' && item.trim() !== '');
-  return Array.from(new Set(filtered)).sort();
-};
+function HomePageContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const { setCategories: setGlobalCategories } = useCategories(); 
 
-export default function HomePage() {
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
   const [contentItems, setContentItems] = useState<ContentItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [categories, setCategories] = useState<ApiCategory[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
+  const [apiCategoriesForSelect, setApiCategoriesForSelect] = useState<ApiCategory[]>([]); 
   
-  const [currentSearchTerm, setCurrentSearchTerm] = useState('');
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const selectedCategoryId = useMemo(() => searchParams.get('category') || 'all', [searchParams]);
+  const currentSearchTermQuery = useMemo(() => searchParams.get('q') || '', [searchParams]);
+  const currentPageQuery = useMemo(() => parseInt(searchParams.get('page') || '1', 10), [searchParams]);
 
-  const [currentPage, setCurrentPage] = useState(1);
+  const [searchInput, setSearchInput] = useState(currentSearchTermQuery); 
+  
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
 
-  // Client-side filters (applied after server fetch)
-  const [qualityFilter, setQualityFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState<'all' | 'movie' | 'tv_show'>('all');
 
   const primarySourceUrl = useMemo(() => sources.length > 0 ? sources[0].url : null, [sources]);
 
-  const loadCategories = useCallback(async () => {
-    if (!primarySourceUrl) {
-      setCategories(getMockApiCategories());
-      return;
-    }
-    setIsLoading(true);
-    try {
-      const fetchedCategories = await fetchApiCategories(primarySourceUrl);
-      setCategories(fetchedCategories.length > 0 ? fetchedCategories : getMockApiCategories());
-    } catch (e) {
-      console.error("Failed to load categories:", e);
-      setError("无法加载分类信息。");
-      setCategories(getMockApiCategories());
-    } finally {
-      setIsLoading(false); // Categories loading is part of overall loading
-    }
-  }, [primarySourceUrl]);
+  const updateURLParams = useCallback((newParams: Record<string, string | number | undefined | null>) => {
+    const currentParams = new URLSearchParams(searchParams.toString());
+    let changed = false;
+    Object.entries(newParams).forEach(([key, value]) => {
+      const stringValue = String(value);
+      if (value === undefined || value === null || stringValue.trim() === '') {
+        if (currentParams.has(key)) {
+          currentParams.delete(key);
+          changed = true;
+        }
+      } else {
+        if (currentParams.get(key) !== stringValue) {
+          currentParams.set(key, stringValue);
+          changed = true;
+        }
+      }
+    });
 
-  const loadContent = useCallback(async (page: number, categoryId: string, searchTerm: string) => {
+    if (changed) { 
+        const newQueryString = currentParams.toString();
+        router.push(`${pathname}?${newQueryString}`, { scroll: false });
+    }
+  }, [router, searchParams, pathname]);
+
+
+  const loadCategoriesAndContent = useCallback(async (page: number, categoryId: string, searchTerm: string) => {
     setIsLoading(true);
+    setIsLoadingCategories(true);
     setError(null);
+
+    let fetchedCategories: ApiCategory[] = [];
+    if (primarySourceUrl) {
+      try {
+        fetchedCategories = await fetchApiCategories(primarySourceUrl);
+        if (fetchedCategories.length === 0 && globalCategories.length === 0) { // Only use mock if no global and no fetched
+            fetchedCategories = getMockApiCategories();
+        }
+      } catch (e) {
+        console.error("Failed to load categories:", e);
+        setError(prev => prev ? `${prev} & 无法加载分类信息。` : "无法加载分类信息。");
+        if (globalCategories.length === 0) fetchedCategories = getMockApiCategories();
+      }
+    } else {
+      if (globalCategories.length === 0) fetchedCategories = getMockApiCategories();
+    }
+
+    if(fetchedCategories.length > 0) {
+        setApiCategoriesForSelect(fetchedCategories);
+        setGlobalCategories(fetchedCategories);
+    } else if (globalCategories.length > 0) {
+        setApiCategoriesForSelect(globalCategories); // Use existing global if fetch yields nothing new
+    }
+    setIsLoadingCategories(false);
+
     try {
       let response: PaginatedContentResponse;
-      if (!primarySourceUrl && !searchTerm && categoryId === 'all') { // Only use mock if no source AND no search/category
+      if (!primarySourceUrl && !searchTerm && categoryId === 'all') { 
         response = getMockPaginatedResponse(page);
-      } else if (!primarySourceUrl && (searchTerm || categoryId !== 'all')) { // If searching/filtering without source, show no results
+      } else if (!primarySourceUrl && (searchTerm || categoryId !== 'all')) { 
         response = { items: [], page:1, pageCount: 1, limit: 20, total: 0 };
       }
       else if (primarySourceUrl) {
@@ -77,80 +112,68 @@ export default function HomePage() {
           categoryId: categoryId === 'all' ? undefined : categoryId,
           searchTerm: searchTerm || undefined,
         });
-      } else { // Should not happen if logic above is correct
+      } else { 
         response = getMockPaginatedResponse(page, categoryId, searchTerm);
       }
 
       setContentItems(response.items);
-      setCurrentPage(response.page);
-      setTotalPages(response.pageCount);
+      setTotalPages(response.pageCount || 1); // Ensure totalPages is at least 1
       setTotalItems(response.total);
-
-      if (response.items.length === 0 && (searchTerm || categoryId !== 'all')) {
-        // You might want a softer message if search/filter yields no results vs. total failure
-      }
 
     } catch (e) {
       console.error("Failed to load content:", e);
-      setError("无法加载内容。请检查您的网络连接或内容源配置。");
+      setError(prev => prev ? `${prev} & 无法加载内容。` : "无法加载内容。请检查您的网络连接或内容源配置。");
       const mockResponse = getMockPaginatedResponse(page, categoryId, searchTerm);
-      setContentItems(mockResponse.items); // Fallback to mock data on error
-      setCurrentPage(mockResponse.page);
-      setTotalPages(mockResponse.pageCount);
+      setContentItems(mockResponse.items); 
+      setTotalPages(mockResponse.pageCount || 1);
       setTotalItems(mockResponse.total);
     } finally {
       setIsLoading(false);
     }
-  }, [primarySourceUrl]);
+  }, [primarySourceUrl, setGlobalCategories, globalCategories]);
+
 
   useEffect(() => {
-    loadCategories();
-  }, [loadCategories]);
-
-  useEffect(() => {
-    // Initial load and when category/search/page changes
-    loadContent(currentPage, selectedCategoryId, debouncedSearchTerm);
-  }, [loadContent, currentPage, selectedCategoryId, debouncedSearchTerm]);
+    setSearchInput(currentSearchTermQuery); 
+    loadCategoriesAndContent(currentPageQuery, selectedCategoryId, currentSearchTermQuery);
+  }, [selectedCategoryId, currentSearchTermQuery, currentPageQuery, loadCategoriesAndContent]);
   
   useEffect(() => {
     const handler = setTimeout(() => {
-      setDebouncedSearchTerm(currentSearchTerm);
-      setCurrentPage(1); // Reset to page 1 on new search
-    }, 500); // 500ms debounce
+      if (currentSearchTermQuery !== searchInput) {
+         updateURLParams({ q: searchInput || undefined, page: 1 });
+      }
+    }, 500); 
 
     return () => {
       clearTimeout(handler);
     };
-  }, [currentSearchTerm]);
+  }, [searchInput, currentSearchTermQuery, updateURLParams]);
 
 
   const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setCurrentSearchTerm(e.target.value);
+    setSearchInput(e.target.value);
   };
   
-  const handleCategoryChange = (categoryId: string) => {
-    setSelectedCategoryId(categoryId);
-    setCurrentPage(1); // Reset to page 1 on category change
+  const handleCategoryChange = (newCategoryId: string) => {
+    updateURLParams({ category: newCategoryId, page: 1, q: searchInput || undefined }); // Keep search term
   };
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
-      setCurrentPage(newPage);
+      updateURLParams({ page: newPage });
     }
   };
   
-  const availableQualitiesClient = useMemo(() => uniqueSortedClientFilter(contentItems.flatMap(item => item.availableQualities)), [contentItems]);
-  
   const clientFilteredContent = useMemo(() => {
     return contentItems.filter(item => {
-      const matchesQuality = qualityFilter === 'all' || (item.availableQualities && item.availableQualities.includes(qualityFilter));
       const matchesType = typeFilter === 'all' || item.type === typeFilter;
-      return matchesQuality && matchesType;
+      return matchesType;
     });
-  }, [contentItems, qualityFilter, typeFilter]);
+  }, [contentItems, typeFilter]);
 
 
-  if (sources.length === 0 && !primarySourceUrl && !isLoading) {
+  if (sources.length === 0 && !primarySourceUrl && !isLoading && !isLoadingCategories && (!apiCategoriesForSelect.length || apiCategoriesForSelect.every(c => c.name.includes('(模拟)'))) ) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-10rem)] text-center">
         <Tv2 className="w-24 h-24 mb-6 text-muted-foreground" />
@@ -176,26 +199,29 @@ export default function HomePage() {
          </Alert>
       )}
 
-      {/* Filters Bar */}
       <div className="space-y-4 p-4 bg-card rounded-lg shadow">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           <div className="relative sm:col-span-2 md:col-span-1">
             <Input 
               type="search"
               placeholder="搜索标题..."
-              value={currentSearchTerm}
+              value={searchInput}
               onChange={handleSearchInputChange}
               className="pr-10"
             />
             <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           </div>
-          <Select value={selectedCategoryId} onValueChange={handleCategoryChange}>
-            <SelectTrigger><SelectValue placeholder="按分类筛选" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">所有分类</SelectItem>
-              {categories.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          {isLoadingCategories && apiCategoriesForSelect.length === 0 ? ( // Show skeleton only if categories are truly loading AND empty
+            <Skeleton className="h-10 w-full" />
+          ) : (
+            <Select value={selectedCategoryId} onValueChange={handleCategoryChange} disabled={apiCategoriesForSelect.length === 0}>
+              <SelectTrigger><SelectValue placeholder="按分类筛选" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">所有分类</SelectItem>
+                {apiCategoriesForSelect.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
           <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as 'all' | 'movie' | 'tv_show')}>
             <SelectTrigger><SelectValue placeholder="按格式筛选 (客户端)" /></SelectTrigger>
             <SelectContent>
@@ -204,23 +230,21 @@ export default function HomePage() {
               <SelectItem value="tv_show">电视剧</SelectItem>
             </SelectContent>
           </Select>
-          {/* Removed Quality filter to simplify, can be added back if needed */}
         </div>
          <div className="flex items-center justify-between text-sm text-muted-foreground pt-2">
           <span>总共 {totalItems} 条结果</span>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage <= 1 || isLoading}>
+            <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPageQuery - 1)} disabled={currentPageQuery <= 1 || isLoading}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span>第 {currentPage} 页 / 共 {totalPages} 页</span>
-            <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage >= totalPages || isLoading}>
+            <span>第 {currentPageQuery} 页 / 共 {totalPages} 页</span>
+            <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPageQuery + 1)} disabled={currentPageQuery >= totalPages || isLoading}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Content Grid / Skeletons */}
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
           {Array.from({ length: 10 }).map((_, index) => (
@@ -240,10 +264,50 @@ export default function HomePage() {
       ) : (
         <div className="text-center py-12">
           <p className="text-xl text-muted-foreground">
-            {currentSearchTerm ? `未找到与 "${currentSearchTerm}" 相关的内容。` : "此分类下暂无内容。"}
+            {currentSearchTermQuery ? `未找到与 "${currentSearchTermQuery}" 相关的内容。` : "此分类下暂无内容。"}
           </p>
         </div>
       )}
     </div>
   );
 }
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={<HomePageSkeleton />}> 
+      <HomePageContent />
+    </Suspense>
+  );
+}
+
+function HomePageSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="space-y-4 p-4 bg-card rounded-lg shadow">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <Skeleton className="h-10 sm:col-span-2 md:col-span-1" />
+          <Skeleton className="h-10" />
+          <Skeleton className="h-10" />
+        </div>
+        <div className="flex items-center justify-between pt-2">
+          <Skeleton className="h-5 w-24" />
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-10 w-10" />
+            <Skeleton className="h-5 w-20" />
+            <Skeleton className="h-10 w-10" />
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+        {Array.from({ length: 10 }).map((_, index) => (
+          <div key={index} className="space-y-2">
+            <Skeleton className="h-[300px] w-full rounded-lg" />
+            <Skeleton className="h-6 w-3/4" />
+            <Skeleton className="h-4 w-1/2" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+

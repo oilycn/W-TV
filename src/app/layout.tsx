@@ -1,12 +1,23 @@
+
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
-import { SidebarProvider, Sidebar, SidebarInset, SidebarTrigger, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarHeader, SidebarContent, SidebarFooter } from '@/components/ui/sidebar';
+import { 
+  SidebarProvider, 
+  Sidebar, 
+  SidebarInset, 
+  SidebarHeader, 
+  SidebarContent, 
+  SidebarFooter
+} from '@/components/ui/sidebar';
 import { AppHeader } from '@/components/common/AppHeader';
 import { Toaster } from "@/components/ui/toaster";
 import Link from 'next/link';
-import { Home, Bot, Settings, Tv2 } from 'lucide-react';
 import AppLogo from '@/components/common/AppLogo';
+import { CategoryProvider } from '@/contexts/CategoryContext'; 
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { SidebarNavigationItems } from '@/components/layout/SidebarNavigationItems';
+
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -23,6 +34,7 @@ export const metadata: Metadata = {
   description: '您的个性化影院体验',
 };
 
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -31,52 +43,31 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <SidebarProvider defaultOpen={true}>
-          <Sidebar collapsible="icon" className="border-r border-sidebar-border">
-            <SidebarHeader className="p-4">
-              <Link href="/" className="flex items-center gap-2">
-                <AppLogo />
-              </Link>
-            </SidebarHeader>
-            <SidebarContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="主页">
-                    <Link href="/">
-                      <Home />
-                      <span>主页</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="AI推荐">
-                    <Link href="/recommendations">
-                      <Bot />
-                      <span>AI推荐</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="设置">
-                    <Link href="/settings">
-                      <Settings />
-                      <span>设置</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarContent>
-            <SidebarFooter className="p-2">
-              {/* Footer content if any */}
-            </SidebarFooter>
-          </Sidebar>
-          <SidebarInset>
-            <AppHeader />
-            <main className="flex-1 p-4 md:p-6 overflow-auto">
-              {children}
-            </main>
-          </SidebarInset>
-        </SidebarProvider>
+        <CategoryProvider> 
+          <SidebarProvider defaultOpen={true}>
+            <Sidebar collapsible="icon" className="border-r border-sidebar-border flex flex-col"> {/* Ensure sidebar itself can flex its content */}
+              <SidebarHeader className="p-4">
+                <Link href="/" className="flex items-center gap-2">
+                  <AppLogo />
+                </Link>
+              </SidebarHeader>
+              <ScrollArea className="flex-grow"> {/* ScrollArea wraps the navigation items */}
+                <SidebarContent>
+                  <SidebarNavigationItems /> 
+                </SidebarContent>
+              </ScrollArea>
+              <SidebarFooter className="p-2 mt-auto"> {/* Push footer to bottom */}
+                {/* Footer content if any */}
+              </SidebarFooter>
+            </Sidebar>
+            <SidebarInset>
+              <AppHeader />
+              <main className="flex-1 p-4 md:p-6 overflow-auto">
+                {children}
+              </main>
+            </SidebarInset>
+          </SidebarProvider>
+        </CategoryProvider>
         <Toaster />
       </body>
     </html>
