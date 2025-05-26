@@ -3,9 +3,9 @@ import type { ContentItem, SourceConfig, PlaybackURL, PlaybackSourceGroup, ApiCa
 
 // Mock data to be used if fetching fails or no sources are configured
 const mockCategories: ApiCategory[] = [
-  { id: '1', name: '电影 (模拟)' },
-  { id: '2', name: '电视剧 (模拟)' },
-  { id: '3', name: '动漫 (模拟)' },
+  { id: 'mock-cat-1', name: '热门电影 (模拟)' },
+  { id: 'mock-cat-2', name: '最新剧集 (模拟)' },
+  { id: 'mock-cat-3', name: '经典动漫 (模拟)' },
 ];
 
 const mockContentItems: ContentItem[] = [
@@ -27,8 +27,14 @@ const mockContentItems: ContentItem[] = [
       {
         sourceName: '线路1 (m3u8)',
         urls: [
-          { name: '第1集', url: 'https://example.com/play/1' },
-          { name: '第2集', url: 'https://example.com/play/2' },
+          { name: '第1集', url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8' },
+          { name: '第2集', url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8' },
+        ]
+      },
+      {
+        sourceName: '备用线路 (mp4)',
+        urls: [
+          { name: '高清版', url: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4' },
         ]
       }
     ]
@@ -49,8 +55,8 @@ const mockContentItems: ContentItem[] = [
       {
         sourceName: '高清源',
         urls: [
-          { name: 'S01E01', url: 'https://example.com/play/s1e1' },
-          { name: 'S01E02', url: 'https://example.com/play/s1e2' },
+          { name: 'S01E01', url: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4' },
+          { name: 'S01E02', url: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4' },
         ]
       }
     ]
@@ -68,18 +74,41 @@ function mapApiItemToContentItem(apiItem: any): ContentItem | null {
     const sourceNames = String(apiItem.vod_play_from).split('$$$');
     const urlGroups = String(apiItem.vod_play_url).split('$$$');
 
-    sourceNames.forEach((sourceName: string, index: number) => {
-      if (urlGroups[index]) {
-        const urls: PlaybackURL[] = urlGroups[index]
-          .split('#')
-          .map((episode: string) => {
-            const parts = episode.split('$');
-            return parts.length === 2 ? { name: parts[0] || `Ep ${index+1}`, url: parts[1] } : null;
-          })
-          .filter((u: PlaybackURL | null): u is PlaybackURL => u !== null && u.url !== '');
+    sourceNames.forEach((sourceNameRaw: string, groupIndex: number) => {
+      const sourceName = sourceNameRaw.trim();
+      if (urlGroups[groupIndex] && sourceName) { 
+        const urlsString = urlGroups[groupIndex];
+        const parsedUrls: PlaybackURL[] = [];
+
+        if (urlsString) {
+            const rawEpisodes = urlsString.split('#');
+            rawEpisodes.forEach((episodeStr, urlIdx) => {
+                const parts = episodeStr.split('$');
+                let name: string | undefined;
+                let url: string | undefined;
+
+                if (parts.length >= 2) { 
+                    name = parts[0]?.trim();
+                    url = parts[1]?.trim();
+                    if (!name && url) { 
+                        name = `播放 ${urlIdx + 1}`;
+                    }
+                } else if (parts.length === 1) {
+                    const singlePart = parts[0]?.trim();
+                    if (singlePart && (singlePart.startsWith('http://') || singlePart.startsWith('https://') || singlePart.includes('.m3u8') || singlePart.includes('.mp4'))) {
+                        url = singlePart;
+                        name = `播放 ${urlIdx + 1}`;
+                    }
+                }
+
+                if (name && url && (url.startsWith('http://') || url.startsWith('https://') || url.includes('.m3u8') || url.includes('.mp4'))) {
+                    parsedUrls.push({ name, url });
+                }
+            });
+        }
         
-        if (urls.length > 0) {
-          playbackSources.push({ sourceName, urls });
+        if (parsedUrls.length > 0) {
+          playbackSources.push({ sourceName, urls: parsedUrls });
         }
       }
     });
@@ -91,10 +120,9 @@ function mapApiItemToContentItem(apiItem: any): ContentItem | null {
     if (typeNameStr.includes('剧') || typeNameStr.includes('电视剧') || typeNameStr.includes('动漫') || typeNameStr.includes('综艺') || typeNameStr.includes('series') || typeNameStr.includes('show') || typeNameStr.includes('animation') || typeNameStr.includes('anime')) {
       type = 'tv_show';
     }
-  } else if (apiItem.tid) { // Fallback to tid if type_name is not conclusive
+  } else if (apiItem.tid) { 
     const tid = parseInt(String(apiItem.tid), 10);
-    // Common TIDs for TV shows-like content (often includes movies as 1, TV as 2, Anime as 3, Variety as 4)
-    if (tid === 2 || tid === 3 || tid === 4) { 
+    if (!isNaN(tid) && (tid === 2 || tid === 3 || tid === 4 || (tid >= 10 && tid <= 50))) { 
       type = 'tv_show';
     }
   }
@@ -109,9 +137,9 @@ function mapApiItemToContentItem(apiItem: any): ContentItem | null {
     cast: apiItem.vod_actor ? String(apiItem.vod_actor).split(/[,，、\s]+/).filter(Boolean) : [],
     director: apiItem.vod_director ? String(apiItem.vod_director).split(/[,，、\s]+/).filter(Boolean) : [],
     userRating: parseFloat(apiItem.vod_douban_score) || parseFloat(apiItem.vod_score) || undefined,
-    genres: apiItem.type_name || apiItem.vod_class ? String(apiItem.type_name || apiItem.vod_class).split(/[,，、\s]+/).filter(Boolean) : [],
+    genres: apiItem.type_name ? String(apiItem.type_name).split(/[,，、\s]+/).filter(Boolean) : (apiItem.vod_class ? String(apiItem.vod_class).split(/[,，、\s]+/).filter(Boolean) : []),
     releaseYear: parseInt(apiItem.vod_year) || undefined,
-    runtime: apiItem.vod_duration || apiItem.vod_remarks || undefined, // vod_remarks often contains episode count or quality
+    runtime: apiItem.vod_duration || apiItem.vod_remarks || undefined, 
     type: type,
     availableQualities: apiItem.vod_quality ? String(apiItem.vod_quality).split(',') : (apiItem.vod_remarks && String(apiItem.vod_remarks).match(/[0-9]+[pP]/g) ? String(apiItem.vod_remarks).match(/[0-9]+[pP]/g) : undefined),
     playbackSources: playbackSources.length > 0 ? playbackSources : undefined,
@@ -125,58 +153,46 @@ async function fetchViaProxy(targetUrl: string, sourceName?: string): Promise<an
   if (!response.ok) {
     let errorDetails = `Status: ${response.status}`;
     try {
-      const errorJson = await response.json();
-      errorDetails = errorJson.error || errorJson.message || errorDetails;
-    } catch (e) { /* ignore */ }
+      const errorData = await response.json(); // Try to parse error response as JSON
+      errorDetails = errorData.error || errorData.message || errorDetails;
+      if (errorData.details) errorDetails += ` Details: ${errorData.details}`;
+    } catch (e) { /* ignore if error response itself is not json */ }
     const errorMessage = `Error fetching from ${sourceName || 'source'} (via proxy ${proxyRequestUrl}): ${errorDetails}`;
     console.error(errorMessage);
     throw new Error(errorMessage);
   }
+  
+  // The proxy route.ts should ideally always return a JSON response.
+  // Either the data itself, or { error: "...", details: "..." } or { nonJsonData: "..." }
+  const data = await response.json(); 
 
-  const textData = await response.text();
-  const contentType = response.headers.get('content-type');
-
-  try {
-    const jsonData = JSON.parse(textData);
-    return jsonData;
-  } catch (jsonError) {
-    if (contentType && contentType.toLowerCase().includes('application/json')) {
-      console.error(`Proxy: Failed to parse JSON from ${targetUrl} even though Content-Type was ${contentType}. Data: ${textData.substring(0,200)}...`);
-      throw new Error('Failed to parse JSON response from target');
+  // If the proxy wrapped non-JSON data, it will be in data.nonJsonData
+  if (data && data.nonJsonData) {
+    console.warn(`fetchViaProxy: Source ${targetUrl} returned non-JSON data (via proxy): ${String(data.nonJsonData).substring(0,100)}`);
+    // Attempt to parse if the nonJsonData is a string that might contain JSON
+    if (typeof data.nonJsonData === 'string') {
+      try {
+        return JSON.parse(data.nonJsonData);
+      } catch (e) {
+        console.error(`fetchViaProxy: Failed to parse nonJsonData string as JSON from ${targetUrl}:`, e);
+        throw new Error(`Source returned non-JSON data that could not be parsed: ${String(data.nonJsonData).substring(0,100)}`);
+      }
     }
-    console.warn(`Proxy: Response from ${targetUrl} was not parseable as JSON (Content-Type: ${contentType}). Returning as nonJsonData object. Data: ${textData.substring(0,100)}...`);
-    // This case should ideally be handled by the caller if it truly expects non-JSON.
-    // For this app, most API endpoints are expected to be JSON.
-    // Returning an object that signals non-JSON can be one way, or throwing an error.
-    // Given the previous error, throwing might be better if JSON is strictly expected.
-    // throw new Error(`Proxy received non-JSON data: ${textData.substring(0,100)}`);
-    // Let's stick to the previous behavior of returning an object with nonJsonData for now, caller handles it.
-     return { nonJsonData: textData };
+    throw new Error(`Source returned non-JSON data: ${String(data.nonJsonData).substring(0,100)}`);
   }
+  
+  // If proxy returned an error structure from its own logic
+  if (data && data.error) {
+    console.error(`fetchViaProxy: Proxy itself returned an error for ${targetUrl}: ${data.error}`, data.details || '');
+    throw new Error(`Proxy error for ${targetUrl}: ${data.error}`);
+  }
+
+  return data; // Assumed to be the actual JSON data from the target
 }
 
 export async function fetchApiCategories(sourceUrl: string): Promise<ApiCategory[]> {
   try {
     const data = await fetchViaProxy(sourceUrl, `categories from ${sourceUrl}`);
-    if (data && data.nonJsonData) { // Check if proxy flagged it as non-JSON
-        console.warn(`fetchApiCategories: Received nonJsonData from proxy for ${sourceUrl}. Attempting to parse anyway if it looks like JSON in a string.`);
-        // Attempt to parse if it's a string that might contain JSON
-        if (typeof data.nonJsonData === 'string') {
-            try {
-                const parsedNonJsonData = JSON.parse(data.nonJsonData);
-                if (parsedNonJsonData && Array.isArray(parsedNonJsonData.class)) {
-                     return parsedNonJsonData.class.map((cat: any) => ({
-                        id: String(cat.type_id),
-                        name: cat.type_name,
-                    })).filter((cat: ApiCategory | null): cat is ApiCategory => cat !== null && cat.id !== '' && cat.name !== '');
-                }
-            } catch (e) {
-                console.error(`fetchApiCategories: Failed to parse nonJsonData string as JSON from ${sourceUrl}:`, e);
-                return []; // Return empty on parse failure of nonJsonData
-            }
-        }
-        return []; // If nonJsonData isn't a string or doesn't parse/fit structure
-    }
     if (data && Array.isArray(data.class)) {
       return data.class.map((cat: any) => ({
         id: String(cat.type_id),
@@ -196,7 +212,7 @@ export async function fetchApiContentList(
   params: { page?: number; categoryId?: string; searchTerm?: string; ids?: string }
 ): Promise<PaginatedContentResponse> {
   const apiUrl = new URL(sourceUrl);
-  apiUrl.searchParams.set('ac', 'detail'); // Always use 'detail' for list/item fetching
+  apiUrl.searchParams.set('ac', 'detail'); 
 
   if (params.ids) {
     apiUrl.searchParams.set('ids', params.ids);
@@ -207,23 +223,7 @@ export async function fetchApiContentList(
   }
 
   try {
-    const data = await fetchViaProxy(apiUrl.toString(), `content list/item from ${sourceUrl}`);
-    
-    let actualData = data;
-    if (data && data.nonJsonData) { 
-        console.warn(`fetchApiContentList: Received nonJsonData from proxy for ${apiUrl.toString()}. Attempting to parse.`);
-        if (typeof data.nonJsonData === 'string') {
-            try {
-                actualData = JSON.parse(data.nonJsonData);
-            } catch (e) {
-                console.error(`fetchApiContentList: Failed to parse nonJsonData string as JSON from ${apiUrl.toString()}:`, e);
-                return { items: [], page: 1, pageCount: 1, limit: 20, total: 0 };
-            }
-        } else {
-           return { items: [], page: 1, pageCount: 1, limit: 20, total: 0 };
-        }
-    }
-
+    const actualData = await fetchViaProxy(apiUrl.toString(), `content list/item from ${sourceUrl}`);
     const items = (actualData.list && Array.isArray(actualData.list))
       ? actualData.list.map(mapApiItemToContentItem).filter((item: ContentItem | null): item is ContentItem => item !== null)
       : [];
@@ -231,7 +231,7 @@ export async function fetchApiContentList(
     return {
       items,
       page: parseInt(String(actualData.page), 10) || 1,
-      pageCount: parseInt(String(actualData.pagecount), 10) || 1,
+      pageCount: parseInt(String(actualData.pagecount || actualData.page_count), 10) || 1, 
       limit: parseInt(String(actualData.limit), 10) || items.length || 20, 
       total: parseInt(String(actualData.total), 10) || items.length || 0, 
     };
@@ -294,13 +294,16 @@ export function getMockContentItems(): ContentItem[] {
 }
 
 export function getMockApiCategories(): ApiCategory[] {
-  return mockCategories;
+  const allCategory: ApiCategory = { id: 'all', name: '全部 (模拟)' };
+  const hasAll = mockCategories.some(c => c.id === 'all');
+  return hasAll ? mockCategories : [allCategory, ...mockCategories];
 }
 
 export function getMockPaginatedResponse(page: number = 1, categoryId?: string, searchTerm?: string): PaginatedContentResponse {
   let items = mockContentItems;
-  if (categoryId && categoryId !== 'all' && categoryId !== '1') { 
-      items = items.filter(item => item.type === (categoryId === '2' ? 'tv_show' : 'movie'));
+  if (categoryId && categoryId !== 'all') { 
+      if (categoryId === 'mock-cat-1') items = items.filter(item => item.type === 'movie');
+      else if (categoryId === 'mock-cat-2') items = items.filter(item => item.type === 'tv_show');
   }
   if (searchTerm) {
       items = items.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));

@@ -17,20 +17,14 @@ export function SidebarNavigationItems() {
   const searchParams = useSearchParams();
   const currentCategoryIdParam = searchParams.get('category');
 
-  // Determine the effective current category ID
-  // If no category is in URL, and 'all' exists, 'all' is active.
-  // If 'all' doesn't exist, and no category in URL, the first category is active.
   let effectiveCurrentCategoryId: string | null = currentCategoryIdParam;
   if (!currentCategoryIdParam) {
     if (categories.find(c => c.id === 'all')) {
       effectiveCurrentCategoryId = 'all';
     } else if (categories.length > 0) {
-      // Fallback to the first category if 'all' is not an option and no param is set
-      // This case might not be strictly necessary if 'all' is always prepended or default
       effectiveCurrentCategoryId = categories[0].id;
     }
   }
-
 
   return (
     <>
@@ -45,14 +39,16 @@ export function SidebarNavigationItems() {
                     asChild
                     tooltip={category.name}
                     variant="ghost"
-                    size="default" // Using default size which is slightly larger
+                    size="default" 
                     isActive={effectiveCurrentCategoryId === category.id}
                     className={cn(
-                      "justify-start w-full text-left text-sm", // Increased base font size
-                      (effectiveCurrentCategoryId === category.id) && "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
+                      "justify-start w-full text-left text-base py-2.5", 
+                      (effectiveCurrentCategoryId === category.id) 
+                        ? "bg-sidebar-accent text-sidebar-primary font-semibold rounded-md" 
+                        : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 rounded-md" 
                     )}
                   >
-                    <Link href={`/?category=${category.id}&page=1`}>
+                    <Link href={`/?category=${category.id}&page=1`} scroll={false}>
                       <span>{category.name}</span>
                     </Link>
                   </SidebarMenuButton>
@@ -65,4 +61,3 @@ export function SidebarNavigationItems() {
     </>
   );
 }
-
