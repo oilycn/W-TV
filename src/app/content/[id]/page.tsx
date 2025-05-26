@@ -150,7 +150,12 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
               className="w-full h-full bg-black"
               onError={(e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
                 const videoElement = e.target as HTMLVideoElement;
-                console.error("Video player error:", videoElement.error);
+                if (videoElement.error) {
+                  console.error("Video player error code:", videoElement.error.code);
+                  console.error("Video player error message:", videoElement.error.message);
+                } else {
+                  console.error("Video player error: An unknown error occurred.", e);
+                }
                 // You could show a custom error message to the user here
               }}
             >
