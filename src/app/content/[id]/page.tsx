@@ -72,12 +72,12 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
       }
       
       if (!foundItem && sources.length > 0) { 
-        const allItems = await fetchAllContent(sources);
+        const allItems = await fetchAllContent(sources); // Fallback to searching all sources
         foundItem = allItems.find(i => i.id === pageId);
       }
       
       if (!foundItem) {
-        foundItem = getMockContentItemById(pageId);
+        foundItem = getMockContentItemById(pageId); // Fallback to mock data
       }
       
       setItem(foundItem || null);
@@ -100,35 +100,54 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
 
       if (currentPlayUrl.includes('.m3u8')) {
         if (Hls.isSupported()) {
-          const hls = new Hls();
+          const hls = new Hls({
+            // Optional: Add HLS.js specific configurations here if needed
+            // E.g., for more aggressive retries, though defaults are usually robust
+            // fragLoadingMaxRetry: 5, 
+            // manifestLoadingMaxRetry: 3,
+          });
           hlsRef.current = hls;
           hls.loadSource(currentPlayUrl);
           hls.attachMedia(videoElement);
+
           hls.on(Hls.Events.ERROR, (event, data) => {
             console.error('HLS.js error - Type:', data.type, 'Details:', data.details, 'Fatal:', data.fatal, 'Raw Data:', JSON.stringify(data, null, 2));
-            if (data.fatal) {
+            
+            // Display an error message for significant HLS issues
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR || 
+                data.type === Hls.ErrorTypes.MEDIA_ERROR ||
+                data.fatal) { // Catch network/media errors, or any other fatal error
+              
+              let messagePrefix = '';
               switch (data.type) {
                 case Hls.ErrorTypes.NETWORK_ERROR:
-                  setVideoPlayerError(`网络错误导致HLS视频加载失败: ${data.details}`);
+                  messagePrefix = '网络错误导致视频加载失败';
                   break;
                 case Hls.ErrorTypes.MEDIA_ERROR:
-                  setVideoPlayerError(`媒体错误导致HLS视频加载失败: ${data.details}`);
+                  messagePrefix = '媒体错误导致视频加载失败';
                   break;
                 default:
-                  setVideoPlayerError(`加载M3U8视频失败: ${data.details}`);
+                  messagePrefix = '加载视频失败'; // Generic for other fatal errors
                   break;
               }
+              setVideoPlayerError(`${messagePrefix}: ${data.details}${data.fatal ? ' (严重)' : ''}`);
             }
           });
+          // Optional: Listen for manifest parsed to start playback
+          // hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          //   videoElement.play().catch(playError => console.warn("Autoplay prevented:", playError));
+          // });
         } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
           // Native HLS support (e.g., Safari)
           videoElement.src = currentPlayUrl;
+          videoElement.play().catch(playError => console.warn("Autoplay prevented for native HLS:", playError));
         } else {
           setVideoPlayerError('您的浏览器不支持播放此M3U8视频格式。');
         }
       } else {
         // Not an m3u8 URL, use standard src
         videoElement.src = currentPlayUrl;
+        videoElement.play().catch(playError => console.warn("Autoplay prevented for standard video:", playError));
       }
     }
 
@@ -146,6 +165,9 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
     setCurrentPlayUrl(url);
     setCurrentVideoTitle(`${item?.title} - ${name}`);
     setVideoPlayerError(null); 
+    if (videoRef.current) {
+      videoRef.current.load(); // Call load to reset player for new source
+    }
   };
 
   if (isLoading || item === undefined) {
@@ -201,32 +223,36 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
                 autoPlay
                 title={currentVideoTitle}
                 className="w-full h-full bg-black"
+                onCanPlay={() => setVideoPlayerError(null)} // Clear error if video becomes playable
                 onError={(e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
-                  const videoElement = e.target as HTMLVideoElement;
-                  let message = '视频播放时发生未知错误。';
-                  if (videoElement.error) {
-                    console.error("Video player error code:", videoElement.error.code);
-                    console.error("Video player error message:", videoElement.error.message);
-                    switch (videoElement.error.code) {
-                      case MediaError.MEDIA_ERR_ABORTED:
-                        message = '视频加载被中止。';
-                        break;
-                      case MediaError.MEDIA_ERR_NETWORK:
-                        message = '网络错误导致视频加载失败。';
-                        break;
-                      case MediaError.MEDIA_ERR_DECODE:
-                        message = '视频解码错误。文件可能已损坏或格式不受支持。';
-                        break;
-                      case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
-                        message = '视频格式不受支持或无法找到视频源。请尝试其他播放源或检查网络连接。';
-                        break;
-                      default:
-                        message = `发生未知媒体错误 (代码: ${videoElement.error.code})。`;
+                  // This handler is for standard <video> errors, HLS errors are handled by hls.on(Hls.Events.ERROR)
+                  if (!currentPlayUrl?.includes('.m3u8')) { // Only set error if not an HLS stream (HLS has its own handler)
+                    const videoElement = e.target as HTMLVideoElement;
+                    let message = '视频播放时发生未知错误。';
+                    if (videoElement.error) {
+                      console.error("Video player error code:", videoElement.error.code);
+                      console.error("Video player error message:", videoElement.error.message);
+                      switch (videoElement.error.code) {
+                        case MediaError.MEDIA_ERR_ABORTED:
+                          message = '视频加载被中止。';
+                          break;
+                        case MediaError.MEDIA_ERR_NETWORK:
+                          message = '网络错误导致视频加载失败。';
+                          break;
+                        case MediaError.MEDIA_ERR_DECODE:
+                          message = '视频解码错误。文件可能已损坏或格式不受支持。';
+                          break;
+                        case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                          message = '视频格式不受支持或无法找到视频源。请尝试其他播放源或检查网络连接。';
+                          break;
+                        default:
+                          message = `发生未知媒体错误 (代码: ${videoElement.error.code})。`;
+                      }
+                    } else {
+                      console.error("Video player error: An unknown error occurred.", e);
                     }
-                  } else {
-                    console.error("Video player error: An unknown error occurred.", e);
+                    setVideoPlayerError(message);
                   }
-                  setVideoPlayerError(message);
                 }}
               >
                 您的浏览器不支持视频播放。
@@ -235,7 +261,7 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
           </AspectRatio>
            <p className="p-2 text-sm text-muted-foreground">正在播放: {currentVideoTitle}</p>
            <p className="p-2 text-xs text-muted-foreground">
-            提示：部分m3u8链接可能需要浏览器原生支持或特定扩展。为获得最佳体验，请确保浏览器更新。
+            提示：部分m3u8链接可能需要浏览器原生支持或特定扩展。为获得最佳体验，请确保浏览器更新。如果播放失败，请尝试其他播放源。
           </p>
         </div>
       )}
@@ -341,6 +367,4 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
     </div>
   );
 }
-
-
     
