@@ -1,7 +1,7 @@
 
 "use client";
 
-import { use, useEffect, useState } from 'react';
+import { use, useEffect, useState, useRef } from 'react';
 import type { ContentItem, PlaybackSourceGroup, SourceConfig } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, fetchAllContent, getMockContentItemById } from '@/lib/content-loader';
@@ -13,6 +13,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from '@/components/ui/button';
+import Hls from 'hls.js';
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 
@@ -35,11 +36,14 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
   const [currentVideoTitle, setCurrentVideoTitle] = useState<string>('');
   const [videoPlayerError, setVideoPlayerError] = useState<string | null>(null);
 
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
+
   useEffect(() => {
     if (resolvedParams && resolvedParams.id) {
       setPageId(resolvedParams.id);
-      setCurrentPlayUrl(null); // Reset player when ID changes
-      setVideoPlayerError(null); // Reset error when ID changes
+      setCurrentPlayUrl(null); 
+      setVideoPlayerError(null);
     } else {
       setPageId(null);
     }
@@ -47,7 +51,7 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
 
   useEffect(() => {
     if (currentPlayUrl) {
-      setVideoPlayerError(null); // Reset error when new video URL is attempted
+      setVideoPlayerError(null); 
     }
   }, [currentPlayUrl]);
 
@@ -64,36 +68,16 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
       const primarySourceUrl = sources.length > 0 ? sources[0].url : null;
 
       if (primarySourceUrl) {
-        console.log(`Detail page: Attempting to fetch item ID ${pageId} from primary source ${primarySourceUrl}`);
         foundItem = await fetchContentItemById(primarySourceUrl, pageId);
-        if (foundItem) {
-          console.log(`Detail page: Found item ID ${pageId} from primary source.`);
-        } else {
-          console.log(`Detail page: Item ID ${pageId} not found in primary source.`);
-        }
-      } else {
-        console.log("Detail page: No primary source URL available.");
       }
-
+      
       if (!foundItem && sources.length > 0) { 
-        console.log(`Detail page: Item ID ${pageId} not found by direct fetch from primary. Trying fetchAllContent from all ${sources.length} sources...`);
         const allItems = await fetchAllContent(sources);
         foundItem = allItems.find(i => i.id === pageId);
-        if (foundItem) {
-          console.log(`Detail page: Found item ID ${pageId} via fetchAllContent.`);
-        } else {
-          console.log(`Detail page: Item ID ${pageId} not found via fetchAllContent.`);
-        }
       }
       
       if (!foundItem) {
-        console.log(`Detail page: Item ID ${pageId} not found in any sources. Trying mock data...`);
         foundItem = getMockContentItemById(pageId);
-        if (foundItem) {
-          console.log(`Detail page: Found item ID ${pageId} in mock data.`);
-        } else {
-          console.log(`Detail page: Item ID ${pageId} not found in mock data.`);
-        }
       }
       
       setItem(foundItem || null);
@@ -104,10 +88,64 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
     
   }, [pageId, sources]);
 
+
+  useEffect(() => {
+    if (currentPlayUrl && videoRef.current) {
+      const videoElement = videoRef.current;
+      // Destroy previous HLS instance if it exists
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+
+      if (currentPlayUrl.includes('.m3u8')) {
+        if (Hls.isSupported()) {
+          const hls = new Hls();
+          hlsRef.current = hls;
+          hls.loadSource(currentPlayUrl);
+          hls.attachMedia(videoElement);
+          hls.on(Hls.Events.ERROR, (event, data) => {
+            console.error('HLS.js error:', data);
+            if (data.fatal) {
+              switch (data.type) {
+                case Hls.ErrorTypes.NETWORK_ERROR:
+                  setVideoPlayerError(`网络错误导致HLS视频加载失败: ${data.details}`);
+                  break;
+                case Hls.ErrorTypes.MEDIA_ERROR:
+                  setVideoPlayerError(`媒体错误导致HLS视频加载失败: ${data.details}`);
+                  break;
+                default:
+                  setVideoPlayerError(`加载M3U8视频失败: ${data.details}`);
+                  break;
+              }
+            }
+          });
+        } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+          // Native HLS support (e.g., Safari)
+          videoElement.src = currentPlayUrl;
+        } else {
+          setVideoPlayerError('您的浏览器不支持播放此M3U8视频格式。');
+        }
+      } else {
+        // Not an m3u8 URL, use standard src
+        videoElement.src = currentPlayUrl;
+      }
+    }
+
+    // Cleanup effect
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [currentPlayUrl]);
+
+
   const handlePlayVideo = (url: string, name: string) => {
     setCurrentPlayUrl(url);
     setCurrentVideoTitle(`${item?.title} - ${name}`);
-    setVideoPlayerError(null); // Clear previous errors
+    setVideoPlayerError(null); 
   };
 
   if (isLoading || item === undefined) {
@@ -158,8 +196,7 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
               </div>
             ) : (
               <video
-                key={currentPlayUrl} 
-                src={currentPlayUrl}
+                ref={videoRef}
                 controls
                 autoPlay
                 title={currentVideoTitle}
