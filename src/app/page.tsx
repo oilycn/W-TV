@@ -9,10 +9,8 @@ import { fetchApiCategories, fetchApiContentList, getMockApiCategories, getMockP
 import { ContentCard } from '@/components/content/ContentCard';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, Tv2, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { AlertCircle, Tv2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useCategories } from '@/contexts/CategoryContext'; 
 
@@ -31,15 +29,11 @@ function HomePageContent() {
   const [error, setError] = useState<string | null>(null);
   
   const selectedCategoryId = useMemo(() => searchParams.get('category') || 'all', [searchParams]);
-  const currentSearchTermQuery = useMemo(() => searchParams.get('q') || '', [searchParams]);
+  const currentSearchTermQuery = useMemo(() => searchParams.get('q') || '', [searchParams]); // From global search
   const currentPageQuery = useMemo(() => parseInt(searchParams.get('page') || '1', 10), [searchParams]);
-
-  const [searchInput, setSearchInput] = useState(currentSearchTermQuery); 
   
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-
-  const [typeFilter, setTypeFilter] = useState<'all' | 'movie' | 'tv_show'>('all');
 
   const primarySourceUrl = useMemo(() => sources.length > 0 ? sources[0].url : null, [sources]);
 
@@ -70,27 +64,26 @@ function HomePageContent() {
 
   const loadCategoriesAndContent = useCallback(async (page: number, categoryId: string, searchTerm: string) => {
     setIsLoading(true);
-    setIsLoadingCategories(true);
+    // Only load categories if they are not already loaded or if primarySourceUrl changes
+    if (categories.length === 0 || (primarySourceUrl && !categories.find(c => c.id.startsWith('mock-')))) {
+        setIsLoadingCategories(true);
+    }
     setError(null);
 
-    let fetchedCategories: ApiCategory[] = [];
-    if (primarySourceUrl) {
+    if (primarySourceUrl && categories.length === 0) {
       try {
-        fetchedCategories = await fetchApiCategories(primarySourceUrl);
-        if (fetchedCategories.length === 0 && categories.length === 0) { 
+        let fetchedCategories = await fetchApiCategories(primarySourceUrl);
+        if (fetchedCategories.length === 0) { 
             fetchedCategories = getMockApiCategories();
         }
+        setGlobalCategories(fetchedCategories);
       } catch (e) {
         console.error("Failed to load categories:", e);
         setError(prev => prev ? `${prev} & 无法加载分类信息。` : "无法加载分类信息。");
-        if (categories.length === 0) fetchedCategories = getMockApiCategories();
+        if (categories.length === 0) setGlobalCategories(getMockApiCategories());
       }
-    } else {
-      if (categories.length === 0) fetchedCategories = getMockApiCategories();
-    }
-
-    if(fetchedCategories.length > 0) {
-        setGlobalCategories(fetchedCategories);
+    } else if (!primarySourceUrl && categories.length === 0) {
+        setGlobalCategories(getMockApiCategories());
     }
     setIsLoadingCategories(false);
 
@@ -125,30 +118,12 @@ function HomePageContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [primarySourceUrl, setGlobalCategories, categories]);
+  }, [primarySourceUrl, setGlobalCategories, categories]); // Ensure 'categories' is a dependency
 
 
   useEffect(() => {
-    setSearchInput(currentSearchTermQuery); 
     loadCategoriesAndContent(currentPageQuery, selectedCategoryId, currentSearchTermQuery);
   }, [selectedCategoryId, currentSearchTermQuery, currentPageQuery, loadCategoriesAndContent]);
-  
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      if (currentSearchTermQuery !== searchInput) {
-         updateURLParams({ q: searchInput || undefined, page: 1 });
-      }
-    }, 500); 
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [searchInput, currentSearchTermQuery, updateURLParams]);
-
-
-  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchInput(e.target.value);
-  };
   
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
@@ -156,14 +131,6 @@ function HomePageContent() {
     }
   };
   
-  const clientFilteredContent = useMemo(() => {
-    return contentItems.filter(item => {
-      const matchesType = typeFilter === 'all' || item.type === typeFilter;
-      return matchesType;
-    });
-  }, [contentItems, typeFilter]);
-
-
   if (sources.length === 0 && !primarySourceUrl && !isLoading && !isLoadingCategories && (!categories.length || categories.every(c => c.name.includes('(模拟)'))) ) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-10rem)] text-center">
@@ -190,38 +157,16 @@ function HomePageContent() {
          </Alert>
       )}
 
-      <div className="space-y-4 p-4 bg-card rounded-lg shadow">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="relative sm:col-span-1">
-            <Input 
-              type="search"
-              placeholder="搜索标题..."
-              value={searchInput}
-              onChange={handleSearchInputChange}
-              className="pr-10"
-            />
-            <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          </div>
-          <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as 'all' | 'movie' | 'tv_show')}>
-            <SelectTrigger><SelectValue placeholder="按格式筛选 (客户端)" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">所有格式</SelectItem>
-              <SelectItem value="movie">电影</SelectItem>
-              <SelectItem value="tv_show">电视剧</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-         <div className="flex items-center justify-between text-sm text-muted-foreground pt-2">
-          <span>总共 {totalItems} 条结果</span>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPageQuery - 1)} disabled={currentPageQuery <= 1 || isLoading}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span>第 {currentPageQuery} 页 / 共 {totalPages} 页</span>
-            <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPageQuery + 1)} disabled={currentPageQuery >= totalPages || isLoading}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+      <div className="flex items-center justify-between text-sm text-muted-foreground pt-2 p-4 bg-card rounded-lg shadow">
+        <span>总共 {totalItems} 条结果</span>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPageQuery - 1)} disabled={currentPageQuery <= 1 || isLoading}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span>第 {currentPageQuery} 页 / 共 {totalPages} 页</span>
+          <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPageQuery + 1)} disabled={currentPageQuery >= totalPages || isLoading}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
@@ -235,9 +180,9 @@ function HomePageContent() {
             </div>
           ))}
         </div>
-      ) : clientFilteredContent.length > 0 ? (
+      ) : contentItems.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-          {clientFilteredContent.map(item => (
+          {contentItems.map(item => (
             <ContentCard key={item.id} item={item} />
           ))}
         </div>
@@ -264,10 +209,6 @@ function HomePageSkeleton() {
   return (
     <div className="space-y-6">
       <div className="space-y-4 p-4 bg-card rounded-lg shadow">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Skeleton className="h-10 sm:col-span-1" />
-          <Skeleton className="h-10" />
-        </div>
         <div className="flex items-center justify-between pt-2">
           <Skeleton className="h-5 w-24" />
           <div className="flex items-center gap-2">

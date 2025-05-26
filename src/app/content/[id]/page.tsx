@@ -15,7 +15,6 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Button } from '@/components/ui/button';
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
-const DEFAULT_PLAYER_BASE_URL = "https://jx.oily.cn:7443/?v=";
 
 interface ContentDetailPageParams {
   id: string;
@@ -33,6 +32,7 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
   const [item, setItem] = useState<ContentItem | null | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPlayUrl, setCurrentPlayUrl] = useState<string | null>(null);
+  const [currentVideoTitle, setCurrentVideoTitle] = useState<string>('');
 
   useEffect(() => {
     if (resolvedParams && resolvedParams.id) {
@@ -96,8 +96,9 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
     
   }, [pageId, sources]);
 
-  const handlePlayVideo = (url: string) => {
-    setCurrentPlayUrl(DEFAULT_PLAYER_BASE_URL + encodeURIComponent(url));
+  const handlePlayVideo = (url: string, name: string) => {
+    setCurrentPlayUrl(url);
+    setCurrentVideoTitle(`${item?.title} - ${name}`);
   };
 
   if (isLoading || item === undefined) {
@@ -140,14 +141,26 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
       {currentPlayUrl && (
         <div className="mb-8 rounded-lg overflow-hidden shadow-lg bg-card">
           <AspectRatio ratio={16 / 9}>
-            <iframe
+            <video
+              key={currentPlayUrl} // Add key to force re-render when URL changes
               src={currentPlayUrl}
-              title={`播放器 - ${item.title}`}
-              className="w-full h-full border-0"
-              allow="autoplay; encrypted-media"
-              allowFullScreen
-            ></iframe>
+              controls
+              autoPlay
+              title={currentVideoTitle}
+              className="w-full h-full bg-black"
+              onError={(e) => {
+                console.error("Video player error:", e);
+                // You could show a custom error message to the user here
+              }}
+            >
+              您的浏览器不支持视频播放。
+              {/* For m3u8, you'd typically need a library like HLS.js and integrate it here */}
+            </video>
           </AspectRatio>
+           <p className="p-2 text-sm text-muted-foreground">正在播放: {currentVideoTitle}</p>
+           <p className="p-2 text-xs text-muted-foreground">
+            提示：部分m3u8链接可能需要浏览器原生支持或特定扩展。为获得最佳体验，请确保浏览器更新。
+          </p>
         </div>
       )}
 
@@ -234,7 +247,7 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
                           <Button 
                             key={`${pageId || `fallbackKey-${index}`}-source-${index}-url-${urlIndex}`} 
                             variant="outline" 
-                            onClick={() => handlePlayVideo(playUrl.url)}
+                            onClick={() => handlePlayVideo(playUrl.url, playUrl.name)}
                             title={`播放 ${item.title} - ${playUrl.name}`}
                           >
                             {playUrl.name}

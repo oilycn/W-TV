@@ -32,15 +32,15 @@ export function AppHeader() {
             <Wand2 className="h-5 w-5" />
           </Link>
         </Button>
-      </div>
-
-      <div className="ml-auto flex items-center gap-2">
-        <SearchBar />
-        <Button variant="ghost" size="icon" asChild aria-label="设置">
+         <Button variant="ghost" size="icon" asChild aria-label="设置">
           <Link href="/settings">
             <Settings className="h-5 w-5" />
           </Link>
         </Button>
+      </div>
+
+      <div className="ml-auto flex items-center gap-2">
+        <SearchBar />
         {/* User profile / other actions can go here */}
       </div>
     </header>

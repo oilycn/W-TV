@@ -9,22 +9,33 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, PlusCircle } from 'lucide-react';
+import { Trash2, PlusCircle, KeyRound, Save } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const LOCAL_STORAGE_KEY = 'cinemaViewSources';
+const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 const DEFAULT_SOURCE_PROCESSED_FLAG_KEY = 'cinemaViewDefaultSourceProcessed';
+const GEMINI_API_KEY_LS_KEY = 'cinemaViewGeminiApiKey';
 
 export default function SettingsPage() {
-  const [sources, setSources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY, []);
+  const [sources, setSources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
   const [newSourceName, setNewSourceName] = useState('');
   const [newSourceUrl, setNewSourceUrl] = useState('');
   const { toast } = useToast();
   const [isClient, setIsClient] = useState(false);
 
+  const [geminiApiKey, setGeminiApiKey] = useLocalStorage<string>(GEMINI_API_KEY_LS_KEY, '');
+  const [tempApiKey, setTempApiKey] = useState('');
+
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  useEffect(() => {
+    if (isClient) {
+      setTempApiKey(geminiApiKey);
+    }
+  }, [isClient, geminiApiKey]);
+
 
   useEffect(() => {
     if (!isClient) {
@@ -33,17 +44,15 @@ export default function SettingsPage() {
 
     const hasBeenProcessed = localStorage.getItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY);
 
-    // Check if sources are loaded (not undefined) before assessing length
     if (sources && sources.length === 0 && !hasBeenProcessed) {
       const defaultSource: SourceConfig = {
-        id: `default-ffzy-${Date.now().toString()}`, // This is fine now as it only runs client-side
+        id: `default-ffzy-${Date.now().toString()}`, 
         name: "采集资源 FFZY",
         url: "https://cj.ffzyapi.com/api.php/provide/vod"
       };
       setSources([defaultSource]);
       localStorage.setItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY, 'true');
       
-      // Delay toast slightly to ensure UI context is ready
       setTimeout(() => {
         toast({
           title: "默认内容源已添加",
@@ -52,7 +61,7 @@ export default function SettingsPage() {
         });
       }, 100);
     }
-  }, [isClient, sources, setSources, toast]); // Added isClient to dependencies
+  }, [isClient, sources, setSources, toast]); 
 
   const handleAddSource = () => {
     if (!newSourceName.trim() || !newSourceUrl.trim()) {
@@ -64,7 +73,7 @@ export default function SettingsPage() {
       return;
     }
     try {
-      new URL(newSourceUrl); // Validate URL
+      new URL(newSourceUrl); 
     } catch (_) {
       toast({
         title: "错误",
@@ -84,7 +93,6 @@ export default function SettingsPage() {
       title: "成功",
       description: "内容源已添加。",
     });
-    // If user manually adds a source, we can consider the "default source processed" flag as set.
     if (isClient && !localStorage.getItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY)) {
       localStorage.setItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY, 'true');
     }
@@ -96,16 +104,21 @@ export default function SettingsPage() {
       title: "成功",
       description: "内容源已移除。",
     });
-     // If user removes all sources, including potentially the default one,
-     // ensure the flag is set so it doesn't re-add automatically on next visit.
     if (isClient && !localStorage.getItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY) && sources.length === 1 && sources[0].id === id) {
         localStorage.setItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY, 'true');
     }
   };
 
+  const handleSaveApiKey = () => {
+    setGeminiApiKey(tempApiKey);
+    toast({
+      title: "API 密钥已保存",
+      description: "Gemini API 密钥已保存到浏览器本地存储。",
+    });
+  };
+
   const renderSourcesList = () => {
     if (!isClient) {
-      // Render skeletons or a loading indicator during SSR and initial client render
       return (
         <div className="space-y-4">
           <Skeleton className="h-[76px] w-full rounded-md" />
@@ -136,14 +149,16 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-6 text-foreground">设置</h1>
-      <p className="mb-8 text-muted-foreground">
-        管理您的内容源。添加或移除视频 API 接口地址，类似于 TVBox 的配置。
-        应用程序将从这些 URL 获取内容。请确保 URL 返回符合预期的 JSON 格式。
-      </p>
+    <div className="container mx-auto py-8 space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold mb-2 text-foreground">内容源设置</h1>
+        <p className="text-muted-foreground">
+          管理您的内容源。添加或移除视频 API 接口地址。
+          应用程序将从这些 URL 获取内容。请确保 URL 返回符合预期的 JSON 格式。
+        </p>
+      </div>
 
-      <Card className="mb-8 shadow-lg">
+      <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>添加新内容源</CardTitle>
           <CardDescription>输入内容源的名称和 URL。</CardDescription>
@@ -176,8 +191,41 @@ export default function SettingsPage() {
         </CardFooter>
       </Card>
 
-      <h2 className="text-2xl font-semibold mb-4 text-foreground">当前内容源</h2>
-      {renderSourcesList()}
+      <div>
+        <h2 className="text-2xl font-semibold mb-4 text-foreground">当前内容源</h2>
+        {renderSourcesList()}
+      </div>
+
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <KeyRound className="mr-2 h-5 w-5 text-primary" />
+            Gemini API 密钥设置
+          </CardTitle>
+          <CardDescription>
+            在此处配置您的 Google Gemini API 密钥。此密钥将存储在您的浏览器本地存储中。
+            对于AI推荐功能，Genkit后端通常需要通过环境变量 (GOOGLE_API_KEY) 配置此密钥。
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="geminiApiKey">API 密钥</Label>
+            <Input
+              id="geminiApiKey"
+              type="password"
+              value={tempApiKey}
+              onChange={(e) => setTempApiKey(e.target.value)}
+              placeholder="输入您的 Gemini API 密钥"
+            />
+          </div>
+        </CardContent>
+        <CardFooter>
+          <Button onClick={handleSaveApiKey} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+            <Save className="mr-2 h-4 w-4" /> 保存密钥
+          </Button>
+        </CardFooter>
+      </Card>
+
     </div>
   );
 }
