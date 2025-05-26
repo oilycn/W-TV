@@ -1,19 +1,24 @@
+
 "use client";
 
 import { useEffect, useState } from 'react';
-import type { ContentItem, SourceConfig } from '@/types';
+import type { ContentItem, PlaybackSourceGroup, SourceConfig } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchAllContent, getMockContentItemById } from '@/lib/content-loader';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
-import { Star, CalendarDays, Clock, Users, Video } from 'lucide-react';
+import { Star, CalendarDays, Clock, Video } from 'lucide-react';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 
 export default function ContentDetailPage({ params }: { params: { id: string } }) {
+  const pageId = params.id; // Extract id here
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
   const [item, setItem] = useState<ContentItem | null | undefined>(undefined); // undefined for loading, null for not found
   const [isLoading, setIsLoading] = useState(true);
@@ -23,18 +28,20 @@ export default function ContentDetailPage({ params }: { params: { id: string } }
       setIsLoading(true);
       // Try to find in fetched content from sources first
       const allItems = await fetchAllContent(sources);
-      let foundItem = allItems.find(i => i.id === params.id);
+      let foundItem = allItems.find(i => i.id === pageId); // Use pageId
 
       if (!foundItem) {
         // If not found in dynamic sources, try mock data (especially if no sources configured)
-        foundItem = getMockContentItemById(params.id);
+        foundItem = getMockContentItemById(pageId); // Use pageId
       }
       
       setItem(foundItem || null); // Set to null if not found anywhere
       setIsLoading(false);
     }
-    loadContentDetail();
-  }, [params.id, sources]);
+    if (pageId) {
+      loadContentDetail();
+    }
+  }, [pageId, sources]); // Use pageId in dependency array
 
   if (isLoading || item === undefined) {
     return (
@@ -79,14 +86,16 @@ export default function ContentDetailPage({ params }: { params: { id: string } }
     <div className="container mx-auto py-8">
       {item.backdropUrl && (
         <div className="mb-8 rounded-lg overflow-hidden shadow-lg">
-          <AspectRatio ratio={16 / 9}>
+          <AspectRatio ratio={16 / 9} className="bg-muted">
             <Image
               src={item.backdropUrl}
               alt={`${item.title} backdrop`}
-              layout="fill"
-              objectFit="cover"
+              fill
+              style={{ objectFit: "cover" }}
+              className="rounded-lg"
               data-ai-hint={getAiHint(item) + " landscape"}
               unoptimized={item.backdropUrl.startsWith('https://placehold.co')}
+              priority
             />
           </AspectRatio>
         </div>
@@ -94,12 +103,13 @@ export default function ContentDetailPage({ params }: { params: { id: string } }
       <div className="grid md:grid-cols-3 gap-8">
         <div className="md:col-span-1">
           <Card className="overflow-hidden shadow-lg">
-            <AspectRatio ratio={2 / 3}>
+            <AspectRatio ratio={2 / 3} className="bg-muted">
               <Image
                 src={item.posterUrl}
                 alt={item.title}
-                layout="fill"
-                objectFit="cover"
+                fill
+                style={{ objectFit: "cover" }}
+                className="rounded-t-lg"
                 data-ai-hint={getAiHint(item)}
                 unoptimized={item.posterUrl.startsWith('https://placehold.co')}
               />
@@ -148,7 +158,7 @@ export default function ContentDetailPage({ params }: { params: { id: string } }
               <p className="text-foreground/80">{item.director.join(', ')}</p>
             </div>
           )}
-
+          
           {item.availableQualities && item.availableQualities.length > 0 && (
              <div className="mb-6">
               <h3 className="text-xl font-semibold mb-2 text-foreground">可用画质</h3>
@@ -157,6 +167,32 @@ export default function ContentDetailPage({ params }: { params: { id: string } }
                ))}
              </div>
            )}
+
+          {item.playbackSources && item.playbackSources.length > 0 && (
+            <div className="mt-8">
+              <h2 className="text-2xl font-semibold mb-3 text-foreground">播放源</h2>
+              <Accordion type="single" collapsible className="w-full">
+                {item.playbackSources.map((sourceGroup: PlaybackSourceGroup, index: number) => (
+                  <AccordionItem value={`item-${index}`} key={`${pageId}-source-${index}`}>
+                    <AccordionTrigger className="text-lg hover:no-underline">
+                      {sourceGroup.sourceName || `播放线路 ${index + 1}`}
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 pt-2">
+                        {sourceGroup.urls.map((playUrl, urlIndex) => (
+                          <Button key={`${pageId}-source-${index}-url-${urlIndex}`} variant="outline" asChild>
+                            <Link href={playUrl.url} target="_blank" rel="noopener noreferrer" title={`播放 ${item.title} - ${playUrl.name}`}>
+                              {playUrl.name}
+                            </Link>
+                          </Button>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            </div>
+          )}
         </div>
       </div>
     </div>
