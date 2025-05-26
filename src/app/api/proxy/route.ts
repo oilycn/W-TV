@@ -10,48 +10,47 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Validate the URL to prevent potential SSRF vulnerabilities, though decodeURIComponent is a good first step.
-    // For more security, you might want to whitelist allowed domains or protocols.
     const decodedTargetUrl = decodeURIComponent(targetUrl);
     
-    // Basic check for http/https scheme
     if (!decodedTargetUrl.startsWith('http://') && !decodedTargetUrl.startsWith('https://')) {
         return NextResponse.json({ error: 'Invalid URL scheme' }, { status: 400 });
     }
 
     const response = await fetch(decodedTargetUrl, {
       headers: {
-        // Some APIs might require a specific User-Agent.
         'User-Agent': 'CinemaViewApp/1.0 (NextJS Proxy)',
-        'Accept': 'application/json', // Assuming we expect JSON
+        // We remove 'Accept': 'application/json' here to be more flexible
+        // as some servers might not respond correctly if this header is too strict.
       },
-      // It's good to set a timeout for external requests.
-      // Note: AbortSignal is the standard way, but for simplicity in this example:
-      // consider packages like 'node-fetch' with timeout options if running in a Node.js server environment
-      // or handle timeouts with AbortController.
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`Proxy: Error fetching ${decodedTargetUrl}: ${response.status} ${response.statusText}`, errorText.substring(0, 500)); // Log snippet of error
+      console.error(`Proxy: Error fetching ${decodedTargetUrl}: ${response.status} ${response.statusText}`, errorText.substring(0, 500));
       return NextResponse.json(
         { error: `Failed to fetch from target: ${response.status} ${response.statusText}`, details: errorText.substring(0, 500) },
         { status: response.status }
       );
     }
 
-    // Check content type before trying to parse as JSON
+    // Try to get the raw text first to attempt JSON parsing
+    const textData = await response.text();
     const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-        const data = await response.json();
-        return NextResponse.json(data);
-    } else {
-        // If not JSON, return as text or handle appropriately
-        const textData = await response.text();
-        console.warn(`Proxy: Response from ${decodedTargetUrl} was not JSON. Content-Type: ${contentType}. Returning as text.`);
-        // For simplicity, we'll still try to return it in a JSON structure if the client expects it,
-        // or you might want to return a different response type.
-        return NextResponse.json({ nonJsonData: textData });
+
+    try {
+      // Attempt to parse as JSON regardless of content type first
+      const jsonData = JSON.parse(textData);
+      return NextResponse.json(jsonData);
+    } catch (jsonError) {
+      // If JSON parsing fails, and it wasn't declared as JSON, then treat as nonJsonData
+      if (contentType && contentType.toLowerCase().includes('application/json')) {
+        // If it claimed to be JSON but failed to parse, that's an error with the source
+        console.error(`Proxy: Failed to parse JSON from ${decodedTargetUrl} even though Content-Type was ${contentType}. Data: ${textData.substring(0,200)}...`);
+        return NextResponse.json({ error: 'Failed to parse JSON response from target', details: textData.substring(0,500) }, { status: 500 });
+      }
+      // If not JSON or failed to parse, and content type wasn't application/json, return as nonJsonData
+      console.warn(`Proxy: Response from ${decodedTargetUrl} was not parseable as JSON (Content-Type: ${contentType}). Returning as nonJsonData. Data: ${textData.substring(0,100)}...`);
+      return NextResponse.json({ nonJsonData: textData });
     }
 
   } catch (error) {
