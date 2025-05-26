@@ -105,7 +105,7 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
           hls.loadSource(currentPlayUrl);
           hls.attachMedia(videoElement);
           hls.on(Hls.Events.ERROR, (event, data) => {
-            console.error('HLS.js error:', data);
+            console.error('HLS.js error - Type:', data.type, 'Details:', data.details, 'Fatal:', data.fatal, 'Raw Data:', JSON.stringify(data, null, 2));
             if (data.fatal) {
               switch (data.type) {
                 case Hls.ErrorTypes.NETWORK_ERROR:
@@ -342,3 +342,5 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
   );
 }
 
+
+    
