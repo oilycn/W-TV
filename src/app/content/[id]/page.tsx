@@ -72,12 +72,12 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
       }
       
       if (!foundItem && sources.length > 0) { 
-        const allItems = await fetchAllContent(sources); // Fallback to searching all sources
+        const allItems = await fetchAllContent(sources); 
         foundItem = allItems.find(i => i.id === pageId);
       }
       
       if (!foundItem) {
-        foundItem = getMockContentItemById(pageId); // Fallback to mock data
+        foundItem = getMockContentItemById(pageId); 
       }
       
       setItem(foundItem || null);
@@ -100,10 +100,7 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
 
       if (currentPlayUrl.includes('.m3u8')) {
         if (Hls.isSupported()) {
-          const hls = new Hls({
-            // Optional: Add HLS.js specific configurations here if needed
-            // e.g., fragLoadingMaxRetry: 10, // Example: Increase retry attempts
-          });
+          const hls = new Hls();
           hlsRef.current = hls;
           hls.loadSource(currentPlayUrl);
           hls.attachMedia(videoElement);
@@ -112,29 +109,38 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
             if (data.fatal) {
               console.error('HLS.js FATAL error - Type:', data.type, 'Details:', data.details, 'Raw Data:', JSON.stringify(data, null, 2));
             } else {
-              // Log less verbosely for non-fatal errors, as HLS.js is attempting to recover
-              console.warn('HLS.js non-fatal error - Type:', data.type, 'Details:', data.details, '(retrying)');
+              console.warn('HLS.js non-fatal error - Type:', data.type, 'Details:', data.details, '(retrying) Raw Data:', JSON.stringify(data, null, 2));
             }
             
             if (data.type === Hls.ErrorTypes.NETWORK_ERROR || 
                 data.type === Hls.ErrorTypes.MEDIA_ERROR ||
                 data.fatal) { 
               
-              let messagePrefix = '';
-              switch (data.type) {
-                case Hls.ErrorTypes.NETWORK_ERROR:
-                  messagePrefix = '网络错误导致视频加载失败';
-                  break;
-                case Hls.ErrorTypes.MEDIA_ERROR:
-                  messagePrefix = '媒体错误导致视频加载失败';
-                  break;
-                default: 
-                  messagePrefix = '加载视频失败'; 
-                  break;
+              let finalMessage = '';
+              const isRecovering = !data.fatal && (data.type === Hls.ErrorTypes.NETWORK_ERROR || data.type === Hls.ErrorTypes.MEDIA_ERROR);
+              const recoverySuffix = isRecovering ? ' (尝试恢复中)' : (data.fatal ? ' (严重错误)' : '');
+
+              if (data.type === Hls.ErrorTypes.MEDIA_ERROR && data.details === 'bufferStalledError') {
+                finalMessage = `视频缓冲卡顿${recoverySuffix}`;
+              } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR && data.details === 'fragLoadError') {
+                 finalMessage = `视频片段加载失败${recoverySuffix}`;
+              } else {
+                let messagePrefix = '';
+                switch (data.type) {
+                  case Hls.ErrorTypes.NETWORK_ERROR:
+                    messagePrefix = '网络错误导致视频加载失败';
+                    break;
+                  case Hls.ErrorTypes.MEDIA_ERROR:
+                    messagePrefix = '媒体错误导致视频加载失败';
+                    break;
+                  default: 
+                    messagePrefix = data.fatal ? '加载视频严重错误' : '加载视频失败'; 
+                    break;
+                }
+                const detailString = data.details ? `: ${data.details}` : '';
+                finalMessage = `${messagePrefix}${detailString}${recoverySuffix}`;
               }
-              const detailMessage = data.details ? `: ${data.details}` : '';
-              const fatalMessage = data.fatal ? ' (严重)' : ' (尝试恢复中)'; // Indicate recovery attempt for non-fatal
-              setVideoPlayerError(`${messagePrefix}${detailMessage}${fatalMessage}`);
+              setVideoPlayerError(finalMessage);
             }
           });
         } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
@@ -162,9 +168,7 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
     setCurrentPlayUrl(url);
     setCurrentVideoTitle(`${item?.title} - ${name}`);
     setVideoPlayerError(null); 
-    if (videoRef.current) {
-      videoRef.current.load(); 
-    }
+    // videoRef.current?.load(); // Generally not needed when HLS.js or src change handles loading
   };
 
   if (isLoading || item === undefined) {
