@@ -7,7 +7,7 @@ import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, fetchAllContent, getMockContentItemById } from '@/lib/content-loader';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
-import { Star, CalendarDays, Clock, Video } from 'lucide-react';
+import { Star, CalendarDays, Clock, Video, AlertCircle } from 'lucide-react';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -33,15 +33,23 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
   const [isLoading, setIsLoading] = useState(true);
   const [currentPlayUrl, setCurrentPlayUrl] = useState<string | null>(null);
   const [currentVideoTitle, setCurrentVideoTitle] = useState<string>('');
+  const [videoPlayerError, setVideoPlayerError] = useState<string | null>(null);
 
   useEffect(() => {
     if (resolvedParams && resolvedParams.id) {
       setPageId(resolvedParams.id);
       setCurrentPlayUrl(null); // Reset player when ID changes
+      setVideoPlayerError(null); // Reset error when ID changes
     } else {
       setPageId(null);
     }
   }, [resolvedParams]);
+
+  useEffect(() => {
+    if (currentPlayUrl) {
+      setVideoPlayerError(null); // Reset error when new video URL is attempted
+    }
+  }, [currentPlayUrl]);
 
   useEffect(() => {
     if (!pageId) {
@@ -67,7 +75,7 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
         console.log("Detail page: No primary source URL available.");
       }
 
-      if (!foundItem && sources.length > 0) { // Try all sources if not found in primary
+      if (!foundItem && sources.length > 0) { 
         console.log(`Detail page: Item ID ${pageId} not found by direct fetch from primary. Trying fetchAllContent from all ${sources.length} sources...`);
         const allItems = await fetchAllContent(sources);
         foundItem = allItems.find(i => i.id === pageId);
@@ -99,6 +107,7 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
   const handlePlayVideo = (url: string, name: string) => {
     setCurrentPlayUrl(url);
     setCurrentVideoTitle(`${item?.title} - ${name}`);
+    setVideoPlayerError(null); // Clear previous errors
   };
 
   if (isLoading || item === undefined) {
@@ -141,26 +150,51 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
       {currentPlayUrl && (
         <div className="mb-8 rounded-lg overflow-hidden shadow-lg bg-card">
           <AspectRatio ratio={16 / 9}>
-            <video
-              key={currentPlayUrl} // Add key to force re-render when URL changes
-              src={currentPlayUrl}
-              controls
-              autoPlay
-              title={currentVideoTitle}
-              className="w-full h-full bg-black"
-              onError={(e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
-                const videoElement = e.target as HTMLVideoElement;
-                if (videoElement.error) {
-                  console.error("Video player error code:", videoElement.error.code);
-                  console.error("Video player error message:", videoElement.error.message);
-                } else {
-                  console.error("Video player error: An unknown error occurred.", e);
-                }
-                // You could show a custom error message to the user here
-              }}
-            >
-              您的浏览器不支持视频播放。
-            </video>
+            {videoPlayerError ? (
+              <div className="w-full h-full flex flex-col items-center justify-center bg-black text-destructive-foreground p-4 text-center">
+                <AlertCircle className="w-12 h-12 mb-2 text-destructive" />
+                <p className="text-lg font-semibold">播放错误</p>
+                <p className="text-sm">{videoPlayerError}</p>
+              </div>
+            ) : (
+              <video
+                key={currentPlayUrl} 
+                src={currentPlayUrl}
+                controls
+                autoPlay
+                title={currentVideoTitle}
+                className="w-full h-full bg-black"
+                onError={(e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+                  const videoElement = e.target as HTMLVideoElement;
+                  let message = '视频播放时发生未知错误。';
+                  if (videoElement.error) {
+                    console.error("Video player error code:", videoElement.error.code);
+                    console.error("Video player error message:", videoElement.error.message);
+                    switch (videoElement.error.code) {
+                      case MediaError.MEDIA_ERR_ABORTED:
+                        message = '视频加载被中止。';
+                        break;
+                      case MediaError.MEDIA_ERR_NETWORK:
+                        message = '网络错误导致视频加载失败。';
+                        break;
+                      case MediaError.MEDIA_ERR_DECODE:
+                        message = '视频解码错误。文件可能已损坏或格式不受支持。';
+                        break;
+                      case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                        message = '视频格式不受支持或无法找到视频源。请尝试其他播放源或检查网络连接。';
+                        break;
+                      default:
+                        message = `发生未知媒体错误 (代码: ${videoElement.error.code})。`;
+                    }
+                  } else {
+                    console.error("Video player error: An unknown error occurred.", e);
+                  }
+                  setVideoPlayerError(message);
+                }}
+              >
+                您的浏览器不支持视频播放。
+              </video>
+            )}
           </AspectRatio>
            <p className="p-2 text-sm text-muted-foreground">正在播放: {currentVideoTitle}</p>
            <p className="p-2 text-xs text-muted-foreground">
@@ -270,3 +304,4 @@ export default function ContentDetailPage({ params: paramsProp }: ContentDetailP
     </div>
   );
 }
+
