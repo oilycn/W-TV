@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useMemo } from 'react';
@@ -10,7 +11,7 @@ import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Tv2 } from 'lucide-react'; // Added Tv2 import
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
