@@ -22,7 +22,7 @@ function HomePageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const { setCategories: setGlobalCategories } = useCategories(); 
+  const { categories, setCategories: setGlobalCategories } = useCategories(); 
 
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
   const [contentItems, setContentItems] = useState<ContentItem[]>([]);
@@ -79,23 +79,23 @@ function HomePageContent() {
     if (primarySourceUrl) {
       try {
         fetchedCategories = await fetchApiCategories(primarySourceUrl);
-        if (fetchedCategories.length === 0 && globalCategories.length === 0) { // Only use mock if no global and no fetched
+        if (fetchedCategories.length === 0 && categories.length === 0) { // Only use mock if no global and no fetched
             fetchedCategories = getMockApiCategories();
         }
       } catch (e) {
         console.error("Failed to load categories:", e);
         setError(prev => prev ? `${prev} & 无法加载分类信息。` : "无法加载分类信息。");
-        if (globalCategories.length === 0) fetchedCategories = getMockApiCategories();
+        if (categories.length === 0) fetchedCategories = getMockApiCategories();
       }
     } else {
-      if (globalCategories.length === 0) fetchedCategories = getMockApiCategories();
+      if (categories.length === 0) fetchedCategories = getMockApiCategories();
     }
 
     if(fetchedCategories.length > 0) {
         setApiCategoriesForSelect(fetchedCategories);
         setGlobalCategories(fetchedCategories);
-    } else if (globalCategories.length > 0) {
-        setApiCategoriesForSelect(globalCategories); // Use existing global if fetch yields nothing new
+    } else if (categories.length > 0) {
+        setApiCategoriesForSelect(categories); // Use existing global if fetch yields nothing new
     }
     setIsLoadingCategories(false);
 
@@ -130,7 +130,7 @@ function HomePageContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [primarySourceUrl, setGlobalCategories, globalCategories]);
+  }, [primarySourceUrl, setGlobalCategories, categories]);
 
 
   useEffect(() => {
