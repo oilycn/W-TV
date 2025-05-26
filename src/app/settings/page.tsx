@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Trash2, PlusCircle } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const LOCAL_STORAGE_KEY = 'cinemaViewSources';
 const DEFAULT_SOURCE_PROCESSED_FLAG_KEY = 'cinemaViewDefaultSourceProcessed';
@@ -19,14 +20,23 @@ export default function SettingsPage() {
   const [newSourceName, setNewSourceName] = useState('');
   const [newSourceUrl, setNewSourceUrl] = useState('');
   const { toast } = useToast();
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isClient) {
+      return; // Only run on the client after mount
+    }
+
     const hasBeenProcessed = localStorage.getItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY);
 
     // Check if sources are loaded (not undefined) before assessing length
     if (sources && sources.length === 0 && !hasBeenProcessed) {
       const defaultSource: SourceConfig = {
-        id: `default-ffzy-${Date.now().toString()}`,
+        id: `default-ffzy-${Date.now().toString()}`, // This is fine now as it only runs client-side
         name: "采集资源 FFZY",
         url: "https://cj.ffzyapi.com/api.php/provide/vod"
       };
@@ -42,7 +52,7 @@ export default function SettingsPage() {
         });
       }, 100);
     }
-  }, [sources, setSources, toast]);
+  }, [isClient, sources, setSources, toast]); // Added isClient to dependencies
 
   const handleAddSource = () => {
     if (!newSourceName.trim() || !newSourceUrl.trim()) {
@@ -75,7 +85,7 @@ export default function SettingsPage() {
       description: "内容源已添加。",
     });
     // If user manually adds a source, we can consider the "default source processed" flag as set.
-    if (!localStorage.getItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY)) {
+    if (isClient && !localStorage.getItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY)) {
       localStorage.setItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY, 'true');
     }
   };
@@ -88,9 +98,41 @@ export default function SettingsPage() {
     });
      // If user removes all sources, including potentially the default one,
      // ensure the flag is set so it doesn't re-add automatically on next visit.
-    if (!localStorage.getItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY) && sources.length === 1 && sources[0].id === id) {
+    if (isClient && !localStorage.getItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY) && sources.length === 1 && sources[0].id === id) {
         localStorage.setItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY, 'true');
     }
+  };
+
+  const renderSourcesList = () => {
+    if (!isClient) {
+      // Render skeletons or a loading indicator during SSR and initial client render
+      return (
+        <div className="space-y-4">
+          <Skeleton className="h-[76px] w-full rounded-md" />
+          <Skeleton className="h-[76px] w-full rounded-md" />
+        </div>
+      );
+    }
+
+    if (sources && sources.length === 0) {
+      return <p className="text-muted-foreground">暂无内容源。请添加一个以上的内容源以开始浏览。</p>;
+    }
+
+    return (
+      <div className="space-y-4">
+        {sources && sources.map(source => (
+          <Card key={source.id} className="flex items-center justify-between p-4 shadow-md">
+            <div>
+              <p className="font-medium text-foreground">{source.name}</p>
+              <p className="text-sm text-muted-foreground break-all">{source.url}</p>
+            </div>
+            <Button variant="ghost" size="icon" onClick={() => handleRemoveSource(source.id)} aria-label="移除源">
+              <Trash2 className="h-5 w-5 text-destructive" />
+            </Button>
+          </Card>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -135,23 +177,7 @@ export default function SettingsPage() {
       </Card>
 
       <h2 className="text-2xl font-semibold mb-4 text-foreground">当前内容源</h2>
-      {sources && sources.length === 0 ? (
-        <p className="text-muted-foreground">暂无内容源。请添加一个以上的内容源以开始浏览。</p>
-      ) : (
-        <div className="space-y-4">
-          {sources && sources.map(source => (
-            <Card key={source.id} className="flex items-center justify-between p-4 shadow-md">
-              <div>
-                <p className="font-medium text-foreground">{source.name}</p>
-                <p className="text-sm text-muted-foreground break-all">{source.url}</p>
-              </div>
-              <Button variant="ghost" size="icon" onClick={() => handleRemoveSource(source.id)} aria-label="移除源">
-                <Trash2 className="h-5 w-5 text-destructive" />
-              </Button>
-            </Card>
-          ))}
-        </div>
-      )}
+      {renderSourcesList()}
     </div>
   );
 }
