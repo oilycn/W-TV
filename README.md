@@ -1,4 +1,4 @@
-# 影院视图 (Cinema View)
+# 晚风TV (Evening Breeze TV)
 
 这是一个基于 Next.js 构建的个性化影院体验应用程序，在 Firebase Studio 中创建。
 

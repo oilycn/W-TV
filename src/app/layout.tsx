@@ -30,7 +30,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: '影院视图',
+  title: '晚风TV',
   description: '您的个性化影院体验',
 };
 
@@ -73,3 +73,4 @@ export default function RootLayout({
     </html>
   );
 }
+

@@ -15,7 +15,22 @@ import { cn } from '@/lib/utils';
 export function SidebarNavigationItems() {
   const { categories } = useCategories();
   const searchParams = useSearchParams();
-  const currentCategoryId = searchParams.get('category');
+  const currentCategoryIdParam = searchParams.get('category');
+
+  // Determine the effective current category ID
+  // If no category is in URL, and 'all' exists, 'all' is active.
+  // If 'all' doesn't exist, and no category in URL, the first category is active.
+  let effectiveCurrentCategoryId: string | null = currentCategoryIdParam;
+  if (!currentCategoryIdParam) {
+    if (categories.find(c => c.id === 'all')) {
+      effectiveCurrentCategoryId = 'all';
+    } else if (categories.length > 0) {
+      // Fallback to the first category if 'all' is not an option and no param is set
+      // This case might not be strictly necessary if 'all' is always prepended or default
+      effectiveCurrentCategoryId = categories[0].id;
+    }
+  }
+
 
   return (
     <>
@@ -30,11 +45,11 @@ export function SidebarNavigationItems() {
                     asChild
                     tooltip={category.name}
                     variant="ghost"
-                    size="sm"
-                    isActive={currentCategoryId === category.id || (currentCategoryId === null && category.id === 'all')} // 'all' or first category if none selected
+                    size="default" // Using default size which is slightly larger
+                    isActive={effectiveCurrentCategoryId === category.id}
                     className={cn(
-                      "justify-start w-full text-left",
-                      (currentCategoryId === category.id || (!currentCategoryId && category.id === 'all')) && "bg-sidebar-accent text-sidebar-accent-foreground"
+                      "justify-start w-full text-left text-sm", // Increased base font size
+                      (effectiveCurrentCategoryId === category.id) && "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
                     )}
                   >
                     <Link href={`/?category=${category.id}&page=1`}>
@@ -50,3 +65,4 @@ export function SidebarNavigationItems() {
     </>
   );
 }
+

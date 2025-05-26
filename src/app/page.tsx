@@ -135,7 +135,7 @@ function HomePageContent() {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-10rem)] text-center">
         <Tv2 className="w-24 h-24 mb-6 text-muted-foreground" />
-        <h2 className="text-2xl font-semibold mb-2 text-foreground">欢迎来到影院视图</h2>
+        <h2 className="text-2xl font-semibold mb-2 text-foreground">欢迎来到 晚风TV</h2>
         <p className="mb-6 text-muted-foreground">
           看起来您还没有配置任何内容源。
         </p>
@@ -230,3 +230,4 @@ function HomePageSkeleton() {
     </div>
   )
 }
+
