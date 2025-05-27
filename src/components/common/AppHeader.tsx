@@ -6,7 +6,7 @@ import { SearchBar } from "@/components/search/SearchBar";
 import AppLogo from "./AppLogo";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Settings, List, Sun, Moon } from "lucide-react"; // Removed Wand2 icon
+import { Settings, Sun, Moon } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -83,7 +83,7 @@ export function AppHeader() {
       <div className="ml-auto flex items-center gap-2 sm:gap-4">
         {sources.length > 0 && (
           <div className="flex items-center gap-1 sm:gap-2">
-            <List className="h-5 w-5 text-muted-foreground hidden sm:block" />
+            {/* List icon removed */}
             <Select value={activeSourceId || ''} onValueChange={handleSourceChange}>
               <SelectTrigger className="w-[120px] sm:w-[150px] md:w-[200px] h-9 text-sm">
                 <SelectValue placeholder="选择内容源" />
