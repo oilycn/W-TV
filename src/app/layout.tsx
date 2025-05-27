@@ -5,6 +5,7 @@ import './globals.css';
 import { AppHeader } from '@/components/common/AppHeader';
 import { Toaster } from "@/components/ui/toaster";
 import { CategoryProvider } from '@/contexts/CategoryContext';
+import { ThemeProvider } from '@/contexts/ThemeContext'; // Import ThemeProvider
 import { Suspense } from 'react';
 
 const geistSans = Geist({
@@ -31,11 +32,12 @@ const AppHeaderFallback = () => (
     height: '64px', /* Corresponds to h-16 */
     alignItems: 'center',
     borderBottom: '1px solid hsl(var(--border))',
-    backgroundColor: 'hsl(var(--background))',
+    backgroundColor: 'hsl(var(--background))', // Use CSS var for fallback consistency
     paddingLeft: '1rem',
     paddingRight: '1rem',
   }} />
 );
+
 
 export default function RootLayout({
   children,
@@ -43,18 +45,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" suppressHydrationWarning> {/* Add suppressHydrationWarning here */}
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <CategoryProvider>
-          <div className="flex flex-col min-h-screen">
-            <Suspense fallback={<AppHeaderFallback />}>
-              <AppHeader />
-            </Suspense>
-            <main className="flex-1 p-4 md:p-6 overflow-auto">
-              {children}
-            </main>
-          </div>
-        </CategoryProvider>
+        <ThemeProvider> {/* Wrap with ThemeProvider */}
+          <CategoryProvider>
+            <div className="flex flex-col min-h-screen">
+              <Suspense fallback={<AppHeaderFallback />}>
+                <AppHeader />
+              </Suspense>
+              <main className="flex-1 p-4 md:p-6 overflow-auto">
+                {children}
+              </main>
+            </div>
+          </CategoryProvider>
+        </ThemeProvider>
         <Toaster />
       </body>
     </html>

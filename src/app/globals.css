@@ -4,6 +4,7 @@
 
 @layer base {
   :root {
+    /* Default to dark theme variables */
     --background: 220 20% 12%; /* Dark Slate Blue */
     --foreground: 220 10% 88%; /* Light Grayish Blue */
     --card: 220 20% 16%;
@@ -30,42 +31,6 @@
     --chart-5: 340 75% 55%;
     --radius: 0.5rem;
 
-    --sidebar-background: 220 20% 10%; /* Slightly darker than main background */
-    --sidebar-foreground: 220 10% 80%;
-    --sidebar-primary: 330 80% 60%; /* Accent color for active items */
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 220 20% 18%; /* Hover/active background */
-    --sidebar-accent-foreground: 220 10% 95%;
-    --sidebar-border: 220 20% 20%;
-    --sidebar-ring: 330 80% 60%;
-  }
-
-  .dark {
-    --background: 220 20% 12%;
-    --foreground: 220 10% 88%;
-    --card: 220 20% 16%;
-    --card-foreground: 220 10% 88%;
-    --popover: 220 20% 10%;
-    --popover-foreground: 220 10% 88%;
-    --primary: 200 80% 55%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 220 15% 30%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 220 15% 22%;
-    --muted-foreground: 220 10% 60%;
-    --accent: 330 80% 60%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 70% 50%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 220 20% 25%;
-    --input: 220 15% 22%;
-    --ring: 200 80% 55%;
-    --chart-1: 190 70% 50%;
-    --chart-2: 170 60% 45%;
-    --chart-3: 40 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-
     --sidebar-background: 220 20% 10%;
     --sidebar-foreground: 220 10% 80%;
     --sidebar-primary: 330 80% 60%;
@@ -75,6 +40,43 @@
     --sidebar-border: 220 20% 20%;
     --sidebar-ring: 330 80% 60%;
   }
+
+  .light {
+    --background: 0 0% 100%; /* White */
+    --foreground: 240 10% 3.9%; /* Dark Gray */
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 200 80% 50%; /* Slightly adjusted for light bg */
+    --primary-foreground: 210 40% 98%;
+    --secondary: 240 4.8% 95.9%; /* Light Gray */
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 330 75% 55%; /* Slightly adjusted for light bg */
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%; /* Light Gray Border */
+    --input: 240 5.9% 90%;
+    --ring: 200 80% 50%; /* Primary color for rings */
+    --chart-1: 190 70% 45%;
+    --chart-2: 170 60% 40%;
+    --chart-3: 40 80% 50%;
+    --chart-4: 280 65% 55%;
+    --chart-5: 340 75% 50%;
+
+    /* Sidebar variables for light theme, though sidebar is removed, these could be used by other components if needed */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 10% 20%;
+    --sidebar-primary: 330 75% 55%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 0 0% 92%;
+    --sidebar-accent-foreground: 240 10% 10%;
+    --sidebar-border: 0 0% 85%;
+    --sidebar-ring: 330 75% 55%;
+  }
 }
 
 @layer base {
@@ -83,6 +85,5 @@
   }
   body {
     @apply bg-background text-foreground;
-    /* Removed specific font-family: Arial, Helvetica, sans-serif; to allow Geist font from layout.tsx to take precedence */
   }
 }
