@@ -114,12 +114,14 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
   };
   
   const handlePlayerError = (
-    error: any,
-    data?: any, 
-    hlsInstance?: any, 
-    // dashInstance?: any // ReactPlayer doesn't seem to pass dashInstance directly in onError
+    error: any, // Can be a string, an object, or a browser Event
+    data?: any, // Additional data from HLS.js or DASH.js
+    hlsInstance?: any // HLS.js instance
+    // dashInstance?: any // ReactPlayer doesn't seem to pass dashInstance directly in onError for DASH.js
   ) => {
     console.error('ReactPlayer Error:', error, 'Data:', data, 'HLS Instance:', hlsInstance);
+    setIsPlayerReady(true); // Ensure skeleton loader hides
+
     let message = '视频播放时发生未知错误。';
 
     if (typeof error === 'string') {
@@ -138,15 +140,13 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
              message += ' (致命错误，无法恢复)';
         }
       } else if (lowerError.includes('dasherror') && data) {
-        const dashErr = data.error || data; // data might be the error object itself from dash.js
+        const dashErr = data.error || data; 
         message = `DASH 播放错误 (${dashErr.code || 'unknown'}${dashErr.message ? ': ' + dashErr.message : ''})`;
       } else {
         message = `播放器报告错误: ${error}`;
       }
-    } else if (error && error.message) { 
-      message = error.message;
     } else if (error && error.target && error.target.error && typeof error.target.error.code === 'number') { 
-        // This is likely a native HTML <video> element error
+        // Native HTML <video> element error
         const mediaError = error.target.error as MediaError;
         switch (mediaError.code) {
             case mediaError.MEDIA_ERR_ABORTED: message = '视频加载已中止。'; break;
@@ -155,13 +155,17 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             case mediaError.MEDIA_ERR_SRC_NOT_SUPPORTED: message = '视频源格式不支持或无法访问。'; break;
             default: message = `发生媒体错误 (代码: ${mediaError.code})。`; break;
         }
-    } else if (data && data.type) { // Fallback if error object is not helpful but data object is (e.g. from HLS/DASH)
+    } else if (error && error.message) { // Generic error object with a message
+      message = error.message;
+    } else if (data && data.type) { // Fallback if error object is not helpful but data object is (e.g., from HLS/DASH)
         message = `播放技术性错误 (${data.type}${data.details ? ': ' + data.details : ''})`;
         if (data.fatal === false && (data.type === 'networkError' || data.type === 'mediaError')) {
           message += ' (尝试恢复中)';
         } else if (data.fatal === true) {
              message += ' (致命错误，无法恢复)';
         }
+    } else {
+      message = '无法播放此视频。请检查视频源或网络连接。';
     }
 
     setVideoPlayerError(message);
@@ -234,6 +238,11 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                     config={{
                         file: {
                           attributes: { crossOrigin: 'anonymous' },
+                          hlsOptions: {
+                             // You can add HLS.js specific options here if needed
+                             // For example:
+                             // maxBufferLength: 30, 
+                          }
                         }
                     }}
                     style={{ display: isPlayerReady || videoPlayerError ? 'block' : 'none' }}
