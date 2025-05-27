@@ -117,6 +117,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     error: any, 
     data?: any, 
     hlsInstance?: any
+    // dashInstance?: any // ReactPlayer doesn't seem to pass dashInstance directly in onError
   ) => {
     if (error && typeof error === 'object' && Object.keys(error).length === 0 && !data && !hlsInstance) {
       console.warn('ReactPlayer encountered an error but provided no specific details. The video source may be invalid or inaccessible. Raw error object:', error);
@@ -248,6 +249,11 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             )}
           </AspectRatio>
            <p className="p-2 text-sm text-muted-foreground">正在播放: {currentVideoTitle}</p>
+           {currentPlayUrl && (
+            <p className="p-2 text-xs text-muted-foreground break-all">
+              视频链接: {currentPlayUrl}
+            </p>
+           )}
            <p className="p-2 text-xs text-muted-foreground">
             提示：如果播放失败或卡顿，请尝试其他播放源或检查网络连接。部分视频格式可能需要现代浏览器支持。
           </p>
