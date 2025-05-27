@@ -14,8 +14,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from '@/components/ui/button';
 import ReactPlayer from 'react-player/lazy';
-import 'hls.js'; // ReactPlayer handles HLS if hls.js is in dependencies and URL is HLS
-import 'dashjs'; // ReactPlayer handles DASH if dashjs is in dependencies and URL is DASH
+import 'hls.js'; // Import for side-effects to make HLS.js available to ReactPlayer
+import 'dashjs'; // Import for side-effects to make dash.js available to ReactPlayer
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 const LOCAL_STORAGE_KEY_ACTIVE_SOURCE = 'cinemaViewActiveSourceId';
@@ -117,9 +117,13 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     error: any, // Can be a string, an object, or a browser Event
     data?: any, // Additional data from HLS.js or DASH.js
     hlsInstance?: any // HLS.js instance
-    // dashInstance?: any // ReactPlayer doesn't seem to pass dashInstance directly in onError for DASH.js
+    // dashInstance?: any // ReactPlayer doesn't seem to pass dashInstance directly in onError
   ) => {
-    console.error('ReactPlayer Error:', error, 'Data:', data, 'HLS Instance:', hlsInstance);
+    if (error && typeof error === 'object' && Object.keys(error).length === 0 && !data && !hlsInstance) {
+      console.warn('ReactPlayer encountered an error but provided no specific details. The video source may be invalid or inaccessible. Raw error object:', error);
+    } else {
+      console.error('ReactPlayer Error:', error, 'Data:', data, 'HLS Instance:', hlsInstance);
+    }
     setIsPlayerReady(true); // Ensure skeleton loader hides
 
     let message = '视频播放时发生未知错误。';
