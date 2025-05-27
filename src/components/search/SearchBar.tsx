@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -39,7 +39,7 @@ export function SearchBar() {
   };
 
   // Update query state if URL changes externally
-  React.useEffect(() => {
+  useEffect(() => {
     setQuery(currentSearchParams.get('q') || '');
   }, [currentSearchParams]);
 
