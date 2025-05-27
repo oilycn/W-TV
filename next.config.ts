@@ -13,46 +13,12 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'placehold.co',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'img.ffzy888.com',
-        port: '',
-        pathname: '/**',
+        hostname: '**', // Wildcard for all hostnames
       },
       {
         protocol: 'http',
-        hostname: 'img.ffzy888.com',
-        port: '',
-        pathname: '/**',
+        hostname: '**', // Wildcard for all hostnames
       },
-      {
-        protocol: 'https',
-        hostname: 'img.bdzyimg1.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'http',
-        hostname: 'img.bdzyimg1.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'image.huyajs.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'http',
-        hostname: 'image.huyajs.com',
-        port: '',
-        pathname: '/**',
-      }
     ],
   },
 };
