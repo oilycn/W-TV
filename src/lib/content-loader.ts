@@ -90,21 +90,27 @@ function mapApiItemToContentItem(apiItem: any): ContentItem | null {
                 if (parts.length >= 2) {
                     name = parts[0]?.trim();
                     url = parts[1]?.trim();
-                    if (!name && url) {
+                    // if name is empty but url seems valid
+                    if (!name && url && (url.startsWith('http://') || url.startsWith('https://') || url.includes('.m3u8') || url.includes('.mp4'))) {
                         name = `播放 ${urlIdx + 1}`;
                     }
                 } else if (parts.length === 1) {
                     const singlePart = parts[0]?.trim();
+                    // Check if the single part looks like a URL
                     if (singlePart && (singlePart.startsWith('http://') || singlePart.startsWith('https://') || singlePart.includes('.m3u8') || singlePart.includes('.mp4'))) {
                         url = singlePart;
                         name = `播放 ${urlIdx + 1}`;
+                    } else if (singlePart) {
+                         // If it's not a URL, it might be a name with an implicit URL that was not correctly paired by '$'
+                         // This case is harder to handle reliably without more context on API variations
+                         // For now, we'll only proceed if we have a clear URL
                     }
                 }
 
                 if (name && url && (url.startsWith('http://') || url.startsWith('https://') || url.includes('.m3u8') || url.includes('.mp4'))) {
                     parsedUrls.push({ name, url });
                 } else if (url && (url.startsWith('http://') || url.startsWith('https://') || url.includes('.m3u8') || url.includes('.mp4'))){
-                     // if name is missing but url is valid
+                    // if name is missing but url is valid
                     parsedUrls.push({ name: `播放 ${urlIdx + 1}`, url });
                 }
             });
@@ -151,6 +157,7 @@ function mapApiItemToContentItem(apiItem: any): ContentItem | null {
 
 async function fetchViaProxy(targetUrl: string, sourceName?: string): Promise<any> {
   const proxyRequestUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+  console.log(`fetchViaProxy: Requesting ${proxyRequestUrl} (for ${sourceName || targetUrl})`);
   const response = await fetch(proxyRequestUrl);
 
   if (!response.ok) {
@@ -159,36 +166,36 @@ async function fetchViaProxy(targetUrl: string, sourceName?: string): Promise<an
       const errorData = await response.json();
       errorDetails = errorData.error || errorData.message || errorDetails;
       if (errorData.details) errorDetails += ` Details: ${errorData.details}`;
-    } catch (e) { /* ignore */ }
+    } catch (e) { /* ignore if error response is not JSON */ }
     const errorMessage = `Error fetching from ${sourceName || 'source'} (via proxy ${proxyRequestUrl}): ${errorDetails}`;
     console.error(errorMessage);
     throw new Error(errorMessage);
   }
 
-  const data = await response.json();
+  const data = await response.json(); // This is the JSON response *from our proxy*
 
-  if (data && data.nonJsonData) {
-    console.warn(`fetchViaProxy: Source ${targetUrl} was initially flagged as non-JSON by proxy. Attempting parse. Data: ${String(data.nonJsonData).substring(0,100)}`);
-    if (typeof data.nonJsonData === 'string') {
-      try {
-        return JSON.parse(data.nonJsonData);
-      } catch (e) {
-        console.error(`fetchViaProxy: Failed to parse nonJsonData string as JSON from ${targetUrl}:`, e);
-        throw new Error(`Source returned non-JSON data that could not be parsed: ${String(data.nonJsonData).substring(0,100)}`);
-      }
-    }
-    throw new Error(`Source returned non-JSON data: ${String(data.nonJsonData).substring(0,100)}`);
-  }
-
+  // Case 1: Our proxy signals an error it encountered (e.g., failed to fetch target)
   if (data && data.error) {
     console.error(`fetchViaProxy: Proxy itself returned an error for ${targetUrl}: ${data.error}`, data.details || '');
-    throw new Error(`Proxy error for ${targetUrl}: ${data.error}`);
+    throw new Error(`Proxy error for ${targetUrl}: ${data.error}. Details: ${data.details || 'N/A'}`);
   }
 
-  return data;
+  // Case 2: Our proxy indicates the *target source* returned non-JSON data
+  if (data && typeof data.nonJsonData === 'string') {
+    console.warn(`fetchViaProxy: Target source ${sourceName || targetUrl} returned non-JSON data: "${data.nonJsonData.substring(0, 200)}"`);
+    // We throw an error here so that the calling function (e.g., fetchApiContentList)
+    // knows that the target source didn't provide valid JSON.
+    throw new Error(`Target source (${sourceName || targetUrl}) returned non-JSON data: "${data.nonJsonData.substring(0, 200)}"`);
+  }
+
+  // Case 3: Our proxy successfully returned JSON from the target source
+  console.log(`fetchViaProxy: Successfully received JSON data from proxy for ${sourceName || targetUrl}`);
+  return data; // This should be the actual JSON data from the target source
 }
 
+
 export async function fetchApiCategories(sourceUrl: string): Promise<ApiCategory[]> {
+  console.log(`fetchApiCategories: Attempting to fetch categories from ${sourceUrl}`);
   try {
     const data = await fetchViaProxy(sourceUrl, `categories from ${sourceUrl}`);
     if (data && Array.isArray(data.class)) {
@@ -197,19 +204,18 @@ export async function fetchApiCategories(sourceUrl: string): Promise<ApiCategory
         name: cat.type_name,
       })).filter((cat: ApiCategory | null): cat is ApiCategory => cat !== null && cat.id !== '' && cat.name !== '');
       
-      // Ensure "All" category is present
-      if (categories.length > 0 && !categories.some(c => c.id === 'all')) {
+      if (!categories.some(c => c.id === 'all')) {
+        console.log("fetchApiCategories: Prepending 'All' category.");
         categories.unshift({ id: 'all', name: '全部' });
-      } else if (categories.length === 0) { // If API returns no categories, provide a default "All"
-        categories.push({ id: 'all', name: '全部' });
       }
+      console.log(`fetchApiCategories: Successfully fetched ${categories.length} categories from ${sourceUrl}.`);
       return categories;
     }
     console.warn(`No 'class' array found in category data from ${sourceUrl}`, data);
-    return [{ id: 'all', name: '全部 (默认)' }]; // Default with "All"
+    return [{ id: 'all', name: '全部 (默认)' }]; 
   } catch (error) {
-    console.error(`Failed to fetch categories from ${sourceUrl}:`, error);
-    return [{ id: 'all', name: '全部 (错误)' }]; // Default with "All" on error
+    console.error(`Failed to fetch categories from ${sourceUrl}. Error:`, error instanceof Error ? error.message : String(error));
+    return [{ id: 'all', name: '全部 (错误)' }]; 
   }
 }
 
@@ -218,22 +224,26 @@ export async function fetchApiContentList(
   params: { page?: number; categoryId?: string; searchTerm?: string; ids?: string }
 ): Promise<PaginatedContentResponse> {
   const apiUrl = new URL(sourceUrl);
-  apiUrl.searchParams.set('ac', 'detail');
+  apiUrl.searchParams.set('ac', 'detail'); // This is standard for these APIs
 
   if (params.ids) {
     apiUrl.searchParams.set('ids', params.ids);
   } else {
+    // Only set page, category, search if not fetching by specific IDs
     if (params.page) apiUrl.searchParams.set('pg', String(params.page));
     if (params.categoryId && params.categoryId !== 'all') apiUrl.searchParams.set('t', params.categoryId);
     if (params.searchTerm) apiUrl.searchParams.set('wd', params.searchTerm);
   }
+  console.log(`fetchApiContentList: Requesting ${apiUrl.toString()} from source ${sourceUrl} with params ${JSON.stringify(params)}`);
 
   try {
     const actualData = await fetchViaProxy(apiUrl.toString(), `content list/item from ${sourceUrl}`);
+    
     const items = (actualData.list && Array.isArray(actualData.list))
       ? actualData.list.map(mapApiItemToContentItem).filter((item: ContentItem | null): item is ContentItem => item !== null)
       : [];
-
+    
+    console.log(`fetchApiContentList: Fetched ${items.length} items. Page: ${actualData.page}, PageCount: ${actualData.pagecount || actualData.page_count}, Total: ${actualData.total}`);
     return {
       items,
       page: parseInt(String(actualData.page), 10) || 1,
@@ -242,14 +252,16 @@ export async function fetchApiContentList(
       total: parseInt(String(actualData.total), 10) || items.length || 0,
     };
   } catch (error) {
-    console.error(`Failed to fetch content list from ${sourceUrl} with params ${JSON.stringify(params)}:`, error);
+    console.error(`Failed to fetch or parse content list from ${sourceUrl} (API URL: ${apiUrl.toString()}). Error:`, error instanceof Error ? error.message : String(error));
     return { items: [], page: 1, pageCount: 1, limit: 20, total: 0 };
   }
 }
 
 export async function fetchContentItemById(sourceUrl: string, itemId: string): Promise<ContentItem | null> {
+  console.log(`fetchContentItemById: Fetching item ${itemId} from ${sourceUrl}`);
   const response = await fetchApiContentList(sourceUrl, { ids: itemId });
   if (response.items && response.items.length > 0) {
+    console.log(`fetchContentItemById: Found item ${itemId}`);
     return response.items[0];
   }
   console.warn(`fetchContentItemById: Item with ID ${itemId} not found or error in response from ${sourceUrl}. Response items:`, response.items);
@@ -263,12 +275,14 @@ export async function fetchAllContent(sources: SourceConfig[]): Promise<ContentI
     return getMockContentItems();
   }
 
+  // For fetchAllContent, we typically want a broad overview, so just page 1 from each source
+  // More specific fetching (by category, pagination, search) is handled by fetchApiContentList for the active source
   const allContentPromises = sources.map(source =>
-    fetchApiContentList(source.url, { page: 1 }) // Fetch page 1 for a general list
-      .then(response => response.items)
+    fetchApiContentList(source.url, { page: 1 }) 
+      .then(response => response.items) // Only take items from the paginated response
       .catch(err => {
-        console.error(`Error in fetchAllContent for source ${source.name}:`, err);
-        return [];
+        console.error(`Error in fetchAllContent for source ${source.name} (${source.url}):`, err);
+        return []; // Return empty array for this source on error
       })
   );
 
@@ -278,14 +292,18 @@ export async function fetchAllContent(sources: SourceConfig[]): Promise<ContentI
 
     if (combinedContent.length === 0 && sources.length > 0) {
       console.warn("All sources returned no content in fetchAllContent, falling back to mock data.");
-      return getMockContentItems();
+      return getMockContentItems(); // Fallback to mock if all sources fail or return nothing
     }
 
+    // Deduplicate items by ID, preferring the first encountered version
     const uniqueContent = Array.from(new Map(combinedContent.map(item => [item.id, item])).values());
+    console.log(`fetchAllContent: Combined and deduplicated content from ${sources.length} sources, resulting in ${uniqueContent.length} items.`);
     return uniqueContent;
 
   } catch (error) {
-    console.error("Error fetching content from one or more sources in fetchAllContent, returning mock data.", error);
+    // This catch might be redundant if individual promises handle their errors,
+    // but it's a good safety net.
+    console.error("Unexpected error during Promise.all in fetchAllContent, returning mock data.", error);
     return getMockContentItems();
   }
 }
@@ -301,15 +319,17 @@ export function getMockContentItems(): ContentItem[] {
 
 export function getMockApiCategories(): ApiCategory[] {
   const allCategory: ApiCategory = { id: 'all', name: '全部 (模拟)' };
-  const hasAll = mockCategoriesRaw.some(c => c.id === 'all'); // Use raw if it might already contain 'all'
+  const hasAll = mockCategoriesRaw.some(c => c.id === 'all');
   return hasAll ? mockCategoriesRaw : [allCategory, ...mockCategoriesRaw];
 }
 
 export function getMockPaginatedResponse(page: number = 1, categoryId?: string, searchTerm?: string): PaginatedContentResponse {
   let items = mockContentItems;
   if (categoryId && categoryId !== 'all') {
+      // Example filtering for mock data
       if (categoryId === 'mock-cat-1') items = items.filter(item => item.type === 'movie');
       else if (categoryId === 'mock-cat-2') items = items.filter(item => item.type === 'tv_show');
+      // Add more mock category filters if needed
   }
   if (searchTerm) {
       items = items.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
