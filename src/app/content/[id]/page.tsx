@@ -1,10 +1,10 @@
 
 "use client";
 
-import { use, useEffect, useState, Suspense, useRef } from 'react';
+import { use, useEffect, useState, Suspense } from 'react';
 import type { ContentItem, PlaybackSourceGroup, SourceConfig } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { fetchContentItemById, fetchAllContent, getMockContentItemById } from '@/lib/content-loader';
+import { fetchContentItemById, getMockContentItemById } from '@/lib/content-loader';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Star, CalendarDays, Clock, Video, AlertCircle } from 'lucide-react';
@@ -18,6 +18,8 @@ import ReactPlayer from 'react-player/lazy';
 // import 'hls.js'; // ReactPlayer handles HLS if hls.js is in dependencies and URL is HLS
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
+const LOCAL_STORAGE_KEY_ACTIVE_SOURCE = 'cinemaViewActiveSourceId';
+
 
 interface ContentDetailPageParams {
   id: string;
@@ -32,6 +34,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
 
   const [pageId, setPageId] = useState<string | null>(null);
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
+  const [activeSourceId] = useLocalStorage<string | null>(LOCAL_STORAGE_KEY_ACTIVE_SOURCE, null);
   const [item, setItem] = useState<ContentItem | null | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPlayUrl, setCurrentPlayUrl] = useState<string | null>(null);
@@ -66,32 +69,46 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
 
     async function loadContentDetail() {
       setIsLoading(true);
-      let foundItem: ContentItem | null | undefined = undefined;
-      const primarySourceUrl = sources.length > 0 ? sources[0].url : null;
+      let itemFound: ContentItem | null | undefined = undefined;
 
-      if (primarySourceUrl && pageId) {
-        console.log(`Fetching item ${pageId} from primary source: ${primarySourceUrl}`);
-        foundItem = await fetchContentItemById(primarySourceUrl, pageId);
+      if (sources.length > 0 && pageId) {
+        // Try fetching from the current active source first, if available
+        const activeSource = sources.find(s => s.id === activeSourceId);
+        if (activeSource) {
+          console.log(`ContentDetail: Attempting to fetch item ${pageId} from active source: ${activeSource.name} (${activeSource.url})`);
+          itemFound = await fetchContentItemById(activeSource.url, pageId);
+        }
+
+        // If not found in active source, or no active source was set, try all other sources
+        if (!itemFound) {
+          for (const source of sources) {
+            // Skip if we already tried this as the active source
+            if (activeSource && source.id === activeSource.id) {
+              continue;
+            }
+            console.log(`ContentDetail: Attempting to fetch item ${pageId} from other source: ${source.name} (${source.url})`);
+            itemFound = await fetchContentItemById(source.url, pageId);
+            if (itemFound) {
+              console.log(`ContentDetail: Found item ${pageId} in source: ${source.name}`);
+              break; // Found it
+            }
+          }
+        }
       }
       
-      if (!foundItem && sources.length > 0 && pageId) { 
-        console.log(`Item ${pageId} not in primary source, checking all sources.`);
-        const allItems = await fetchAllContent(sources); 
-        foundItem = allItems.find(i => i.id === pageId);
+      // If still not found (e.g., no sources or item not in any source), try mock data
+      if (!itemFound && pageId) {
+        console.log(`ContentDetail: Item ${pageId} not in any dynamic source, trying mock data.`);
+        itemFound = getMockContentItemById(pageId); 
       }
       
-      if (!foundItem && pageId) {
-        console.log(`Item ${pageId} not in any dynamic source, trying mock data.`);
-        foundItem = getMockContentItemById(pageId); 
-      }
-      
-      setItem(foundItem || null);
+      setItem(itemFound || null);
       setIsLoading(false);
     }
     
     loadContentDetail();
     
-  }, [pageId, sources]);
+  }, [pageId, sources, activeSourceId]);
 
 
   const handlePlayVideo = (url: string, name: string) => {
@@ -103,9 +120,8 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
   
   const handlePlayerError = (
     error: any,
-    data?: any, // Additional data from HLS.js or DASH.js
-    hlsInstance?: any, // HLS.js instance
-    // hlsGlobal?: any // Less commonly used
+    data?: any, 
+    hlsInstance?: any, 
   ) => {
     console.error('ReactPlayer Error:', error, 'Data:', data, 'HLS Instance:', hlsInstance);
     let message = '视频播放时发生未知错误。';
@@ -113,7 +129,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     if (typeof error === 'string') {
       const lowerError = error.toLowerCase();
       if (lowerError.includes('hlserror') && data && data.type) {
-        // Specific HLS error from data object
         message = `HLS 播放错误 (${data.type}${data.details ? ': ' + data.details : ''})`;
         if (data.fatal === false) {
             if (data.type === 'networkError' && data.details === 'fragLoadError') {
@@ -127,14 +142,14 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
              message += ' (致命错误，无法恢复)';
         }
       } else if (lowerError.includes('dasherror') && data) {
-        const dashErr = data.error || data; // dash.js might structure error differently
+        const dashErr = data.error || data; 
         message = `DASH 播放错误 (${dashErr.code || 'unknown'}${dashErr.message ? ': ' + dashErr.message : ''})`;
       } else {
         message = `播放器报告错误: ${error}`;
       }
-    } else if (error && error.message) { // Standard JS Error object
+    } else if (error && error.message) { 
       message = error.message;
-    } else if (error && error.target && error.target.error && typeof error.target.error.code === 'number') { // Native HTML <video> MediaError
+    } else if (error && error.target && error.target.error && typeof error.target.error.code === 'number') { 
         const mediaError = error.target.error as MediaError;
         switch (mediaError.code) {
             case mediaError.MEDIA_ERR_ABORTED: message = '视频加载已中止。'; break;
@@ -143,7 +158,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             case mediaError.MEDIA_ERR_SRC_NOT_SUPPORTED: message = '视频源格式不支持或无法访问。'; break;
             default: message = `发生媒体错误 (代码: ${mediaError.code})。`; break;
         }
-    } else if (data && data.type) { // Fallback for HLS/DASH if error is not informative, but data object from HLS/DASH is
+    } else if (data && data.type) { 
         message = `播放技术性错误 (${data.type}${data.details ? ': ' + data.details : ''})`;
         if (data.fatal === false && (data.type === 'networkError' || data.type === 'mediaError')) {
           message += ' (尝试恢复中)';
@@ -222,8 +237,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                     config={{
                         file: {
                           attributes: { crossOrigin: 'anonymous' },
-                          // hlsOptions: {}, // Add HLS specific options if needed
-                          // dashVersion: '4.7.4' // Specify dashjs version if needed by ReactPlayer
                         }
                     }}
                     style={{ display: isPlayerReady || videoPlayerError ? 'block' : 'none' }}
