@@ -2,7 +2,6 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SearchBar } from "@/components/search/SearchBar";
 import AppLogo from "./AppLogo";
 import Link from "next/link";
@@ -17,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import type { SourceConfig } from '@/types';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation'; // Added usePathname, useSearchParams
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 const LOCAL_STORAGE_KEY_ACTIVE_SOURCE = 'cinemaViewActiveSourceId';
@@ -27,13 +26,13 @@ export function AppHeader() {
   const [activeSourceId, setActiveSourceId] = useLocalStorage<string | null>(LOCAL_STORAGE_KEY_ACTIVE_SOURCE, null);
   const [isClient, setIsClient] = useState(false);
   const router = useRouter();
-  const pathname = usePathname(); // Get current pathname
-  const searchParams = useSearchParams(); // Get current searchParams
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     setIsClient(true);
     if (sources.length > 0 && (!activeSourceId || !sources.find(s => s.id === activeSourceId))) {
-      if (isClient) setActiveSourceId(sources[0].id); // Ensure client-side for LS
+      if (isClient) setActiveSourceId(sources[0].id);
     } else if (sources.length === 0 && activeSourceId) {
       if (isClient) setActiveSourceId(null);
     }
@@ -41,26 +40,22 @@ export function AppHeader() {
 
   const handleSourceChange = (newSourceId: string) => {
     if (isClient) {
-      setActiveSourceId(newSourceId); // This updates LS
-      // Force a re-evaluation of the page by navigating with a trigger query param.
+      setActiveSourceId(newSourceId);
       const newParams = new URLSearchParams(searchParams.toString());
-      newParams.set('activeSourceTrigger', newSourceId); // Add/update a trigger
-      newParams.set('page', '1'); // Reset to page 1 on source change
-      if (pathname === '/') { // Only push if on homepage, otherwise state might be irrelevant
+      newParams.set('activeSourceTrigger', newSourceId);
+      newParams.set('page', '1');
+      if (pathname === '/') {
         router.push(`${pathname}?${newParams.toString()}`, { scroll: false });
-      } else {
-         // If not on homepage, just set the active source ID.
-         // Homepage will pick it up when it next loads.
       }
       console.log(`AppHeader: Source changed to ${newSourceId}, new URL params: ${newParams.toString()}`);
     }
   };
-  
+
   if (!isClient) {
     return (
       <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur md:px-6">
-        <div className="flex items-center gap-2 md:hidden">
-          <SidebarTrigger />
+        {/* Simplified header for SSR or when client is not yet ready */}
+        <div className="flex items-center gap-2">
           <Link href="/">
             <AppLogo />
           </Link>
@@ -71,13 +66,10 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-10 flex h-16 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur-md md:px-6">
-      <div className="flex items-center gap-2 md:hidden">
-        <SidebarTrigger />
-        <Link href="/">
-          <AppLogo />
-        </Link>
-      </div>
-      
+      <Link href="/" className="mr-4">
+        <AppLogo />
+      </Link>
+
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" asChild aria-label="主页">
           <Link href="/">

@@ -2,24 +2,10 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
-import { 
-  SidebarProvider, 
-  Sidebar, 
-  SidebarInset, 
-  SidebarHeader, 
-  SidebarContent, 
-  SidebarFooter
-} from '@/components/ui/sidebar';
 import { AppHeader } from '@/components/common/AppHeader';
 import { Toaster } from "@/components/ui/toaster";
-import Link from 'next/link';
-import AppLogo from '@/components/common/AppLogo';
-import { CategoryProvider } from '@/contexts/CategoryContext'; 
-import { ScrollArea } from '@/components/ui/scroll-area';
-// SidebarNavigationItems is now imported for client-side rendering
-import { SidebarNavigationItems } from '@/components/layout/SidebarNavigationItems';
+import { CategoryProvider } from '@/contexts/CategoryContext';
 import { Suspense } from 'react';
-
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -36,29 +22,20 @@ export const metadata: Metadata = {
   description: '您的个性化影院体验',
 };
 
-// Define very simple, static fallbacks as functional components
 const AppHeaderFallback = () => (
-  <div style={{ 
-    position: 'sticky', 
-    top: 0, 
-    zIndex: 10, 
-    display: 'flex', 
+  <div style={{
+    position: 'sticky',
+    top: 0,
+    zIndex: 10,
+    display: 'flex',
     height: '64px', /* Corresponds to h-16 */
-    alignItems: 'center', 
-    borderBottom: '1px solid hsl(var(--border))', /* Simulate border-b */
-    backgroundColor: 'hsl(var(--background))', /* Simulate bg-background/95 */
-    paddingLeft: '1rem', /* Corresponds to px-4 */
-    paddingRight: '1rem', /* Corresponds to px-4 */
+    alignItems: 'center',
+    borderBottom: '1px solid hsl(var(--border))',
+    backgroundColor: 'hsl(var(--background))',
+    paddingLeft: '1rem',
+    paddingRight: '1rem',
   }} />
 );
-
-// Fallback for sidebar content is now simpler as dynamic categories are moved to the homepage
-const SidebarNavFallback = () => (
-  <div style={{ padding: '0.5rem' }}>
-    {/* Minimal placeholder, or could be empty if sidebar content is only static */}
-  </div>
-);
-
 
 export default function RootLayout({
   children,
@@ -68,35 +45,18 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <CategoryProvider> 
-          <SidebarProvider defaultOpen={false}> {/* Changed defaultOpen to false */}
-            <Sidebar collapsible="icon" className="border-r border-sidebar-border flex flex-col"> {/* Ensure sidebar itself can flex its content */}
-              <SidebarHeader className="p-4">
-                <Link href="/" className="flex items-center gap-2">
-                  <AppLogo />
-                </Link>
-              </SidebarHeader>
-              <SidebarContent className="flex-grow">
-                 {/* Sidebar content is now minimal or for other static nav items if any */}
-                 {/* Dynamic categories are now on the homepage */}
-              </SidebarContent>
-              <SidebarFooter className="p-2 mt-auto"> {/* Push footer to bottom */}
-                {/* Footer content if any */}
-              </SidebarFooter>
-            </Sidebar>
-            <SidebarInset>
-              <Suspense fallback={<AppHeaderFallback />}>
-                <AppHeader />
-              </Suspense>
-              <main className="flex-1 p-4 md:p-6 overflow-auto">
-                {children}
-              </main>
-            </SidebarInset>
-          </SidebarProvider>
+        <CategoryProvider>
+          <div className="flex flex-col min-h-screen">
+            <Suspense fallback={<AppHeaderFallback />}>
+              <AppHeader />
+            </Suspense>
+            <main className="flex-1 p-4 md:p-6 overflow-auto">
+              {children}
+            </main>
+          </div>
         </CategoryProvider>
         <Toaster />
       </body>
     </html>
   );
 }
-
