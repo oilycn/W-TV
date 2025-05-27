@@ -10,11 +10,12 @@ import { ContentCard } from '@/components/content/ContentCard';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, Tv2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { AlertCircle, Tv2, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useCategories } from '@/contexts/CategoryContext'; 
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
+const LOCAL_STORAGE_KEY_ACTIVE_SOURCE = 'cinemaViewActiveSourceId';
 
 function HomePageContent() {
   const searchParams = useSearchParams();
@@ -23,19 +24,27 @@ function HomePageContent() {
   const { categories, setCategories: setGlobalCategories } = useCategories(); 
 
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
+  const [activeSourceId] = useLocalStorage<string | null>(LOCAL_STORAGE_KEY_ACTIVE_SOURCE, null);
+  
   const [contentItems, setContentItems] = useState<ContentItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
   const selectedCategoryId = useMemo(() => searchParams.get('category') || 'all', [searchParams]);
-  const currentSearchTermQuery = useMemo(() => searchParams.get('q') || '', [searchParams]); // From global search
+  const currentSearchTermQuery = useMemo(() => searchParams.get('q') || '', [searchParams]);
   const currentPageQuery = useMemo(() => parseInt(searchParams.get('page') || '1', 10), [searchParams]);
   
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
 
-  const primarySourceUrl = useMemo(() => sources.length > 0 ? sources[0].url : null, [sources]);
+  const activeSourceUrl = useMemo(() => {
+    if (activeSourceId) {
+      const source = sources.find(s => s.id === activeSourceId);
+      if (source) return source.url;
+    }
+    return sources.length > 0 ? sources[0].url : null;
+  }, [sources, activeSourceId]);
 
   const updateURLParams = useCallback((newParams: Record<string, string | number | undefined | null>) => {
     const currentParams = new URLSearchParams(searchParams.toString());
@@ -61,41 +70,42 @@ function HomePageContent() {
     }
   }, [router, searchParams, pathname]);
 
-
   const loadCategoriesAndContent = useCallback(async (page: number, categoryId: string, searchTerm: string) => {
     setIsLoading(true);
-    // Only load categories if they are not already loaded or if primarySourceUrl changes
-    if (categories.length === 0 || (primarySourceUrl && !categories.find(c => c.id.startsWith('mock-')))) {
+    if (categories.length === 0 || (activeSourceUrl && !categories.find(c => c.id.startsWith('mock-')))) {
         setIsLoadingCategories(true);
     }
     setError(null);
 
-    if (primarySourceUrl && categories.length === 0) {
+    if (activeSourceUrl) {
       try {
-        let fetchedCategories = await fetchApiCategories(primarySourceUrl);
-        if (fetchedCategories.length === 0) { 
-            fetchedCategories = getMockApiCategories();
+        let fetchedCategories = await fetchApiCategories(activeSourceUrl);
+        if (fetchedCategories.length === 0 && categories.length === 0) { 
+            fetchedCategories = getMockApiCategories(); // Fallback if API returns nothing and context is empty
         }
-        setGlobalCategories(fetchedCategories);
+        // Only update global categories if they've actually changed or if switching from mock
+        if (fetchedCategories.length > 0 || (categories.length > 0 && categories.find(c => c.id.startsWith('mock-')))) {
+             setGlobalCategories(fetchedCategories.length > 0 ? fetchedCategories : getMockApiCategories());
+        }
       } catch (e) {
         console.error("Failed to load categories:", e);
         setError(prev => prev ? `${prev} & 无法加载分类信息。` : "无法加载分类信息。");
         if (categories.length === 0) setGlobalCategories(getMockApiCategories());
       }
-    } else if (!primarySourceUrl && categories.length === 0) {
+    } else if (categories.length === 0) { // No active source URL and no categories yet
         setGlobalCategories(getMockApiCategories());
     }
     setIsLoadingCategories(false);
 
     try {
       let response: PaginatedContentResponse;
-      if (!primarySourceUrl && !searchTerm && categoryId === 'all') { 
+      if (!activeSourceUrl && !searchTerm && categoryId === 'all') { 
         response = getMockPaginatedResponse(page);
-      } else if (!primarySourceUrl && (searchTerm || categoryId !== 'all')) { 
+      } else if (!activeSourceUrl && (searchTerm || categoryId !== 'all')) { 
         response = { items: [], page:1, pageCount: 1, limit: 20, total: 0 };
       }
-      else if (primarySourceUrl) {
-        response = await fetchApiContentList(primarySourceUrl, {
+      else if (activeSourceUrl) {
+        response = await fetchApiContentList(activeSourceUrl, {
           page,
           categoryId: categoryId === 'all' ? undefined : categoryId,
           searchTerm: searchTerm || undefined,
@@ -118,12 +128,12 @@ function HomePageContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [primarySourceUrl, setGlobalCategories, categories]); // Ensure 'categories' is a dependency
+  }, [activeSourceUrl, setGlobalCategories, categories]);
 
 
   useEffect(() => {
     loadCategoriesAndContent(currentPageQuery, selectedCategoryId, currentSearchTermQuery);
-  }, [selectedCategoryId, currentSearchTermQuery, currentPageQuery, loadCategoriesAndContent]);
+  }, [selectedCategoryId, currentSearchTermQuery, currentPageQuery, loadCategoriesAndContent, activeSourceUrl]); // Added activeSourceUrl
   
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
@@ -131,18 +141,18 @@ function HomePageContent() {
     }
   };
   
-  if (sources.length === 0 && !primarySourceUrl && !isLoading && !isLoadingCategories && (!categories.length || categories.every(c => c.name.includes('(模拟)'))) ) {
+  if (sources.length === 0 && !activeSourceUrl && !isLoading && !isLoadingCategories && (!categories.length || categories.every(c => c.name.includes('(模拟)'))) ) {
     return (
-      <div className="flex flex-col items-center justify-center h-[calc(100vh-10rem)] text-center">
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-10rem)] text-center p-4">
         <Tv2 className="w-24 h-24 mb-6 text-muted-foreground" />
         <h2 className="text-2xl font-semibold mb-2 text-foreground">欢迎来到 晚风TV</h2>
-        <p className="mb-6 text-muted-foreground">
-          看起来您还没有配置任何内容源。
+        <p className="mb-6 text-muted-foreground max-w-md">
+          您还没有配置任何内容源。请前往“设置”页面添加一个或多个内容源，以便开始浏览和发现精彩内容。
         </p>
         <Button asChild className="bg-accent hover:bg-accent/90 text-accent-foreground">
-          <Link href="/settings">前往设置以添加内容源</Link>
+          <Link href="/settings">前往设置</Link>
         </Button>
-        <p className="mt-4 text-sm text-muted-foreground">（当前显示示例分类和数据）</p>
+        <p className="mt-4 text-sm text-muted-foreground">（当前可能显示示例分类和数据）</p>
       </div>
     );
   }
@@ -157,20 +167,24 @@ function HomePageContent() {
          </Alert>
       )}
 
-      <div className="flex items-center justify-between text-sm text-muted-foreground pt-2 p-4 bg-card rounded-lg shadow">
-        <span>总共 {totalItems} 条结果</span>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPageQuery - 1)} disabled={currentPageQuery <= 1 || isLoading}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <span>第 {currentPageQuery} 页 / 共 {totalPages} 页</span>
-          <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPageQuery + 1)} disabled={currentPageQuery >= totalPages || isLoading}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+      {(isLoading || contentItems.length > 0 || totalItems > 0 || currentPageQuery > 1) && (
+          <div className="flex items-center justify-between text-sm text-muted-foreground pt-2 p-4 bg-card rounded-lg shadow">
+            <span>总共 {totalItems} 条结果</span>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPageQuery - 1)} disabled={currentPageQuery <= 1 || isLoading}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span>第 {currentPageQuery} 页 / 共 {totalPages} 页</span>
+              <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPageQuery + 1)} disabled={currentPageQuery >= totalPages || isLoading}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )
+      }
 
-      {isLoading ? (
+
+      {isLoading && contentItems.length === 0 ? ( // Show skeleton only if truly loading initial content
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
           {Array.from({ length: 10 }).map((_, index) => (
             <div key={index} className="space-y-2">
@@ -183,15 +197,21 @@ function HomePageContent() {
       ) : contentItems.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
           {contentItems.map(item => (
-            <ContentCard key={item.id} item={item} />
+            <ContentCard key={`${item.id}-${activeSourceUrl || 'mock'}`} item={item} />
           ))}
         </div>
       ) : (
-        <div className="text-center py-12">
-          <p className="text-xl text-muted-foreground">
-            {currentSearchTermQuery ? `未找到与 "${currentSearchTermQuery}" 相关的内容。` : "此分类下暂无内容。"}
-          </p>
-        </div>
+        !isLoading && ( // Only show "no content" if not loading
+            <div className="text-center py-12 flex flex-col items-center justify-center">
+                <Search className="w-16 h-16 mb-4 text-muted-foreground" />
+                <p className="text-xl text-muted-foreground">
+                {currentSearchTermQuery ? `未找到与 "${currentSearchTermQuery}" 相关的内容。` : "此分类下暂无内容。"}
+                </p>
+                { !activeSourceUrl && sources.length > 0 && (
+                    <p className="mt-2 text-sm text-muted-foreground">请尝试选择一个内容源。</p>
+                )}
+            </div>
+        )
       )}
     </div>
   );
@@ -230,4 +250,3 @@ function HomePageSkeleton() {
     </div>
   )
 }
-

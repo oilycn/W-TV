@@ -10,32 +10,34 @@ interface ContentCardProps {
 }
 
 export function ContentCard({ item }: ContentCardProps) {
-  const getAiHint = (item: ContentItem) => {
-    if (item.genres && item.genres.length > 0) {
-      return item.genres.slice(0, 2).join(" ").toLowerCase();
+  const getAiHint = (currentItem: ContentItem) => {
+    if (currentItem.genres && currentItem.genres.length > 0) {
+      return currentItem.genres.slice(0, 2).join(" ").toLowerCase();
     }
-    return item.title.split(" ")[0].toLowerCase() || "movie poster";
+    return currentItem.title.split(" ")[0].toLowerCase() || "movie poster";
   }
 
   return (
     <Link href={`/content/${item.id}`} passHref>
-      <Card className="overflow-hidden hover:shadow-xl transition-shadow duration-300 h-full flex flex-col">
+      <Card className="group overflow-hidden hover:shadow-xl transition-shadow duration-300 h-full flex flex-col bg-card hover:border-primary/50 border border-transparent">
         <CardHeader className="p-0 relative aspect-[2/3]">
           <Image
             src={item.posterUrl}
-            alt={item.title}
-            layout="fill"
-            objectFit="cover"
+            alt={item.title || 'Content Poster'}
+            fill
+            style={{ objectFit: "cover" }}
             className="transition-transform duration-300 group-hover:scale-105"
-            unoptimized={item.posterUrl.startsWith('https://placehold.co')} // Useful for placeholders
+            unoptimized={item.posterUrl.startsWith('https://placehold.co')}
             data-ai-hint={getAiHint(item)}
           />
         </CardHeader>
-        <CardContent className="p-4 flex-grow">
-          <CardTitle className="text-lg font-semibold leading-tight mb-1 truncate" title={item.title}>
-            {item.title}
+        <CardContent className="p-3 flex-grow">
+          <CardTitle className="text-base font-semibold leading-tight mb-1 truncate text-card-foreground" title={item.title}>
+            {item.title || "未知标题"}
           </CardTitle>
-          <p className="text-xs text-muted-foreground mb-2">{item.releaseYear} &bull; {item.type === 'movie' ? '电影' : '电视剧'}</p>
+          <p className="text-xs text-muted-foreground mb-2">
+            {item.releaseYear || "未知年份"} &bull; {item.type === 'movie' ? '电影' : '电视剧'}
+          </p>
           {item.genres && item.genres.length > 0 && (
             <div className="flex flex-wrap gap-1 mb-2">
               {item.genres.slice(0, 2).map(genre => (
@@ -44,7 +46,7 @@ export function ContentCard({ item }: ContentCardProps) {
             </div>
           )}
         </CardContent>
-        <CardFooter className="p-4 pt-0">
+        <CardFooter className="p-3 pt-0">
           {item.userRating && (
             <div className="flex items-center text-sm text-amber-400">
               <Star className="w-4 h-4 mr-1 fill-current" />

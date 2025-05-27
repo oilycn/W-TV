@@ -15,9 +15,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 const DEFAULT_SOURCE_PROCESSED_FLAG_KEY = 'cinemaViewDefaultSourceProcessed';
 const GEMINI_API_KEY_LS_KEY = 'cinemaViewGeminiApiKey';
+const LOCAL_STORAGE_KEY_ACTIVE_SOURCE = 'cinemaViewActiveSourceId';
+
 
 export default function SettingsPage() {
   const [sources, setSources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
+  const [activeSourceId, setActiveSourceId] = useLocalStorage<string | null>(LOCAL_STORAGE_KEY_ACTIVE_SOURCE, null);
   const [newSourceName, setNewSourceName] = useState('');
   const [newSourceUrl, setNewSourceUrl] = useState('');
   const { toast } = useToast();
@@ -39,7 +42,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!isClient) {
-      return; // Only run on the client after mount
+      return; 
     }
 
     const hasBeenProcessed = localStorage.getItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY);
@@ -51,6 +54,7 @@ export default function SettingsPage() {
         url: "https://cj.ffzyapi.com/api.php/provide/vod"
       };
       setSources([defaultSource]);
+      setActiveSourceId(defaultSource.id); // Set the new default source as active
       localStorage.setItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY, 'true');
       
       setTimeout(() => {
@@ -60,8 +64,15 @@ export default function SettingsPage() {
           duration: 5000,
         });
       }, 100);
+    } else if (sources.length > 0 && (!activeSourceId || !sources.find(s => s.id === activeSourceId))) {
+      // If there's no active source or active ID is invalid, set first source as active
+      setActiveSourceId(sources[0].id);
+    } else if (sources.length === 0 && activeSourceId) {
+      // If no sources, clear active source ID
+      setActiveSourceId(null);
     }
-  }, [isClient, sources, setSources, toast]); 
+
+  }, [isClient, sources, setSources, toast, activeSourceId, setActiveSourceId]); 
 
   const handleAddSource = () => {
     if (!newSourceName.trim() || !newSourceUrl.trim()) {
@@ -82,11 +93,14 @@ export default function SettingsPage() {
       });
       return;
     }
+    const newSource = { id: Date.now().toString(), name: newSourceName, url: newSourceUrl };
+    const updatedSources = [...sources, newSource];
+    setSources(updatedSources);
+    // If this is the first source being added (after potentially being empty), set it as active.
+    if (sources.length === 0) {
+        setActiveSourceId(newSource.id);
+    }
 
-    setSources(prevSources => [
-      ...prevSources,
-      { id: Date.now().toString(), name: newSourceName, url: newSourceUrl },
-    ]);
     setNewSourceName('');
     setNewSourceUrl('');
     toast({
@@ -98,14 +112,25 @@ export default function SettingsPage() {
     }
   };
 
-  const handleRemoveSource = (id: string) => {
-    setSources(prevSources => prevSources.filter(source => source.id !== id));
+  const handleRemoveSource = (idToRemove: string) => {
+    const updatedSources = sources.filter(source => source.id !== idToRemove);
+    setSources(updatedSources);
+
+    if (activeSourceId === idToRemove) {
+      if (updatedSources.length > 0) {
+        setActiveSourceId(updatedSources[0].id); // Set next source as active
+      } else {
+        setActiveSourceId(null); // No sources left
+         if (isClient) localStorage.removeItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY); // Allow default to be re-added if settings are visited again
+      }
+    }
     toast({
       title: "成功",
       description: "内容源已移除。",
     });
-    if (isClient && !localStorage.getItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY) && sources.length === 1 && sources[0].id === id) {
-        localStorage.setItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY, 'true');
+     // If all sources are removed, reset the flag so default can be added again if user revisits
+    if (updatedSources.length === 0 && isClient) {
+       localStorage.removeItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY);
     }
   };
 
@@ -134,7 +159,7 @@ export default function SettingsPage() {
     return (
       <div className="space-y-4">
         {sources && sources.map(source => (
-          <Card key={source.id} className="flex items-center justify-between p-4 shadow-md">
+          <Card key={source.id} className={`flex items-center justify-between p-4 shadow-md ${source.id === activeSourceId ? 'border-primary ring-2 ring-primary' : ''}`}>
             <div>
               <p className="font-medium text-foreground">{source.name}</p>
               <p className="text-sm text-muted-foreground break-all">{source.url}</p>

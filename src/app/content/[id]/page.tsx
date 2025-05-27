@@ -14,7 +14,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from '@/components/ui/button';
 import ReactPlayer from 'react-player/lazy';
-// Removed: import 'dashjs'; // This line caused "self is not defined" during SSR
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 
@@ -27,7 +26,7 @@ interface ContentDetailPageProps {
 }
 
 function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
-  const resolvedParams = use(paramsProp as any);
+  const resolvedParams = use(paramsProp as any); // params can be a promise
 
   const [pageId, setPageId] = useState<string | null>(null);
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
@@ -37,7 +36,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
   const [currentVideoTitle, setCurrentVideoTitle] = useState<string>('');
   const [videoPlayerError, setVideoPlayerError] = useState<string | null>(null);
   const [isPlayerReady, setIsPlayerReady] = useState(false);
-
 
   useEffect(() => {
     if (resolvedParams && resolvedParams.id) {
@@ -52,7 +50,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
 
   useEffect(() => {
     if (currentPlayUrl) {
-      setVideoPlayerError(null); 
+      setVideoPlayerError(null);
       setIsPlayerReady(false); // Reset ready state when URL changes
     }
   }, [currentPlayUrl]);
@@ -60,7 +58,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
   useEffect(() => {
     if (!pageId) {
       setIsLoading(false);
-      setItem(null); // Set to null if no pageId, indicating not found or invalid
+      setItem(null); 
       return;
     }
 
@@ -69,23 +67,23 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
       let foundItem: ContentItem | null | undefined = undefined;
       const primarySourceUrl = sources.length > 0 ? sources[0].url : null;
 
-      if (primarySourceUrl) {
+      if (primarySourceUrl && pageId) {
         console.log(`Fetching item ${pageId} from primary source: ${primarySourceUrl}`);
         foundItem = await fetchContentItemById(primarySourceUrl, pageId);
       }
       
-      if (!foundItem && sources.length > 0) { 
+      if (!foundItem && sources.length > 0 && pageId) { 
         console.log(`Item ${pageId} not in primary source, checking all sources.`);
         const allItems = await fetchAllContent(sources); 
         foundItem = allItems.find(i => i.id === pageId);
       }
       
-      if (!foundItem) {
+      if (!foundItem && pageId) {
         console.log(`Item ${pageId} not in any dynamic source, trying mock data.`);
         foundItem = getMockContentItemById(pageId); 
       }
       
-      setItem(foundItem || null); // Ensure item is null if not found, not undefined
+      setItem(foundItem || null);
       setIsLoading(false);
     }
     
@@ -105,46 +103,38 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     console.error('ReactPlayer Error:', error);
     let message = '视频播放时发生未知错误。';
     
-    // Attempt to get more specific error messages from ReactPlayer's error object
     if (typeof error === 'string') {
       message = error;
-    } else if (error && error.message) { // Standard JS error
+    } else if (error && error.message) {
       message = error.message;
-    } else if (error && error.type) { // HLS.js or DASH.js like error structure
-        // Example: error might be { type: 'networkError', details: 'manifestLoadError', fatal: true, ... }
+    } else if (error && error.type) { 
         if (error.details) {
-            message = `播放错误: ${error.type} - ${error.details}`;
+            message = `媒体错误: ${error.type} - ${error.details}`;
         } else {
-            message = `播放错误: ${error.type}`;
+            message = `媒体错误: ${error.type}`;
         }
-        if (error.fatal === false) {
+        if (error.fatal === false && error.type !== 'bufferStalledError' && error.type !== 'fragLoadError') {
             message += ' (尝试恢复中)';
+        } else if (error.type === 'bufferStalledError') {
+            message = '视频缓冲卡顿，尝试恢复中...';
+        } else if (error.type === 'fragLoadError') {
+             message = '视频片段加载失败，尝试恢复中...';
         }
-    } else if (error && error.target && error.target.error) { // HTMLMediaElement error
+    } else if (error && error.target && error.target.error) { 
         const mediaError = error.target.error;
         switch (mediaError.code) {
-            case mediaError.MEDIA_ERR_ABORTED:
-                message = '视频加载已中止。';
-                break;
-            case mediaError.MEDIA_ERR_NETWORK:
-                message = '网络错误导致视频加载失败。';
-                break;
-            case mediaError.MEDIA_ERR_DECODE:
-                message = '视频解码错误。';
-                break;
-            case mediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
-                message = '视频源格式不支持或无法访问。';
-                break;
-            default:
-                message = `发生媒体错误 (代码: ${mediaError.code})。`;
-                break;
+            case mediaError.MEDIA_ERR_ABORTED: message = '视频加载已中止。'; break;
+            case mediaError.MEDIA_ERR_NETWORK: message = '网络错误导致视频加载失败。'; break;
+            case mediaError.MEDIA_ERR_DECODE: message = '视频解码错误。'; break;
+            case mediaError.MEDIA_ERR_SRC_NOT_SUPPORTED: message = '视频源格式不支持或无法访问。'; break;
+            default: message = `发生媒体错误 (代码: ${mediaError.code})。`; break;
         }
     }
 
     setVideoPlayerError(message);
   };
 
-  if (isLoading || item === undefined) {
+  if (isLoading || item === undefined) { // Still loading item details
     return (
       <div className="container mx-auto py-8">
         <Skeleton className="w-full aspect-video mb-8 rounded-lg" />
@@ -163,7 +153,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     );
   }
 
-  if (!item) {
+  if (!item) { // Item not found after loading attempts
     return (
       <div className="container mx-auto py-8 text-center">
         <h1 className="text-2xl font-semibold text-destructive">内容未找到</h1>
@@ -206,13 +196,10 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                     height="100%"
                     onError={handlePlayerError}
                     onReady={() => setIsPlayerReady(true)}
-                    onPlay={() => setVideoPlayerError(null)} // Clear error when playback starts
+                    onPlay={() => setVideoPlayerError(null)} 
                     config={{
                         file: {
-                          attributes: {
-                              crossOrigin: 'anonymous', // May help with some CORS issues for subtitles/captions
-                          },
-                          // dashOptions can be added here if needed for DASH.js specific configurations
+                          attributes: { crossOrigin: 'anonymous' },
                         }
                     }}
                     style={{ display: isPlayerReady || videoPlayerError ? 'block' : 'none' }}
@@ -329,7 +316,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
   );
 }
 
-
 export default function ContentDetailPage(props: ContentDetailPageProps) {
   return (
     <Suspense fallback={
@@ -343,4 +329,3 @@ export default function ContentDetailPage(props: ContentDetailPageProps) {
     </Suspense>
   );
 }
-
