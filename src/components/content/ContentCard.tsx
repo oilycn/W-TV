@@ -1,3 +1,4 @@
+
 import type { ContentItem } from '@/types';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -18,7 +19,7 @@ export function ContentCard({ item }: ContentCardProps) {
   }
 
   return (
-    <Link href={`/content/${item.id}`} passHref>
+    <Link href={`/content/${item.id}`}>
       <Card className="group overflow-hidden hover:shadow-xl transition-shadow duration-300 h-full flex flex-col bg-card hover:border-primary/50 border border-transparent">
         <CardHeader className="p-0 relative aspect-[2/3]">
           <Image
