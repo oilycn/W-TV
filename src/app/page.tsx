@@ -181,7 +181,7 @@ function HomePageContent() {
       setIsLoadingCategories(false);
       setIsLoading(false);
     }
-  }, [setGlobalCategories]); // Only setGlobalCategories is a stable dependency here
+  }, [setGlobalCategories]); 
 
   // Main effect to load data when activeSourceId, page, category, or search term changes
   useEffect(() => {
@@ -194,24 +194,17 @@ function HomePageContent() {
         sourceUrlForFetch = source.url;
       } else {
         console.warn(`HomePageContent: activeSourceId ${activeSourceId} is invalid. No fetch attempt.`);
-         // Potentially set error or show message if activeSourceId is bad after sync
       }
     } else if (sources.length > 0) {
-      // This case should ideally be minimized by the activeSourceId validation effect
       console.warn("HomePageContent: No activeSourceId, but sources exist. This might indicate a sync delay or issue.");
-      // Fallback to first source if activeSourceId is truly not set yet.
-      // sourceUrlForFetch = sources[0].url; 
-      // Or better: wait for activeSourceId to be set by its own effect.
-      setIsLoading(true); // Indicate loading while waiting for valid sourceId
+      setIsLoading(true); 
       return; 
     }
 
 
-    if (sourceUrlForFetch || sources.length === 0) { // If we have a valid URL, or no sources (use mock)
+    if (sourceUrlForFetch || sources.length === 0) { 
       loadCategoriesAndContent(sourceUrlForFetch, currentPageQuery, selectedCategoryId, currentSearchTermQuery);
     } else if (sources.length > 0 && !activeSourceId) {
-        // This means sources are available, but activeSourceId is null (e.g. during initialization)
-        // The effect for validating activeSourceId should handle setting one.
         console.log("HomePageContent: Waiting for activeSourceId to be determined from sources list.");
         setIsLoading(true); 
     } else {
@@ -228,7 +221,6 @@ function HomePageContent() {
   };
 
   if (sources.length === 0 && !activeSourceUrl && !isLoading && !isLoadingCategories ) {
-    // This condition means loading is finished, no sources are configured, and thus no activeSourceUrl.
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-10rem)] text-center p-4">
         <Tv2 className="w-24 h-24 mb-6 text-muted-foreground" />
@@ -256,7 +248,7 @@ function HomePageContent() {
       )}
 
       {(!isLoadingCategories && globalCategories.length > 0) && (
-        <ScrollArea className="w-full whitespace-nowrap rounded-md border shadow-sm mb-6 bg-card"> {/* Increased mb-6 */}
+        <ScrollArea className="w-full whitespace-nowrap rounded-md border shadow-sm mb-6 bg-card">
           <div className="flex space-x-2 p-3">
             {globalCategories.map(category => (
               <Button
@@ -274,7 +266,7 @@ function HomePageContent() {
         </ScrollArea>
       )}
       {isLoadingCategories && (
-        <div className="space-y-2 p-3 border rounded-md shadow-sm mb-6 bg-card"> {/* Increased mb-6 */}
+        <div className="space-y-2 p-3 border rounded-md shadow-sm mb-6 bg-card">
             <div className="flex space-x-2">
                 <Skeleton className="h-9 w-20" />
                 <Skeleton className="h-9 w-24" />
@@ -303,7 +295,7 @@ function HomePageContent() {
 
 
       {isLoading && contentItems.length === 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8 2xl:grid-cols-10 gap-4 md:gap-6">
           {Array.from({ length: 12 }).map((_, index) => (
             <div key={index} className="space-y-2">
               <Skeleton className="aspect-[2/3] w-full rounded-lg" />
@@ -313,7 +305,7 @@ function HomePageContent() {
           ))}
         </div>
       ) : contentItems.length > 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8 2xl:grid-cols-10 gap-4 md:gap-6">
           {contentItems.map(item => (
             <ContentCard key={`${item.id}-${activeSourceUrl || 'mock'}-${item.title}`} item={item} />
           ))}
@@ -325,7 +317,7 @@ function HomePageContent() {
                 <p className="text-xl text-muted-foreground">
                 {currentSearchTermQuery ? `未找到与 "${currentSearchTermQuery}" 相关的内容。` : "此分类下暂无内容。"}
                 </p>
-                { !activeSourceUrl && sources.length > 0 && ( // This condition suggests activeSourceUrl is not determined despite sources existing
+                { !activeSourceUrl && sources.length > 0 && ( 
                     <p className="mt-2 text-sm text-muted-foreground">内容源可能正在加载或选择中，请稍候。</p>
                 )}
             </div>
@@ -346,7 +338,7 @@ export default function HomePage() {
 function HomePageSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="space-y-2 p-3 border rounded-md shadow-sm mb-6 bg-card"> {/* Increased mb-6 */}
+      <div className="space-y-2 p-3 border rounded-md shadow-sm mb-6 bg-card">
           <div className="flex space-x-2">
               <Skeleton className="h-9 w-20" />
               <Skeleton className="h-9 w-24" />
@@ -364,7 +356,7 @@ function HomePageSkeleton() {
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8 2xl:grid-cols-10 gap-4 md:gap-6">
         {Array.from({ length: 12 }).map((_, index) => (
           <div key={index} className="space-y-2">
             <Skeleton className="aspect-[2/3] w-full rounded-lg" />
