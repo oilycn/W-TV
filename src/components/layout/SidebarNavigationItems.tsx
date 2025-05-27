@@ -52,7 +52,7 @@ export function SidebarNavigationItems() {
                 size="default" 
                 isActive={effectiveCurrentCategoryId === category.id}
                 className={cn(
-                  "justify-start w-full text-left text-base py-2.5", 
+                  "text-center text-base py-2.5", // Changed from justify-start text-left
                   (effectiveCurrentCategoryId === category.id) 
                     ? "bg-sidebar-accent text-sidebar-primary font-semibold rounded-md" 
                     : "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/60 rounded-md" 
