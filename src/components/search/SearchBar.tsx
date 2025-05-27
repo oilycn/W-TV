@@ -1,21 +1,47 @@
+
 "use client";
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search } from 'lucide-react';
 
 export function SearchBar() {
-  const [query, setQuery] = useState('');
   const router = useRouter();
+  const currentPathname = usePathname();
+  const currentSearchParams = useSearchParams();
+  const [query, setQuery] = useState(currentSearchParams.get('q') || '');
+
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (query.trim()) {
-      router.push(`/search?q=${encodeURIComponent(query.trim())}`);
+    const trimmedQuery = query.trim();
+    const newParams = new URLSearchParams(currentSearchParams.toString());
+
+    if (trimmedQuery) {
+      newParams.set('q', encodeURIComponent(trimmedQuery));
+      newParams.set('page', '1'); // Reset to page 1 for new search
+    } else {
+      newParams.delete('q'); // Remove search query if input is empty
     }
+
+    // Always target the homepage for search functionality for this app's design
+    const targetPath = '/';
+    
+    // Preserve activeSourceTrigger if it exists
+    const activeSourceTrigger = currentSearchParams.get('activeSourceTrigger');
+    if (activeSourceTrigger && !newParams.has('activeSourceTrigger')) {
+        newParams.set('activeSourceTrigger', activeSourceTrigger);
+    }
+    
+    router.push(`${targetPath}?${newParams.toString()}`, { scroll: false });
   };
+
+  // Update query state if URL changes externally
+  React.useEffect(() => {
+    setQuery(currentSearchParams.get('q') || '');
+  }, [currentSearchParams]);
 
   return (
     <form onSubmit={handleSearch} className="relative w-full max-w-md">
