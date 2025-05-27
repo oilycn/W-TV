@@ -15,7 +15,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Button } from '@/components/ui/button';
 import ReactPlayer from 'react-player/lazy';
 import 'hls.js'; // Import for side-effects to make HLS.js available to ReactPlayer
-import 'dashjs'; // Import for side-effects to make dash.js available to ReactPlayer
+// import 'dashjs'; // Removed to prevent SSR error: "self is not defined"
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 const LOCAL_STORAGE_KEY_ACTIVE_SOURCE = 'cinemaViewActiveSourceId';
@@ -114,17 +114,16 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
   };
   
   const handlePlayerError = (
-    error: any, // Can be a string, an object, or a browser Event
-    data?: any, // Additional data from HLS.js or DASH.js
-    hlsInstance?: any // HLS.js instance
-    // dashInstance?: any // ReactPlayer doesn't seem to pass dashInstance directly in onError
+    error: any, 
+    data?: any, 
+    hlsInstance?: any
   ) => {
     if (error && typeof error === 'object' && Object.keys(error).length === 0 && !data && !hlsInstance) {
       console.warn('ReactPlayer encountered an error but provided no specific details. The video source may be invalid or inaccessible. Raw error object:', error);
     } else {
       console.error('ReactPlayer Error:', error, 'Data:', data, 'HLS Instance:', hlsInstance);
     }
-    setIsPlayerReady(true); // Ensure skeleton loader hides
+    setIsPlayerReady(true); 
 
     let message = '视频播放时发生未知错误。';
 
@@ -150,7 +149,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         message = `播放器报告错误: ${error}`;
       }
     } else if (error && error.target && error.target.error && typeof error.target.error.code === 'number') { 
-        // Native HTML <video> element error
         const mediaError = error.target.error as MediaError;
         switch (mediaError.code) {
             case mediaError.MEDIA_ERR_ABORTED: message = '视频加载已中止。'; break;
@@ -159,9 +157,9 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             case mediaError.MEDIA_ERR_SRC_NOT_SUPPORTED: message = '视频源格式不支持或无法访问。'; break;
             default: message = `发生媒体错误 (代码: ${mediaError.code})。`; break;
         }
-    } else if (error && error.message) { // Generic error object with a message
+    } else if (error && error.message) { 
       message = error.message;
-    } else if (data && data.type) { // Fallback if error object is not helpful but data object is (e.g., from HLS/DASH)
+    } else if (data && data.type) { 
         message = `播放技术性错误 (${data.type}${data.details ? ': ' + data.details : ''})`;
         if (data.fatal === false && (data.type === 'networkError' || data.type === 'mediaError')) {
           message += ' (尝试恢复中)';
@@ -242,11 +240,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                     config={{
                         file: {
                           attributes: { crossOrigin: 'anonymous' },
-                          hlsOptions: {
-                             // You can add HLS.js specific options here if needed
-                             // For example:
-                             // maxBufferLength: 30, 
-                          }
                         }
                     }}
                     style={{ display: isPlayerReady || videoPlayerError ? 'block' : 'none' }}
