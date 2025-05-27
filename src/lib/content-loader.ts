@@ -2,7 +2,7 @@
 import type { ContentItem, SourceConfig, PlaybackURL, PlaybackSourceGroup, ApiCategory, PaginatedContentResponse } from '@/types';
 
 // Mock data to be used if fetching fails or no sources are configured
-const mockCategories: ApiCategory[] = [
+const mockCategoriesRaw: ApiCategory[] = [
   { id: 'mock-cat-1', name: '热门电影 (模拟)' },
   { id: 'mock-cat-2', name: '最新剧集 (模拟)' },
   { id: 'mock-cat-3', name: '经典动漫 (模拟)' },
@@ -53,7 +53,7 @@ const mockContentItems: ContentItem[] = [
     availableQualities: ['1080p', '720p'],
     playbackSources: [
       {
-        sourceName: '高清源',
+        sourceName: '高清源 (mp4)',
         urls: [
           { name: 'S01E01', url: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4' },
           { name: 'S01E02', url: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4' },
@@ -64,7 +64,7 @@ const mockContentItems: ContentItem[] = [
 ];
 
 function mapApiItemToContentItem(apiItem: any): ContentItem | null {
-  if (!apiItem || !apiItem.vod_id || !apiItem.vod_name) { 
+  if (!apiItem || !apiItem.vod_id || !apiItem.vod_name) {
     console.warn('Skipping item due to missing essential fields (vod_id, vod_name):', apiItem);
     return null;
   }
@@ -76,7 +76,7 @@ function mapApiItemToContentItem(apiItem: any): ContentItem | null {
 
     sourceNames.forEach((sourceNameRaw: string, groupIndex: number) => {
       const sourceName = sourceNameRaw.trim();
-      if (urlGroups[groupIndex] && sourceName) { 
+      if (urlGroups[groupIndex] && sourceName) {
         const urlsString = urlGroups[groupIndex];
         const parsedUrls: PlaybackURL[] = [];
 
@@ -87,10 +87,10 @@ function mapApiItemToContentItem(apiItem: any): ContentItem | null {
                 let name: string | undefined;
                 let url: string | undefined;
 
-                if (parts.length >= 2) { 
+                if (parts.length >= 2) {
                     name = parts[0]?.trim();
                     url = parts[1]?.trim();
-                    if (!name && url) { 
+                    if (!name && url) {
                         name = `播放 ${urlIdx + 1}`;
                     }
                 } else if (parts.length === 1) {
@@ -103,26 +103,29 @@ function mapApiItemToContentItem(apiItem: any): ContentItem | null {
 
                 if (name && url && (url.startsWith('http://') || url.startsWith('https://') || url.includes('.m3u8') || url.includes('.mp4'))) {
                     parsedUrls.push({ name, url });
+                } else if (url && (url.startsWith('http://') || url.startsWith('https://') || url.includes('.m3u8') || url.includes('.mp4'))){
+                     // if name is missing but url is valid
+                    parsedUrls.push({ name: `播放 ${urlIdx + 1}`, url });
                 }
             });
         }
-        
+
         if (parsedUrls.length > 0) {
           playbackSources.push({ sourceName, urls: parsedUrls });
         }
       }
     });
   }
-  
+
   let type: 'movie' | 'tv_show' = 'movie';
   const typeNameStr = String(apiItem.type_name || apiItem.vod_class || '').toLowerCase();
   if (typeNameStr) {
     if (typeNameStr.includes('剧') || typeNameStr.includes('电视剧') || typeNameStr.includes('动漫') || typeNameStr.includes('综艺') || typeNameStr.includes('series') || typeNameStr.includes('show') || typeNameStr.includes('animation') || typeNameStr.includes('anime')) {
       type = 'tv_show';
     }
-  } else if (apiItem.tid) { 
+  } else if (apiItem.tid) {
     const tid = parseInt(String(apiItem.tid), 10);
-    if (!isNaN(tid) && (tid === 2 || tid === 3 || tid === 4 || (tid >= 10 && tid <= 50))) { 
+    if (!isNaN(tid) && (tid === 2 || tid === 3 || tid === 4 || (tid >= 10 && tid <= 50))) { // Common TIDs for TV shows/series/anime
       type = 'tv_show';
     }
   }
@@ -130,16 +133,16 @@ function mapApiItemToContentItem(apiItem: any): ContentItem | null {
 
   return {
     id: String(apiItem.vod_id),
-    title: apiItem.vod_name,
+    title: apiItem.vod_name || "未知标题",
     description: apiItem.vod_blurb || apiItem.vod_content || '暂无简介',
-    posterUrl: apiItem.vod_pic || `https://placehold.co/400x600.png?text=${encodeURIComponent(apiItem.vod_name)}`,
-    backdropUrl: apiItem.vod_pic_slide || apiItem.vod_pic || `https://placehold.co/1280x720.png?text=${encodeURIComponent(apiItem.vod_name)} backdrop`,
+    posterUrl: apiItem.vod_pic || `https://placehold.co/400x600.png?text=${encodeURIComponent(apiItem.vod_name || 'Poster')}`,
+    backdropUrl: apiItem.vod_pic_slide || apiItem.vod_pic || `https://placehold.co/1280x720.png?text=${encodeURIComponent(apiItem.vod_name || 'Backdrop')} backdrop`,
     cast: apiItem.vod_actor ? String(apiItem.vod_actor).split(/[,，、\s]+/).filter(Boolean) : [],
     director: apiItem.vod_director ? String(apiItem.vod_director).split(/[,，、\s]+/).filter(Boolean) : [],
     userRating: parseFloat(apiItem.vod_douban_score) || parseFloat(apiItem.vod_score) || undefined,
-    genres: apiItem.type_name ? String(apiItem.type_name).split(/[,，、\s]+/).filter(Boolean) : (apiItem.vod_class ? String(apiItem.vod_class).split(/[,，、\s]+/).filter(Boolean) : []),
+    genres: apiItem.vod_class ? String(apiItem.vod_class).split(/[,，、\s]+/).filter(Boolean) : (apiItem.type_name ? String(apiItem.type_name).split(/[,，、\s]+/).filter(Boolean) : []),
     releaseYear: parseInt(apiItem.vod_year) || undefined,
-    runtime: apiItem.vod_duration || apiItem.vod_remarks || undefined, 
+    runtime: apiItem.vod_duration || apiItem.vod_remarks || undefined,
     type: type,
     availableQualities: apiItem.vod_quality ? String(apiItem.vod_quality).split(',') : (apiItem.vod_remarks && String(apiItem.vod_remarks).match(/[0-9]+[pP]/g) ? String(apiItem.vod_remarks).match(/[0-9]+[pP]/g) : undefined),
     playbackSources: playbackSources.length > 0 ? playbackSources : undefined,
@@ -153,23 +156,19 @@ async function fetchViaProxy(targetUrl: string, sourceName?: string): Promise<an
   if (!response.ok) {
     let errorDetails = `Status: ${response.status}`;
     try {
-      const errorData = await response.json(); // Try to parse error response as JSON
+      const errorData = await response.json();
       errorDetails = errorData.error || errorData.message || errorDetails;
       if (errorData.details) errorDetails += ` Details: ${errorData.details}`;
-    } catch (e) { /* ignore if error response itself is not json */ }
+    } catch (e) { /* ignore */ }
     const errorMessage = `Error fetching from ${sourceName || 'source'} (via proxy ${proxyRequestUrl}): ${errorDetails}`;
     console.error(errorMessage);
     throw new Error(errorMessage);
   }
-  
-  // The proxy route.ts should ideally always return a JSON response.
-  // Either the data itself, or { error: "...", details: "..." } or { nonJsonData: "..." }
-  const data = await response.json(); 
 
-  // If the proxy wrapped non-JSON data, it will be in data.nonJsonData
+  const data = await response.json();
+
   if (data && data.nonJsonData) {
-    console.warn(`fetchViaProxy: Source ${targetUrl} returned non-JSON data (via proxy): ${String(data.nonJsonData).substring(0,100)}`);
-    // Attempt to parse if the nonJsonData is a string that might contain JSON
+    console.warn(`fetchViaProxy: Source ${targetUrl} was initially flagged as non-JSON by proxy. Attempting parse. Data: ${String(data.nonJsonData).substring(0,100)}`);
     if (typeof data.nonJsonData === 'string') {
       try {
         return JSON.parse(data.nonJsonData);
@@ -180,30 +179,37 @@ async function fetchViaProxy(targetUrl: string, sourceName?: string): Promise<an
     }
     throw new Error(`Source returned non-JSON data: ${String(data.nonJsonData).substring(0,100)}`);
   }
-  
-  // If proxy returned an error structure from its own logic
+
   if (data && data.error) {
     console.error(`fetchViaProxy: Proxy itself returned an error for ${targetUrl}: ${data.error}`, data.details || '');
     throw new Error(`Proxy error for ${targetUrl}: ${data.error}`);
   }
 
-  return data; // Assumed to be the actual JSON data from the target
+  return data;
 }
 
 export async function fetchApiCategories(sourceUrl: string): Promise<ApiCategory[]> {
   try {
     const data = await fetchViaProxy(sourceUrl, `categories from ${sourceUrl}`);
     if (data && Array.isArray(data.class)) {
-      return data.class.map((cat: any) => ({
+      let categories: ApiCategory[] = data.class.map((cat: any) => ({
         id: String(cat.type_id),
         name: cat.type_name,
       })).filter((cat: ApiCategory | null): cat is ApiCategory => cat !== null && cat.id !== '' && cat.name !== '');
+      
+      // Ensure "All" category is present
+      if (categories.length > 0 && !categories.some(c => c.id === 'all')) {
+        categories.unshift({ id: 'all', name: '全部' });
+      } else if (categories.length === 0) { // If API returns no categories, provide a default "All"
+        categories.push({ id: 'all', name: '全部' });
+      }
+      return categories;
     }
     console.warn(`No 'class' array found in category data from ${sourceUrl}`, data);
-    return [];
+    return [{ id: 'all', name: '全部 (默认)' }]; // Default with "All"
   } catch (error) {
     console.error(`Failed to fetch categories from ${sourceUrl}:`, error);
-    return [];
+    return [{ id: 'all', name: '全部 (错误)' }]; // Default with "All" on error
   }
 }
 
@@ -212,7 +218,7 @@ export async function fetchApiContentList(
   params: { page?: number; categoryId?: string; searchTerm?: string; ids?: string }
 ): Promise<PaginatedContentResponse> {
   const apiUrl = new URL(sourceUrl);
-  apiUrl.searchParams.set('ac', 'detail'); 
+  apiUrl.searchParams.set('ac', 'detail');
 
   if (params.ids) {
     apiUrl.searchParams.set('ids', params.ids);
@@ -227,17 +233,17 @@ export async function fetchApiContentList(
     const items = (actualData.list && Array.isArray(actualData.list))
       ? actualData.list.map(mapApiItemToContentItem).filter((item: ContentItem | null): item is ContentItem => item !== null)
       : [];
-    
+
     return {
       items,
       page: parseInt(String(actualData.page), 10) || 1,
-      pageCount: parseInt(String(actualData.pagecount || actualData.page_count), 10) || 1, 
-      limit: parseInt(String(actualData.limit), 10) || items.length || 20, 
-      total: parseInt(String(actualData.total), 10) || items.length || 0, 
+      pageCount: parseInt(String(actualData.pagecount || actualData.page_count), 10) || 1,
+      limit: parseInt(String(actualData.limit), 10) || items.length || 20,
+      total: parseInt(String(actualData.total), 10) || items.length || 0,
     };
   } catch (error) {
     console.error(`Failed to fetch content list from ${sourceUrl} with params ${JSON.stringify(params)}:`, error);
-    return { items: [], page: 1, pageCount: 1, limit: 20, total: 0 }; 
+    return { items: [], page: 1, pageCount: 1, limit: 20, total: 0 };
   }
 }
 
@@ -257,24 +263,24 @@ export async function fetchAllContent(sources: SourceConfig[]): Promise<ContentI
     return getMockContentItems();
   }
 
-  const allContentPromises = sources.map(source => 
-    fetchApiContentList(source.url, { page: 1 }) 
+  const allContentPromises = sources.map(source =>
+    fetchApiContentList(source.url, { page: 1 }) // Fetch page 1 for a general list
       .then(response => response.items)
       .catch(err => {
         console.error(`Error in fetchAllContent for source ${source.name}:`, err);
-        return []; 
+        return [];
       })
   );
-  
+
   try {
     const results = await Promise.all(allContentPromises);
     const combinedContent = results.flat();
-    
+
     if (combinedContent.length === 0 && sources.length > 0) {
       console.warn("All sources returned no content in fetchAllContent, falling back to mock data.");
       return getMockContentItems();
     }
-    
+
     const uniqueContent = Array.from(new Map(combinedContent.map(item => [item.id, item])).values());
     return uniqueContent;
 
@@ -295,24 +301,24 @@ export function getMockContentItems(): ContentItem[] {
 
 export function getMockApiCategories(): ApiCategory[] {
   const allCategory: ApiCategory = { id: 'all', name: '全部 (模拟)' };
-  const hasAll = mockCategories.some(c => c.id === 'all');
-  return hasAll ? mockCategories : [allCategory, ...mockCategories];
+  const hasAll = mockCategoriesRaw.some(c => c.id === 'all'); // Use raw if it might already contain 'all'
+  return hasAll ? mockCategoriesRaw : [allCategory, ...mockCategoriesRaw];
 }
 
 export function getMockPaginatedResponse(page: number = 1, categoryId?: string, searchTerm?: string): PaginatedContentResponse {
   let items = mockContentItems;
-  if (categoryId && categoryId !== 'all') { 
+  if (categoryId && categoryId !== 'all') {
       if (categoryId === 'mock-cat-1') items = items.filter(item => item.type === 'movie');
       else if (categoryId === 'mock-cat-2') items = items.filter(item => item.type === 'tv_show');
   }
   if (searchTerm) {
       items = items.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
   }
-  const limit = 2; 
+  const limit = 10; // Example limit for mock
   const total = items.length;
   const pageCount = Math.ceil(total / limit);
   const startIndex = (page - 1) * limit;
-  
+
   return {
     items: items.slice(startIndex, startIndex + limit),
     page,
@@ -321,4 +327,3 @@ export function getMockPaginatedResponse(page: number = 1, categoryId?: string, 
     total,
   };
 }
-

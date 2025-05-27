@@ -12,7 +12,7 @@ import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, Tv2, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { useCategories } from '@/contexts/CategoryContext'; 
+import { useCategories } from '@/contexts/CategoryContext';
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 const LOCAL_STORAGE_KEY_ACTIVE_SOURCE = 'cinemaViewActiveSourceId';
@@ -21,20 +21,20 @@ function HomePageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const { categories, setCategories: setGlobalCategories } = useCategories(); 
+  const { categories, setCategories: setGlobalCategories } = useCategories();
 
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
   const [activeSourceId] = useLocalStorage<string | null>(LOCAL_STORAGE_KEY_ACTIVE_SOURCE, null);
-  
+
   const [contentItems, setContentItems] = useState<ContentItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   const selectedCategoryId = useMemo(() => searchParams.get('category') || 'all', [searchParams]);
   const currentSearchTermQuery = useMemo(() => searchParams.get('q') || '', [searchParams]);
   const currentPageQuery = useMemo(() => parseInt(searchParams.get('page') || '1', 10), [searchParams]);
-  
+
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
 
@@ -64,84 +64,82 @@ function HomePageContent() {
       }
     });
 
-    if (changed) { 
+    if (changed) {
         const newQueryString = currentParams.toString();
         router.push(`${pathname}?${newQueryString}`, { scroll: false });
     }
   }, [router, searchParams, pathname]);
 
   const loadCategoriesAndContent = useCallback(async (page: number, categoryId: string, searchTerm: string) => {
+    console.log(`loadCategoriesAndContent called with page: ${page}, categoryId: ${categoryId}, searchTerm: ${searchTerm}, activeSourceUrl: ${activeSourceUrl}`);
     setIsLoading(true);
-    if (categories.length === 0 || (activeSourceUrl && !categories.find(c => c.id.startsWith('mock-')))) {
-        setIsLoadingCategories(true);
-    }
+    setIsLoadingCategories(true);
     setError(null);
+    //setContentItems([]); // Clear previous content immediately for better UX when source changes
 
     if (activeSourceUrl) {
+      // Fetch categories for the current activeSourceUrl
       try {
-        let fetchedCategories = await fetchApiCategories(activeSourceUrl);
-        if (fetchedCategories.length === 0 && categories.length === 0) { 
-            fetchedCategories = getMockApiCategories(); // Fallback if API returns nothing and context is empty
-        }
-        // Only update global categories if they've actually changed or if switching from mock
-        if (fetchedCategories.length > 0 || (categories.length > 0 && categories.find(c => c.id.startsWith('mock-')))) {
-             setGlobalCategories(fetchedCategories.length > 0 ? fetchedCategories : getMockApiCategories());
-        }
+        console.log(`Fetching categories for source: ${activeSourceUrl}`);
+        const fetchedCategories = await fetchApiCategories(activeSourceUrl);
+        setGlobalCategories(fetchedCategories); // Relies on fetchApiCategories to add "All"
       } catch (e) {
         console.error("Failed to load categories:", e);
         setError(prev => prev ? `${prev} & 无法加载分类信息。` : "无法加载分类信息。");
-        if (categories.length === 0) setGlobalCategories(getMockApiCategories());
+        setGlobalCategories(getMockApiCategories()); // Fallback to mock on error
+      } finally {
+        setIsLoadingCategories(false);
       }
-    } else if (categories.length === 0) { // No active source URL and no categories yet
-        setGlobalCategories(getMockApiCategories());
-    }
-    setIsLoadingCategories(false);
 
-    try {
-      let response: PaginatedContentResponse;
-      if (!activeSourceUrl && !searchTerm && categoryId === 'all') { 
-        response = getMockPaginatedResponse(page);
-      } else if (!activeSourceUrl && (searchTerm || categoryId !== 'all')) { 
-        response = { items: [], page:1, pageCount: 1, limit: 20, total: 0 };
-      }
-      else if (activeSourceUrl) {
-        response = await fetchApiContentList(activeSourceUrl, {
+      // Fetch content for the current activeSourceUrl and other params
+      try {
+        console.log(`Fetching content for source: ${activeSourceUrl}, category: ${categoryId}, page: ${page}, search: ${searchTerm}`);
+        const response = await fetchApiContentList(activeSourceUrl, {
           page,
           categoryId: categoryId === 'all' ? undefined : categoryId,
           searchTerm: searchTerm || undefined,
         });
-      } else { 
-        response = getMockPaginatedResponse(page, categoryId, searchTerm);
+        setContentItems(response.items);
+        setTotalPages(response.pageCount || 1);
+        setTotalItems(response.total);
+      } catch (e) {
+        console.error("Failed to load content:", e);
+        setError(prev => prev ? `${prev} & 无法加载内容。` : "无法加载内容。请检查您的网络连接或内容源配置。");
+        const mockResponse = getMockPaginatedResponse(page, categoryId, searchTerm); // Fallback
+        setContentItems(mockResponse.items);
+        setTotalPages(mockResponse.pageCount || 1);
+        setTotalItems(mockResponse.total);
+      } finally {
+        setIsLoading(false);
       }
-
-      setContentItems(response.items);
-      setTotalPages(response.pageCount || 1); 
-      setTotalItems(response.total);
-
-    } catch (e) {
-      console.error("Failed to load content:", e);
-      setError(prev => prev ? `${prev} & 无法加载内容。` : "无法加载内容。请检查您的网络连接或内容源配置。");
+    } else {
+      // No active source URL logic
+      console.log("No active source URL, using mock data for categories and content.");
+      setGlobalCategories(getMockApiCategories());
       const mockResponse = getMockPaginatedResponse(page, categoryId, searchTerm);
-      setContentItems(mockResponse.items); 
+      setContentItems(mockResponse.items);
       setTotalPages(mockResponse.pageCount || 1);
       setTotalItems(mockResponse.total);
-    } finally {
+      setIsLoadingCategories(false);
       setIsLoading(false);
     }
-  }, [activeSourceUrl, setGlobalCategories, categories]);
-
+  }, [activeSourceUrl, setGlobalCategories]); // Dependencies for useCallback
 
   useEffect(() => {
+    console.log(`HomePage useEffect triggered. ActiveSourceUrl: ${activeSourceUrl}, Page: ${currentPageQuery}, Category: ${selectedCategoryId}, Search: ${currentSearchTermQuery}`);
+    // Only load if activeSourceUrl is determined (it can be null for the mock data path)
+    // The dependency array ensures this runs when any of these key parameters change.
     loadCategoriesAndContent(currentPageQuery, selectedCategoryId, currentSearchTermQuery);
-  }, [selectedCategoryId, currentSearchTermQuery, currentPageQuery, loadCategoriesAndContent, activeSourceUrl]); // Added activeSourceUrl
-  
+  }, [activeSourceUrl, currentPageQuery, selectedCategoryId, currentSearchTermQuery, loadCategoriesAndContent]);
+
+
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
       updateURLParams({ page: newPage });
     }
   };
-  
-  if (sources.length === 0 && !activeSourceUrl && !isLoading && !isLoadingCategories && (!categories.length || categories.every(c => c.name.includes('(模拟)'))) ) {
+
+  if (sources.length === 0 && !activeSourceUrl && !isLoading && !isLoadingCategories && (!categories.length || categories.every(c => c.id.startsWith('mock-'))) ) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-10rem)] text-center p-4">
         <Tv2 className="w-24 h-24 mb-6 text-muted-foreground" />
@@ -156,7 +154,7 @@ function HomePageContent() {
       </div>
     );
   }
-  
+
   return (
     <div className="space-y-6">
       {error && (
@@ -184,7 +182,7 @@ function HomePageContent() {
       }
 
 
-      {isLoading && contentItems.length === 0 ? ( // Show skeleton only if truly loading initial content
+      {isLoading && contentItems.length === 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
           {Array.from({ length: 10 }).map((_, index) => (
             <div key={index} className="space-y-2">
@@ -197,11 +195,11 @@ function HomePageContent() {
       ) : contentItems.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
           {contentItems.map(item => (
-            <ContentCard key={`${item.id}-${activeSourceUrl || 'mock'}`} item={item} />
+            <ContentCard key={`${item.id}-${activeSourceUrl || 'mock'}-${item.title}`} item={item} />
           ))}
         </div>
       ) : (
-        !isLoading && ( // Only show "no content" if not loading
+        !isLoading && (
             <div className="text-center py-12 flex flex-col items-center justify-center">
                 <Search className="w-16 h-16 mb-4 text-muted-foreground" />
                 <p className="text-xl text-muted-foreground">
@@ -219,7 +217,7 @@ function HomePageContent() {
 
 export default function HomePage() {
   return (
-    <Suspense fallback={<HomePageSkeleton />}> 
+    <Suspense fallback={<HomePageSkeleton />}>
       <HomePageContent />
     </Suspense>
   );
