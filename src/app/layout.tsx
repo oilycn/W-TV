@@ -17,7 +17,7 @@ import AppLogo from '@/components/common/AppLogo';
 import { CategoryProvider } from '@/contexts/CategoryContext'; 
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { SidebarNavigationItems } from '@/components/layout/SidebarNavigationItems';
-import { Suspense } from 'react'; // Import Suspense
+import { Suspense } from 'react';
 
 
 const geistSans = Geist({
@@ -34,6 +34,28 @@ export const metadata: Metadata = {
   title: '晚风TV',
   description: '您的个性化影院体验',
 };
+
+// Define very simple, static fallbacks as functional components
+const AppHeaderFallback = () => (
+  <div style={{ 
+    position: 'sticky', 
+    top: 0, 
+    zIndex: 10, 
+    display: 'flex', 
+    height: '64px', /* Corresponds to h-16 */
+    alignItems: 'center', 
+    borderBottom: '1px solid hsl(var(--border))', /* Simulate border-b */
+    backgroundColor: 'hsl(var(--background))', /* Simulate bg-background/95 */
+    paddingLeft: '1rem', /* Corresponds to px-4 */
+    paddingRight: '1rem', /* Corresponds to px-4 */
+  }} />
+);
+
+const SidebarNavFallback = () => (
+  <div style={{ padding: '0.5rem' }}>{/* Corresponds to p-2 */}
+    {/* You can add simple skeleton lines here if needed */}
+  </div>
+);
 
 
 export default function RootLayout({
@@ -54,7 +76,7 @@ export default function RootLayout({
               </SidebarHeader>
               <ScrollArea className="flex-grow"> {/* ScrollArea wraps the navigation items */}
                 <SidebarContent>
-                  <Suspense fallback={<div className="p-2">Loading navigation...</div>}>
+                  <Suspense fallback={<SidebarNavFallback />}>
                     <SidebarNavigationItems /> 
                   </Suspense>
                 </SidebarContent>
@@ -64,7 +86,7 @@ export default function RootLayout({
               </SidebarFooter>
             </Sidebar>
             <SidebarInset>
-              <Suspense fallback={<div className="sticky top-0 z-10 flex h-16 items-center border-b bg-background/95 px-4 md:px-6"></div>}>
+              <Suspense fallback={<AppHeaderFallback />}>
                 <AppHeader />
               </Suspense>
               <main className="flex-1 p-4 md:p-6 overflow-auto">
@@ -78,4 +100,3 @@ export default function RootLayout({
     </html>
   );
 }
-
