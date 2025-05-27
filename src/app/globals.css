@@ -42,40 +42,39 @@
   }
 
   .light {
-    --background: 0 0% 100%; /* White */
-    --foreground: 240 10% 3.9%; /* Dark Gray */
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --background: 220 20% 97%; /* Very light cool off-white */
+    --foreground: 220 20% 10%; /* Very dark cool gray */
+    --card: 0 0% 100%; /* White */
+    --card-foreground: 220 20% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 200 80% 50%; /* Slightly adjusted for light bg */
+    --popover-foreground: 220 20% 10%;
+    --primary: 200 70% 50%; /* Softer blue */
     --primary-foreground: 210 40% 98%;
-    --secondary: 240 4.8% 95.9%; /* Light Gray */
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 330 75% 55%; /* Slightly adjusted for light bg */
+    --secondary: 220 15% 90%; /* Light cool gray */
+    --secondary-foreground: 220 10% 30%;
+    --muted: 220 15% 94%; /* Very light cool gray */
+    --muted-foreground: 220 10% 55%;
+    --accent: 330 75% 58%; /* Softer pink */
     --accent-foreground: 0 0% 98%;
-    --destructive: 0 84.2% 60.2%;
+    --destructive: 0 75% 55%; /* Softer red */
     --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%; /* Light Gray Border */
-    --input: 240 5.9% 90%;
-    --ring: 200 80% 50%; /* Primary color for rings */
+    --border: 220 10% 85%; /* Softer border */
+    --input: 0 0% 100%; /* White input background */
+    --ring: 200 70% 50%; /* Primary color for rings */
     --chart-1: 190 70% 45%;
     --chart-2: 170 60% 40%;
     --chart-3: 40 80% 50%;
     --chart-4: 280 65% 55%;
     --chart-5: 340 75% 50%;
 
-    /* Sidebar variables for light theme, though sidebar is removed, these could be used by other components if needed */
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 10% 20%;
-    --sidebar-primary: 330 75% 55%;
+    --sidebar-background: 220 20% 95%;
+    --sidebar-foreground: 220 20% 15%;
+    --sidebar-primary: 330 75% 58%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 0 0% 92%;
-    --sidebar-accent-foreground: 240 10% 10%;
-    --sidebar-border: 0 0% 85%;
-    --sidebar-ring: 330 75% 55%;
+    --sidebar-accent: 220 15% 88%;
+    --sidebar-accent-foreground: 220 10% 10%;
+    --sidebar-border: 220 10% 80%;
+    --sidebar-ring: 330 75% 58%;
   }
 }
 
