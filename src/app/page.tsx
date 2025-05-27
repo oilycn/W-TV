@@ -21,7 +21,7 @@ function HomePageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const { categories: globalCategories, setCategories: setGlobalCategories } = useCategories();
+  const { setCategories: setGlobalCategories } = useCategories();
 
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
   const [activeSourceId, setActiveSourceId] = useLocalStorage<string | null>(LOCAL_STORAGE_KEY_ACTIVE_SOURCE, null);
@@ -59,8 +59,6 @@ function HomePageContent() {
       if (!firstSourceIsValid) {
         console.log("HomePageContent: Invalid or no activeSourceId, defaulting to first source.");
         setActiveSourceId(sources[0].id);
-        // To ensure AppHeader syncs, we'd ideally trigger a URL update here or rely on AppHeader's own logic.
-        // For now, setting activeSourceId will trigger data reload if it's a new ID.
       }
     } else if (sources.length === 0 && activeSourceId) {
       // If no sources, but activeSourceId is still set (e.g., all sources removed)
@@ -76,7 +74,10 @@ function HomePageContent() {
       const source = sources.find(s => s.id === activeSourceId);
       if (source) url = source.url;
     } else if (sources.length > 0) {
-      url = sources[0].url;
+      // Fallback if activeSourceId isn't set yet but sources exist
+      // The effect above should set activeSourceId, making this less likely to be the primary path
+      url = sources[0].url; 
+      console.warn(`HomePageContent: activeSourceUrl using fallback (first source) because activeSourceId (${activeSourceId}) might not be synced yet or invalid.`);
     }
     console.log(`HomePageContent: activeSourceUrl re-calculated to: ${url} (activeSourceId: ${activeSourceId})`);
     return url;
@@ -89,8 +90,6 @@ function HomePageContent() {
     Object.entries(newParams).forEach(([key, value]) => {
       const stringValue = String(value);
       if (value === undefined || value === null || (typeof value === 'string' && value.trim() === '') || (key === 'page' && value === 1 && !currentParams.has('q') && !currentParams.has('category'))) {
-         // Remove param if value is null/undefined/empty string
-         // Also remove page=1 if it's the only default param
         if (currentParams.has(key)) {
           currentParams.delete(key);
           changed = true;
@@ -104,7 +103,6 @@ function HomePageContent() {
     });
 
     if (changed) {
-        // Preserve activeSourceTrigger and searchTrigger if they exist and aren't being explicitly changed
         ['activeSourceTrigger', 'searchTrigger'].forEach(triggerKey => {
             if (searchParams.has(triggerKey) && !newParams[triggerKey]) {
                 if(!currentParams.has(triggerKey) && searchParams.get(triggerKey)) {
@@ -184,25 +182,25 @@ function HomePageContent() {
     if (activeSourceId) {
       const source = sources.find(s => s.id === activeSourceId);
       if (source) sourceUrlForFetch = source.url;
-    } else if (sources.length > 0) {
-      // This case should ideally be handled by the activeSourceId synchronization effect
-      // but as a fallback, use the first source.
-      sourceUrlForFetch = sources[0].url;
-      if (!activeSourceTrigger && !searchParams.has('activeSourceTrigger')) { // Avoid if a trigger is already pending
-          console.warn("HomePageContent: No activeSourceId, falling back to first source AND setting activeSourceId for consistency.");
-          setActiveSourceId(sources[0].id); // Attempt to sync if it's truly unset
+      else {
+        // activeSourceId might be invalid (e.g., source deleted)
+        console.warn(`HomePageContent: activeSourceId ${activeSourceId} is invalid. Attempting to use first source or mock.`);
+        if (sources.length > 0) sourceUrlForFetch = sources[0].url;
       }
+    } else if (sources.length > 0) {
+      sourceUrlForFetch = sources[0].url;
+      console.warn("HomePageContent: No activeSourceId, falling back to first source. Trigger:", activeSourceTrigger, "Search Params:", searchParams.toString());
+       if (!activeSourceTrigger && !searchParams.has('activeSourceTrigger')) {
+          setActiveSourceId(sources[0].id);
+       }
     }
     
-    // Only load if we have a valid source URL or if there are no sources (to load mocks)
     if (sourceUrlForFetch || sources.length === 0) {
       loadCategoriesAndContent(sourceUrlForFetch, currentPageQuery, selectedCategoryId, currentSearchTermQuery);
     } else if (sources.length > 0 && !activeSourceId) {
-        console.log("HomePageContent: Waiting for activeSourceId to be determined from sources list.");
-        setIsLoading(true); // Show loading while waiting for activeSourceId sync
+        console.log("HomePageContent: Waiting for activeSourceId to be determined from sources list or trigger.");
+        setIsLoading(true); 
     }
-
-
   }, [activeSourceId, currentPageQuery, selectedCategoryId, currentSearchTermQuery, loadCategoriesAndContent, sources, activeSourceTrigger, searchTrigger, setActiveSourceId, searchParams]);
 
 
@@ -212,20 +210,23 @@ function HomePageContent() {
     }
   };
 
-  if (sources.length === 0 && !activeSourceUrl && !isLoading && !isLoadingCategories && (!globalCategories.length || globalCategories.every(c => c.id.startsWith('mock-'))) ) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[calc(100vh-10rem)] text-center p-4">
-        <Tv2 className="w-24 h-24 mb-6 text-muted-foreground" />
-        <h2 className="text-2xl font-semibold mb-2 text-foreground">欢迎来到 晚风TV</h2>
-        <p className="mb-6 text-muted-foreground max-w-md">
-          您还没有配置任何内容源。请前往“设置”页面添加一个或多个内容源，以便开始浏览和发现精彩内容。
-        </p>
-        <Button asChild className="bg-accent hover:bg-accent/90 text-accent-foreground">
-          <Link href="/settings">前往设置</Link>
-        </Button>
-        <p className="mt-4 text-sm text-muted-foreground">（当前可能显示示例分类和数据）</p>
-      </div>
-    );
+  if (sources.length === 0 && !activeSourceUrl && !isLoading && !isLoadingCategories ) {
+    const mockCategories = getMockApiCategories();
+    if (!isLoadingCategories && (!mockCategories.length || mockCategories.every(c => c.id.startsWith('mock-')))) {
+      return (
+        <div className="flex flex-col items-center justify-center h-[calc(100vh-10rem)] text-center p-4">
+          <Tv2 className="w-24 h-24 mb-6 text-muted-foreground" />
+          <h2 className="text-2xl font-semibold mb-2 text-foreground">欢迎来到 晚风TV</h2>
+          <p className="mb-6 text-muted-foreground max-w-md">
+            您还没有配置任何内容源。请前往“设置”页面添加一个或多个内容源，以便开始浏览和发现精彩内容。
+          </p>
+          <Button asChild className="bg-accent hover:bg-accent/90 text-accent-foreground">
+            <Link href="/settings">前往设置</Link>
+          </Button>
+          <p className="mt-4 text-sm text-muted-foreground">（当前可能显示示例分类和数据）</p>
+        </div>
+      );
+    }
   }
 
   return (
@@ -256,17 +257,17 @@ function HomePageContent() {
 
 
       {isLoading && contentItems.length === 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-          {Array.from({ length: 10 }).map((_, index) => (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
+          {Array.from({ length: 12 }).map((_, index) => (
             <div key={index} className="space-y-2">
-              <Skeleton className="h-[300px] w-full rounded-lg" />
-              <Skeleton className="h-6 w-3/4" />
+              <Skeleton className="aspect-[2/3] w-full rounded-lg" />
+              <Skeleton className="h-5 w-3/4" />
               <Skeleton className="h-4 w-1/2" />
             </div>
           ))}
         </div>
       ) : contentItems.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
           {contentItems.map(item => (
             <ContentCard key={`${item.id}-${activeSourceUrl || 'mock'}-${item.title}`} item={item} />
           ))}
@@ -309,11 +310,11 @@ function HomePageSkeleton() {
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-        {Array.from({ length: 10 }).map((_, index) => (
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
+        {Array.from({ length: 12 }).map((_, index) => (
           <div key={index} className="space-y-2">
-            <Skeleton className="h-[300px] w-full rounded-lg" />
-            <Skeleton className="h-6 w-3/4" />
+            <Skeleton className="aspect-[2/3] w-full rounded-lg" />
+            <Skeleton className="h-5 w-3/4" />
             <Skeleton className="h-4 w-1/2" />
           </div>
         ))}
