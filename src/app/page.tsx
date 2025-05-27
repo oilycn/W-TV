@@ -70,31 +70,34 @@ function HomePageContent() {
     }
   }, [router, searchParams, pathname]);
 
-  const loadCategoriesAndContent = useCallback(async (page: number, categoryId: string, searchTerm: string) => {
-    console.log(`loadCategoriesAndContent called with page: ${page}, categoryId: ${categoryId}, searchTerm: ${searchTerm}, activeSourceUrl: ${activeSourceUrl}`);
+  const loadCategoriesAndContent = useCallback(async (
+    sourceUrlForFetch: string | null,
+    page: number,
+    categoryId: string,
+    searchTerm: string
+  ) => {
+    console.log(`loadCategoriesAndContent called with sourceUrlForFetch: ${sourceUrlForFetch}, page: ${page}, categoryId: ${categoryId}, searchTerm: ${searchTerm}`);
     setIsLoading(true);
     setIsLoadingCategories(true);
     setError(null);
-    //setContentItems([]); // Clear previous content immediately for better UX when source changes
+    // setContentItems([]); // Clear previous content for better UX when source changes
 
-    if (activeSourceUrl) {
-      // Fetch categories for the current activeSourceUrl
+    if (sourceUrlForFetch) {
       try {
-        console.log(`Fetching categories for source: ${activeSourceUrl}`);
-        const fetchedCategories = await fetchApiCategories(activeSourceUrl);
-        setGlobalCategories(fetchedCategories); // Relies on fetchApiCategories to add "All"
+        console.log(`Fetching categories for source: ${sourceUrlForFetch}`);
+        const fetchedCategories = await fetchApiCategories(sourceUrlForFetch);
+        setGlobalCategories(fetchedCategories);
       } catch (e) {
         console.error("Failed to load categories:", e);
         setError(prev => prev ? `${prev} & 无法加载分类信息。` : "无法加载分类信息。");
-        setGlobalCategories(getMockApiCategories()); // Fallback to mock on error
+        setGlobalCategories(getMockApiCategories());
       } finally {
         setIsLoadingCategories(false);
       }
 
-      // Fetch content for the current activeSourceUrl and other params
       try {
-        console.log(`Fetching content for source: ${activeSourceUrl}, category: ${categoryId}, page: ${page}, search: ${searchTerm}`);
-        const response = await fetchApiContentList(activeSourceUrl, {
+        console.log(`Fetching content for source: ${sourceUrlForFetch}, category: ${categoryId}, page: ${page}, search: ${searchTerm}`);
+        const response = await fetchApiContentList(sourceUrlForFetch, {
           page,
           categoryId: categoryId === 'all' ? undefined : categoryId,
           searchTerm: searchTerm || undefined,
@@ -105,7 +108,7 @@ function HomePageContent() {
       } catch (e) {
         console.error("Failed to load content:", e);
         setError(prev => prev ? `${prev} & 无法加载内容。` : "无法加载内容。请检查您的网络连接或内容源配置。");
-        const mockResponse = getMockPaginatedResponse(page, categoryId, searchTerm); // Fallback
+        const mockResponse = getMockPaginatedResponse(page, categoryId, searchTerm);
         setContentItems(mockResponse.items);
         setTotalPages(mockResponse.pageCount || 1);
         setTotalItems(mockResponse.total);
@@ -113,7 +116,6 @@ function HomePageContent() {
         setIsLoading(false);
       }
     } else {
-      // No active source URL logic
       console.log("No active source URL, using mock data for categories and content.");
       setGlobalCategories(getMockApiCategories());
       const mockResponse = getMockPaginatedResponse(page, categoryId, searchTerm);
@@ -123,13 +125,11 @@ function HomePageContent() {
       setIsLoadingCategories(false);
       setIsLoading(false);
     }
-  }, [activeSourceUrl, setGlobalCategories]); // Dependencies for useCallback
+  }, [setGlobalCategories]); // Dependencies of useCallback
 
   useEffect(() => {
     console.log(`HomePage useEffect triggered. ActiveSourceUrl: ${activeSourceUrl}, Page: ${currentPageQuery}, Category: ${selectedCategoryId}, Search: ${currentSearchTermQuery}`);
-    // Only load if activeSourceUrl is determined (it can be null for the mock data path)
-    // The dependency array ensures this runs when any of these key parameters change.
-    loadCategoriesAndContent(currentPageQuery, selectedCategoryId, currentSearchTermQuery);
+    loadCategoriesAndContent(activeSourceUrl, currentPageQuery, selectedCategoryId, currentSearchTermQuery);
   }, [activeSourceUrl, currentPageQuery, selectedCategoryId, currentSearchTermQuery, loadCategoriesAndContent]);
 
 
