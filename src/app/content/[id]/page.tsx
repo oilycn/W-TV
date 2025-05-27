@@ -240,7 +240,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                     onPlay={() => setVideoPlayerError(null)} 
                     config={{
                         file: {
-                          attributes: { crossOrigin: 'anonymous' },
+                          attributes: { crossOrigin: 'anonymous' }, // Added crossOrigin attribute
                         }
                     }}
                     style={{ display: isPlayerReady || videoPlayerError ? 'block' : 'none' }}
