@@ -17,6 +17,7 @@ import AppLogo from '@/components/common/AppLogo';
 import { CategoryProvider } from '@/contexts/CategoryContext'; 
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { SidebarNavigationItems } from '@/components/layout/SidebarNavigationItems';
+import { Suspense } from 'react'; // Import Suspense
 
 
 const geistSans = Geist({
@@ -53,7 +54,9 @@ export default function RootLayout({
               </SidebarHeader>
               <ScrollArea className="flex-grow"> {/* ScrollArea wraps the navigation items */}
                 <SidebarContent>
-                  <SidebarNavigationItems /> 
+                  <Suspense fallback={<div className="p-2">Loading navigation...</div>}>
+                    <SidebarNavigationItems /> 
+                  </Suspense>
                 </SidebarContent>
               </ScrollArea>
               <SidebarFooter className="p-2 mt-auto"> {/* Push footer to bottom */}
@@ -61,7 +64,9 @@ export default function RootLayout({
               </SidebarFooter>
             </Sidebar>
             <SidebarInset>
-              <AppHeader />
+              <Suspense fallback={<div className="sticky top-0 z-10 flex h-16 items-center border-b bg-background/95 px-4 md:px-6"></div>}>
+                <AppHeader />
+              </Suspense>
               <main className="flex-1 p-4 md:p-6 overflow-auto">
                 {children}
               </main>
