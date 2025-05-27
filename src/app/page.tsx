@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, Tv2, ChevronLeft, ChevronRight, Search as SearchIcon } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useCategories } from '@/contexts/CategoryContext';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 const LOCAL_STORAGE_KEY_ACTIVE_SOURCE = 'cinemaViewActiveSourceId';
@@ -21,7 +22,7 @@ function HomePageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const { setCategories: setGlobalCategories } = useCategories();
+  const { categories: globalCategories, setCategories: setGlobalCategories } = useCategories();
 
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
   const [activeSourceId, setActiveSourceId] = useLocalStorage<string | null>(LOCAL_STORAGE_KEY_ACTIVE_SOURCE, null);
@@ -42,7 +43,6 @@ function HomePageContent() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   
-  // Effect to synchronize activeSourceId state with URL trigger
   useEffect(() => {
     if (activeSourceTrigger && activeSourceTrigger !== activeSourceId) {
       console.log(`HomePageContent: activeSourceTrigger (${activeSourceTrigger}) detected from URL, updating activeSourceId.`);
@@ -50,18 +50,14 @@ function HomePageContent() {
     }
   }, [activeSourceTrigger, activeSourceId, setActiveSourceId]);
 
-  // Effect to ensure activeSourceId is valid or default
    useEffect(() => {
     if (!activeSourceId && sources.length > 0) {
-      // If no active ID, but sources exist, default to the first one.
-      // This also handles the case where activeSourceId might be invalid.
       const firstSourceIsValid = sources.find(s => s.id === activeSourceId);
       if (!firstSourceIsValid) {
         console.log("HomePageContent: Invalid or no activeSourceId, defaulting to first source.");
         setActiveSourceId(sources[0].id);
       }
     } else if (sources.length === 0 && activeSourceId) {
-      // If no sources, but activeSourceId is still set (e.g., all sources removed)
       console.log("HomePageContent: No sources available, clearing activeSourceId.");
       setActiveSourceId(null);
     }
@@ -74,8 +70,6 @@ function HomePageContent() {
       const source = sources.find(s => s.id === activeSourceId);
       if (source) url = source.url;
     } else if (sources.length > 0) {
-      // Fallback if activeSourceId isn't set yet but sources exist
-      // The effect above should set activeSourceId, making this less likely to be the primary path
       url = sources[0].url; 
       console.warn(`HomePageContent: activeSourceUrl using fallback (first source) because activeSourceId (${activeSourceId}) might not be synced yet or invalid.`);
     }
@@ -89,8 +83,14 @@ function HomePageContent() {
     let changed = false;
     Object.entries(newParams).forEach(([key, value]) => {
       const stringValue = String(value);
-      if (value === undefined || value === null || (typeof value === 'string' && value.trim() === '') || (key === 'page' && value === 1 && !currentParams.has('q') && !currentParams.has('category'))) {
-        if (currentParams.has(key)) {
+      if (value === undefined || value === null || (typeof value === 'string' && value.trim() === '') || (key === 'page' && value === 1 && !currentParams.has('q') && currentParams.get('category') === 'all')) {
+        // Remove 'all' category if it's the default, and page is 1, and no search
+        if (key === 'category' && value === 'all') {
+            if(currentParams.has(key)) {
+                currentParams.delete(key);
+                changed = true;
+            }
+        } else if (currentParams.has(key)) {
           currentParams.delete(key);
           changed = true;
         }
@@ -183,7 +183,6 @@ function HomePageContent() {
       const source = sources.find(s => s.id === activeSourceId);
       if (source) sourceUrlForFetch = source.url;
       else {
-        // activeSourceId might be invalid (e.g., source deleted)
         console.warn(`HomePageContent: activeSourceId ${activeSourceId} is invalid. Attempting to use first source or mock.`);
         if (sources.length > 0) sourceUrlForFetch = sources[0].url;
       }
@@ -212,7 +211,7 @@ function HomePageContent() {
 
   if (sources.length === 0 && !activeSourceUrl && !isLoading && !isLoadingCategories ) {
     const mockCategories = getMockApiCategories();
-    if (!isLoadingCategories && (!mockCategories.length || mockCategories.every(c => c.id.startsWith('mock-')))) {
+    if (!isLoadingCategories && (!globalCategories.length || globalCategories.every(c => c.id.startsWith('mock-')))) {
       return (
         <div className="flex flex-col items-center justify-center h-[calc(100vh-10rem)] text-center p-4">
           <Tv2 className="w-24 h-24 mb-6 text-muted-foreground" />
@@ -238,6 +237,36 @@ function HomePageContent() {
            <AlertDescription>{error} 部分数据可能来自模拟源。</AlertDescription>
          </Alert>
       )}
+
+      {(!isLoadingCategories && globalCategories.length > 0) && (
+        <ScrollArea className="w-full whitespace-nowrap rounded-md border shadow-sm mb-2 bg-card">
+          <div className="flex space-x-2 p-3">
+            {globalCategories.map(category => (
+              <Button
+                key={category.id}
+                variant={selectedCategoryId === category.id ? "default" : "outline"}
+                onClick={() => updateURLParams({ category: category.id, page: 1, q: null })}
+                className="whitespace-nowrap text-sm h-9 px-4"
+                size="sm"
+              >
+                {category.name}
+              </Button>
+            ))}
+          </div>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+      )}
+      {isLoadingCategories && (
+        <div className="space-y-2 p-3 border rounded-md shadow-sm mb-2 bg-card">
+            <div className="flex space-x-2">
+                <Skeleton className="h-9 w-20" />
+                <Skeleton className="h-9 w-24" />
+                <Skeleton className="h-9 w-16" />
+                <Skeleton className="h-9 w-28" />
+            </div>
+        </div>
+      )}
+
 
       {(isLoading || contentItems.length > 0 || totalItems > 0 || currentPageQuery > 1) && (
           <div className="flex items-center justify-between text-sm text-muted-foreground pt-2 p-4 bg-card rounded-lg shadow">
@@ -300,6 +329,14 @@ export default function HomePage() {
 function HomePageSkeleton() {
   return (
     <div className="space-y-6">
+      <div className="space-y-2 p-3 border rounded-md shadow-sm mb-2 bg-card">
+          <div className="flex space-x-2">
+              <Skeleton className="h-9 w-20" />
+              <Skeleton className="h-9 w-24" />
+              <Skeleton className="h-9 w-16" />
+              <Skeleton className="h-9 w-28" />
+          </div>
+      </div>
       <div className="space-y-4 p-4 bg-card rounded-lg shadow">
         <div className="flex items-center justify-between pt-2">
           <Skeleton className="h-5 w-24" />

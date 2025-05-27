@@ -16,7 +16,7 @@ import Link from 'next/link';
 import AppLogo from '@/components/common/AppLogo';
 import { CategoryProvider } from '@/contexts/CategoryContext'; 
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { SidebarNavigationItems } from '@/components/layout/SidebarNavigationItems';
+// SidebarNavigationItems is no longer used here as categories are moved to the homepage
 import { Suspense } from 'react';
 
 
@@ -51,9 +51,10 @@ const AppHeaderFallback = () => (
   }} />
 );
 
+// Fallback for sidebar content is now simpler as dynamic categories are removed
 const SidebarNavFallback = () => (
-  <div style={{ padding: '0.5rem' }}>{/* Corresponds to p-2 */}
-    {/* You can add simple skeleton lines here if needed */}
+  <div style={{ padding: '0.5rem' }}>
+    {/* Minimal placeholder, or could be empty if sidebar content is only static */}
   </div>
 );
 
@@ -74,13 +75,11 @@ export default function RootLayout({
                   <AppLogo />
                 </Link>
               </SidebarHeader>
-              <ScrollArea className="flex-grow"> {/* ScrollArea wraps the navigation items */}
-                <SidebarContent>
-                  <Suspense fallback={<SidebarNavFallback />}>
-                    <SidebarNavigationItems /> 
-                  </Suspense>
-                </SidebarContent>
-              </ScrollArea>
+              {/* ScrollArea and SidebarNavigationItems are removed from here */}
+              {/* SidebarContent can be used for other static navigation or be minimal */}
+              <SidebarContent className="flex-grow">
+                 {/* Content of sidebar is now minimal or for other nav items */}
+              </SidebarContent>
               <SidebarFooter className="p-2 mt-auto"> {/* Push footer to bottom */}
                 {/* Footer content if any */}
               </SidebarFooter>
