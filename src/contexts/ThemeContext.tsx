@@ -21,11 +21,33 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
     const storedTheme = localStorage.getItem(LOCAL_STORAGE_KEY_THEME) as Theme | null;
     if (storedTheme) {
-      return storedTheme;
+      return storedTheme; // User preference takes precedence
     }
-    // Fallback to system preference if no stored theme
-    // return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    return "dark"; // Default to dark if no preference
+
+    // Calculate time in China (UTC+8)
+    const now = new Date();
+    // Get current UTC hour
+    const utcHours = now.getUTCHours();
+    // Calculate China Standard Time hour (UTC+8)
+    // The calculation (utcHours + 8) can result in values >= 24 or negative if we were subtracting.
+    // A simple way to handle this correctly for a 24-hour cycle is:
+    let chinaHour = (utcHours + 8);
+    if (chinaHour >= 24) {
+      chinaHour = chinaHour - 24;
+    } else if (chinaHour < 0) { // Should not happen with +8 but good for general timezone math
+      chinaHour = chinaHour + 24;
+    }
+    // Alternative using toLocaleString which is more robust for timezones, but might be slightly heavier.
+    // For simplicity and direct hour check, manual offset is fine if DST is not a concern for UTC+8.
+    // const chinaTimeStr = now.toLocaleString("en-US", { timeZone: "Asia/Shanghai", hour12: false, hour: 'numeric' });
+    // const chinaHour = parseInt(chinaTimeStr, 10);
+
+
+    if (chinaHour >= 6 && chinaHour < 18) {
+      return "light";
+    } else {
+      return "dark";
+    }
   });
 
   useEffect(() => {
