@@ -6,7 +6,7 @@ import { SearchBar } from "@/components/search/SearchBar";
 import AppLogo from "./AppLogo";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Settings, Home, Wand2, List, Sun, Moon } from "lucide-react";
+import { Settings, Wand2, List, Sun, Moon } from "lucide-react"; // Removed Home icon
 import {
   Select,
   SelectContent,
@@ -17,7 +17,7 @@ import {
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import type { SourceConfig } from '@/types';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { useTheme } from '@/contexts/ThemeContext'; // Import useTheme
+import { useTheme } from '@/contexts/ThemeContext';
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 const LOCAL_STORAGE_KEY_ACTIVE_SOURCE = 'cinemaViewActiveSourceId';
@@ -29,7 +29,7 @@ export function AppHeader() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { theme, toggleTheme } = useTheme(); // Use the theme context
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     setIsClient(true);
@@ -50,22 +50,15 @@ export function AppHeader() {
       setActiveSourceId(newSourceId);
       const newParams = new URLSearchParams(searchParams.toString());
       newParams.set('activeSourceTrigger', newSourceId);
-      newParams.set('page', '1'); // Reset to page 1 when source changes
-      // If on homepage, push to trigger re-fetch
+      newParams.set('page', '1'); 
       if (pathname === '/') {
         router.push(`${pathname}?${newParams.toString()}`, { scroll: false });
-      } else {
-        // If on another page (e.g. settings), still update params for when user navigates back to home
-         // Or simply navigate to home: router.push(`/?${newParams.toString()}`, { scroll: false });
       }
       console.log(`AppHeader: Source changed to ${newSourceId}, new URL params: ${newParams.toString()}`);
     }
   };
 
   if (!isClient) {
-    // Simplified header for SSR or when client is not yet ready
-    // Important: The theme toggle button logic relies on client-side state (theme context)
-    // So we render a simpler header without it during SSR/pre-hydration.
     return (
       <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur md:px-6">
         <div className="flex items-center gap-2">
@@ -84,11 +77,7 @@ export function AppHeader() {
       </Link>
 
       <nav className="flex items-center gap-1 sm:gap-2">
-        <Button variant="ghost" size="icon" asChild aria-label="主页">
-          <Link href="/">
-            <Home className="h-5 w-5" />
-          </Link>
-        </Button>
+        {/* Home button removed */}
         <Button variant="ghost" size="icon" asChild aria-label="AI推荐">
           <Link href="/recommendations">
             <Wand2 className="h-5 w-5" />
