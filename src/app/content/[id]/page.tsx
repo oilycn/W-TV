@@ -14,6 +14,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from '@/components/ui/button';
 import ReactPlayer from 'react-player/lazy';
+// import 'dashjs'; // ReactPlayer handles DASH if dashjs is in dependencies and URL is DASH
+// import 'hls.js'; // ReactPlayer handles HLS if hls.js is in dependencies and URL is HLS
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 
@@ -26,7 +28,7 @@ interface ContentDetailPageProps {
 }
 
 function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
-  const resolvedParams = use(paramsProp as any); // params can be a promise
+  const resolvedParams = use(paramsProp as any); 
 
   const [pageId, setPageId] = useState<string | null>(null);
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
@@ -51,7 +53,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
   useEffect(() => {
     if (currentPlayUrl) {
       setVideoPlayerError(null);
-      setIsPlayerReady(false); // Reset ready state when URL changes
+      setIsPlayerReady(false); 
     }
   }, [currentPlayUrl]);
 
@@ -99,29 +101,41 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     setIsPlayerReady(false);
   };
   
-  const handlePlayerError = (error: any) => {
-    console.error('ReactPlayer Error:', error);
+  const handlePlayerError = (
+    error: any,
+    data?: any, // Additional data from HLS.js or DASH.js
+    hlsInstance?: any, // HLS.js instance
+    // hlsGlobal?: any // Less commonly used
+  ) => {
+    console.error('ReactPlayer Error:', error, 'Data:', data, 'HLS Instance:', hlsInstance);
     let message = '视频播放时发生未知错误。';
-    
+
     if (typeof error === 'string') {
-      message = error;
-    } else if (error && error.message) {
+      const lowerError = error.toLowerCase();
+      if (lowerError.includes('hlserror') && data && data.type) {
+        // Specific HLS error from data object
+        message = `HLS 播放错误 (${data.type}${data.details ? ': ' + data.details : ''})`;
+        if (data.fatal === false) {
+            if (data.type === 'networkError' && data.details === 'fragLoadError') {
+                 message = '视频片段加载失败，尝试恢复中...';
+            } else if (data.type === 'mediaError' && data.details === 'bufferStalledError') {
+                 message = '视频缓冲卡顿，尝试恢复中...';
+            } else {
+                 message += ' (尝试恢复中)';
+            }
+        } else if (data.fatal === true) {
+             message += ' (致命错误，无法恢复)';
+        }
+      } else if (lowerError.includes('dasherror') && data) {
+        const dashErr = data.error || data; // dash.js might structure error differently
+        message = `DASH 播放错误 (${dashErr.code || 'unknown'}${dashErr.message ? ': ' + dashErr.message : ''})`;
+      } else {
+        message = `播放器报告错误: ${error}`;
+      }
+    } else if (error && error.message) { // Standard JS Error object
       message = error.message;
-    } else if (error && error.type) { 
-        if (error.details) {
-            message = `媒体错误: ${error.type} - ${error.details}`;
-        } else {
-            message = `媒体错误: ${error.type}`;
-        }
-        if (error.fatal === false && error.type !== 'bufferStalledError' && error.type !== 'fragLoadError') {
-            message += ' (尝试恢复中)';
-        } else if (error.type === 'bufferStalledError') {
-            message = '视频缓冲卡顿，尝试恢复中...';
-        } else if (error.type === 'fragLoadError') {
-             message = '视频片段加载失败，尝试恢复中...';
-        }
-    } else if (error && error.target && error.target.error) { 
-        const mediaError = error.target.error;
+    } else if (error && error.target && error.target.error && typeof error.target.error.code === 'number') { // Native HTML <video> MediaError
+        const mediaError = error.target.error as MediaError;
         switch (mediaError.code) {
             case mediaError.MEDIA_ERR_ABORTED: message = '视频加载已中止。'; break;
             case mediaError.MEDIA_ERR_NETWORK: message = '网络错误导致视频加载失败。'; break;
@@ -129,12 +143,20 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             case mediaError.MEDIA_ERR_SRC_NOT_SUPPORTED: message = '视频源格式不支持或无法访问。'; break;
             default: message = `发生媒体错误 (代码: ${mediaError.code})。`; break;
         }
+    } else if (data && data.type) { // Fallback for HLS/DASH if error is not informative, but data object from HLS/DASH is
+        message = `播放技术性错误 (${data.type}${data.details ? ': ' + data.details : ''})`;
+        if (data.fatal === false && (data.type === 'networkError' || data.type === 'mediaError')) {
+          message += ' (尝试恢复中)';
+        } else if (data.fatal === true) {
+             message += ' (致命错误，无法恢复)';
+        }
     }
 
     setVideoPlayerError(message);
   };
 
-  if (isLoading || item === undefined) { // Still loading item details
+
+  if (isLoading || item === undefined) { 
     return (
       <div className="container mx-auto py-8">
         <Skeleton className="w-full aspect-video mb-8 rounded-lg" />
@@ -153,7 +175,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     );
   }
 
-  if (!item) { // Item not found after loading attempts
+  if (!item) { 
     return (
       <div className="container mx-auto py-8 text-center">
         <h1 className="text-2xl font-semibold text-destructive">内容未找到</h1>
@@ -200,6 +222,8 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                     config={{
                         file: {
                           attributes: { crossOrigin: 'anonymous' },
+                          // hlsOptions: {}, // Add HLS specific options if needed
+                          // dashVersion: '4.7.4' // Specify dashjs version if needed by ReactPlayer
                         }
                     }}
                     style={{ display: isPlayerReady || videoPlayerError ? 'block' : 'none' }}
@@ -329,3 +353,4 @@ export default function ContentDetailPage(props: ContentDetailPageProps) {
     </Suspense>
   );
 }
+
