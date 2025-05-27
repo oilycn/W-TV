@@ -16,7 +16,8 @@ import Link from 'next/link';
 import AppLogo from '@/components/common/AppLogo';
 import { CategoryProvider } from '@/contexts/CategoryContext'; 
 import { ScrollArea } from '@/components/ui/scroll-area';
-// SidebarNavigationItems is no longer used here as categories are moved to the homepage
+// SidebarNavigationItems is now imported for client-side rendering
+import { SidebarNavigationItems } from '@/components/layout/SidebarNavigationItems';
 import { Suspense } from 'react';
 
 
@@ -51,7 +52,7 @@ const AppHeaderFallback = () => (
   }} />
 );
 
-// Fallback for sidebar content is now simpler as dynamic categories are removed
+// Fallback for sidebar content is now simpler as dynamic categories are moved to the homepage
 const SidebarNavFallback = () => (
   <div style={{ padding: '0.5rem' }}>
     {/* Minimal placeholder, or could be empty if sidebar content is only static */}
@@ -68,17 +69,16 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <CategoryProvider> 
-          <SidebarProvider defaultOpen={true}>
+          <SidebarProvider defaultOpen={false}> {/* Changed defaultOpen to false */}
             <Sidebar collapsible="icon" className="border-r border-sidebar-border flex flex-col"> {/* Ensure sidebar itself can flex its content */}
               <SidebarHeader className="p-4">
                 <Link href="/" className="flex items-center gap-2">
                   <AppLogo />
                 </Link>
               </SidebarHeader>
-              {/* ScrollArea and SidebarNavigationItems are removed from here */}
-              {/* SidebarContent can be used for other static navigation or be minimal */}
               <SidebarContent className="flex-grow">
-                 {/* Content of sidebar is now minimal or for other nav items */}
+                 {/* Sidebar content is now minimal or for other static nav items if any */}
+                 {/* Dynamic categories are now on the homepage */}
               </SidebarContent>
               <SidebarFooter className="p-2 mt-auto"> {/* Push footer to bottom */}
                 {/* Footer content if any */}
@@ -99,3 +99,4 @@ export default function RootLayout({
     </html>
   );
 }
+

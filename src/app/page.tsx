@@ -44,6 +44,7 @@ function HomePageContent() {
   const [totalItems, setTotalItems] = useState(0);
   
   useEffect(() => {
+    // If a source trigger is in the URL, and it's different from current activeSourceId, update activeSourceId
     if (activeSourceTrigger && activeSourceTrigger !== activeSourceId) {
       console.log(`HomePageContent: activeSourceTrigger (${activeSourceTrigger}) detected from URL, updating activeSourceId.`);
       setActiveSourceId(activeSourceTrigger);
@@ -51,13 +52,14 @@ function HomePageContent() {
   }, [activeSourceTrigger, activeSourceId, setActiveSourceId]);
 
    useEffect(() => {
-    if (!activeSourceId && sources.length > 0) {
-      const firstSourceIsValid = sources.find(s => s.id === activeSourceId);
-      if (!firstSourceIsValid) {
+    // This effect ensures a valid activeSourceId is always set if sources are available
+    if (sources.length > 0) {
+      const activeSourceIsValid = sources.find(s => s.id === activeSourceId);
+      if (!activeSourceIsValid) { // If current activeSourceId is not in sources list or is null
         console.log("HomePageContent: Invalid or no activeSourceId, defaulting to first source.");
-        setActiveSourceId(sources[0].id);
+        setActiveSourceId(sources[0].id); // Default to the first source
       }
-    } else if (sources.length === 0 && activeSourceId) {
+    } else if (sources.length === 0 && activeSourceId) { // If no sources, clear activeSourceId
       console.log("HomePageContent: No sources available, clearing activeSourceId.");
       setActiveSourceId(null);
     }
@@ -65,16 +67,20 @@ function HomePageContent() {
 
 
   const activeSourceUrl = useMemo(() => {
-    let url = null;
     if (activeSourceId) {
       const source = sources.find(s => s.id === activeSourceId);
-      if (source) url = source.url;
-    } else if (sources.length > 0) {
-      url = sources[0].url; 
-      console.warn(`HomePageContent: activeSourceUrl using fallback (first source) because activeSourceId (${activeSourceId}) might not be synced yet or invalid.`);
+      if (source) {
+        console.log(`HomePageContent: activeSourceUrl determined by activeSourceId: ${source.url}`);
+        return source.url;
+      }
     }
-    console.log(`HomePageContent: activeSourceUrl re-calculated to: ${url} (activeSourceId: ${activeSourceId})`);
-    return url;
+    // Fallback if activeSourceId is somehow invalid or not yet set, but sources exist
+    if (sources.length > 0) {
+      console.warn(`HomePageContent: activeSourceUrl using fallback (first source) because activeSourceId (${activeSourceId}) might be invalid or not yet synced.`);
+      return sources[0].url;
+    }
+    console.log(`HomePageContent: activeSourceUrl is null (no sources or no valid activeSourceId).`);
+    return null;
   }, [sources, activeSourceId]);
 
 
@@ -83,10 +89,10 @@ function HomePageContent() {
     let changed = false;
     Object.entries(newParams).forEach(([key, value]) => {
       const stringValue = String(value);
-      if (value === undefined || value === null || (typeof value === 'string' && value.trim() === '') || (key === 'page' && value === 1 && !currentParams.has('q') && currentParams.get('category') === 'all')) {
-        // Remove 'all' category if it's the default, and page is 1, and no search
+      if (value === undefined || value === null || (typeof value === 'string' && value.trim() === '') || (key === 'page' && value === 1 && !currentParams.has('q') && (currentParams.get('category') === 'all' || !currentParams.has('category')) )) {
+         // Remove 'all' category explicitly if it's the default, page is 1, and no search
         if (key === 'category' && value === 'all') {
-            if(currentParams.has(key)) {
+             if(currentParams.has(key) && currentParams.get(key) === 'all') {
                 currentParams.delete(key);
                 changed = true;
             }
@@ -101,10 +107,12 @@ function HomePageContent() {
         }
       }
     });
-
+  
     if (changed) {
+        // Preserve triggers if they were part of the initiating searchParams
+        // This helps avoid loops if the trigger itself is removed prematurely by newParams
         ['activeSourceTrigger', 'searchTrigger'].forEach(triggerKey => {
-            if (searchParams.has(triggerKey) && !newParams[triggerKey]) {
+            if (searchParams.has(triggerKey) && !Object.prototype.hasOwnProperty.call(newParams, triggerKey)) {
                 if(!currentParams.has(triggerKey) && searchParams.get(triggerKey)) {
                      currentParams.set(triggerKey, searchParams.get(triggerKey)!);
                 }
@@ -173,34 +181,44 @@ function HomePageContent() {
       setIsLoadingCategories(false);
       setIsLoading(false);
     }
-  }, [setGlobalCategories]); 
+  }, [setGlobalCategories]); // Only setGlobalCategories is a stable dependency here
 
+  // Main effect to load data when activeSourceId, page, category, or search term changes
   useEffect(() => {
-    console.log(`HomePageContent main useEffect. activeSourceId: ${activeSourceId}, Page: ${currentPageQuery}, Category: ${selectedCategoryId}, Search: "${currentSearchTermQuery}", ASTrigger: ${activeSourceTrigger}, SearchTrigger: ${searchTrigger}`);
+    console.log(`HomePageContent main useEffect. ActiveSourceId: ${activeSourceId}, Page: ${currentPageQuery}, Category: ${selectedCategoryId}, Search: "${currentSearchTermQuery}", SearchTrigger: ${searchTrigger}`);
     
     let sourceUrlForFetch: string | null = null;
     if (activeSourceId) {
       const source = sources.find(s => s.id === activeSourceId);
-      if (source) sourceUrlForFetch = source.url;
-      else {
-        console.warn(`HomePageContent: activeSourceId ${activeSourceId} is invalid. Attempting to use first source or mock.`);
-        if (sources.length > 0) sourceUrlForFetch = sources[0].url;
+      if (source) {
+        sourceUrlForFetch = source.url;
+      } else {
+        console.warn(`HomePageContent: activeSourceId ${activeSourceId} is invalid. No fetch attempt.`);
+         // Potentially set error or show message if activeSourceId is bad after sync
       }
     } else if (sources.length > 0) {
-      sourceUrlForFetch = sources[0].url;
-      console.warn("HomePageContent: No activeSourceId, falling back to first source. Trigger:", activeSourceTrigger, "Search Params:", searchParams.toString());
-       if (!activeSourceTrigger && !searchParams.has('activeSourceTrigger')) {
-          setActiveSourceId(sources[0].id);
-       }
+      // This case should ideally be minimized by the activeSourceId validation effect
+      console.warn("HomePageContent: No activeSourceId, but sources exist. This might indicate a sync delay or issue.");
+      // Fallback to first source if activeSourceId is truly not set yet.
+      // sourceUrlForFetch = sources[0].url; 
+      // Or better: wait for activeSourceId to be set by its own effect.
+      setIsLoading(true); // Indicate loading while waiting for valid sourceId
+      return; 
     }
-    
-    if (sourceUrlForFetch || sources.length === 0) {
+
+
+    if (sourceUrlForFetch || sources.length === 0) { // If we have a valid URL, or no sources (use mock)
       loadCategoriesAndContent(sourceUrlForFetch, currentPageQuery, selectedCategoryId, currentSearchTermQuery);
     } else if (sources.length > 0 && !activeSourceId) {
-        console.log("HomePageContent: Waiting for activeSourceId to be determined from sources list or trigger.");
+        // This means sources are available, but activeSourceId is null (e.g. during initialization)
+        // The effect for validating activeSourceId should handle setting one.
+        console.log("HomePageContent: Waiting for activeSourceId to be determined from sources list.");
         setIsLoading(true); 
+    } else {
+        console.log("HomePageContent: No valid source URL and no sources, data fetching skipped (mocks will be used by loadCategoriesAndContent if sourceUrlForFetch is null).");
+        loadCategoriesAndContent(null, currentPageQuery, selectedCategoryId, currentSearchTermQuery);
     }
-  }, [activeSourceId, currentPageQuery, selectedCategoryId, currentSearchTermQuery, loadCategoriesAndContent, sources, activeSourceTrigger, searchTrigger, setActiveSourceId, searchParams]);
+  }, [activeSourceId, currentPageQuery, selectedCategoryId, currentSearchTermQuery, sources, loadCategoriesAndContent, searchTrigger]);
 
 
   const handlePageChange = (newPage: number) => {
@@ -210,23 +228,22 @@ function HomePageContent() {
   };
 
   if (sources.length === 0 && !activeSourceUrl && !isLoading && !isLoadingCategories ) {
-    const mockCategories = getMockApiCategories();
-    if (!isLoadingCategories && (!globalCategories.length || globalCategories.every(c => c.id.startsWith('mock-')))) {
-      return (
-        <div className="flex flex-col items-center justify-center h-[calc(100vh-10rem)] text-center p-4">
-          <Tv2 className="w-24 h-24 mb-6 text-muted-foreground" />
-          <h2 className="text-2xl font-semibold mb-2 text-foreground">欢迎来到 晚风TV</h2>
-          <p className="mb-6 text-muted-foreground max-w-md">
-            您还没有配置任何内容源。请前往“设置”页面添加一个或多个内容源，以便开始浏览和发现精彩内容。
-          </p>
-          <Button asChild className="bg-accent hover:bg-accent/90 text-accent-foreground">
-            <Link href="/settings">前往设置</Link>
-          </Button>
-          <p className="mt-4 text-sm text-muted-foreground">（当前可能显示示例分类和数据）</p>
-        </div>
-      );
-    }
+    // This condition means loading is finished, no sources are configured, and thus no activeSourceUrl.
+    return (
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-10rem)] text-center p-4">
+        <Tv2 className="w-24 h-24 mb-6 text-muted-foreground" />
+        <h2 className="text-2xl font-semibold mb-2 text-foreground">欢迎来到 晚风TV</h2>
+        <p className="mb-6 text-muted-foreground max-w-md">
+          您还没有配置任何内容源。请前往“设置”页面添加一个或多个内容源，以便开始浏览和发现精彩内容。
+        </p>
+        <Button asChild className="bg-accent hover:bg-accent/90 text-accent-foreground">
+          <Link href="/settings">前往设置</Link>
+        </Button>
+        <p className="mt-4 text-sm text-muted-foreground">（当前可能显示示例分类和数据）</p>
+      </div>
+    );
   }
+
 
   return (
     <div className="space-y-6">
@@ -239,7 +256,7 @@ function HomePageContent() {
       )}
 
       {(!isLoadingCategories && globalCategories.length > 0) && (
-        <ScrollArea className="w-full whitespace-nowrap rounded-md border shadow-sm mb-2 bg-card">
+        <ScrollArea className="w-full whitespace-nowrap rounded-md border shadow-sm mb-6 bg-card"> {/* Increased mb-6 */}
           <div className="flex space-x-2 p-3">
             {globalCategories.map(category => (
               <Button
@@ -257,7 +274,7 @@ function HomePageContent() {
         </ScrollArea>
       )}
       {isLoadingCategories && (
-        <div className="space-y-2 p-3 border rounded-md shadow-sm mb-2 bg-card">
+        <div className="space-y-2 p-3 border rounded-md shadow-sm mb-6 bg-card"> {/* Increased mb-6 */}
             <div className="flex space-x-2">
                 <Skeleton className="h-9 w-20" />
                 <Skeleton className="h-9 w-24" />
@@ -308,8 +325,8 @@ function HomePageContent() {
                 <p className="text-xl text-muted-foreground">
                 {currentSearchTermQuery ? `未找到与 "${currentSearchTermQuery}" 相关的内容。` : "此分类下暂无内容。"}
                 </p>
-                { !activeSourceUrl && sources.length > 0 && (
-                    <p className="mt-2 text-sm text-muted-foreground">请尝试选择一个内容源。</p>
+                { !activeSourceUrl && sources.length > 0 && ( // This condition suggests activeSourceUrl is not determined despite sources existing
+                    <p className="mt-2 text-sm text-muted-foreground">内容源可能正在加载或选择中，请稍候。</p>
                 )}
             </div>
         )
@@ -329,7 +346,7 @@ export default function HomePage() {
 function HomePageSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="space-y-2 p-3 border rounded-md shadow-sm mb-2 bg-card">
+      <div className="space-y-2 p-3 border rounded-md shadow-sm mb-6 bg-card"> {/* Increased mb-6 */}
           <div className="flex space-x-2">
               <Skeleton className="h-9 w-20" />
               <Skeleton className="h-9 w-24" />
