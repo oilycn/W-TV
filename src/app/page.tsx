@@ -10,7 +10,7 @@ import { ContentCard } from '@/components/content/ContentCard';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, Tv2, ChevronLeft, ChevronRight, Search } from 'lucide-react'; // Added Tv2 import
+import { AlertCircle, Tv2, ChevronLeft, ChevronRight, Search as SearchIcon } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useCategories } from '@/contexts/CategoryContext';
 
@@ -21,11 +21,11 @@ function HomePageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const { categories: globalCategories, setCategories: setGlobalCategories } = useCategories(); // Renamed to globalCategories for clarity
+  const { categories: globalCategories, setCategories: setGlobalCategories } = useCategories();
 
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
-  const [activeSourceId] = useLocalStorage<string | null>(LOCAL_STORAGE_KEY_ACTIVE_SOURCE, null);
-
+  const [activeSourceId, setActiveSourceId] = useLocalStorage<string | null>(LOCAL_STORAGE_KEY_ACTIVE_SOURCE, null);
+  
   const [contentItems, setContentItems] = useState<ContentItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
@@ -35,21 +35,47 @@ function HomePageContent() {
   const selectedCategoryId = useMemo(() => searchParams.get('category') || 'all', [searchParams]);
   const currentSearchTermQuery = useMemo(() => searchParams.get('q') || '', [searchParams]);
   const currentPageQuery = useMemo(() => parseInt(searchParams.get('page') || '1', 10), [searchParams]);
-  const activeSourceTrigger = useMemo(() => searchParams.get('activeSourceTrigger'), [searchParams]); // Listen to the trigger
+  const activeSourceTrigger = useMemo(() => searchParams.get('activeSourceTrigger'), [searchParams]);
+  const searchTrigger = useMemo(() => searchParams.get('searchTrigger'), [searchParams]);
+
 
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   
+  // Effect to synchronize activeSourceId state with URL trigger
   useEffect(() => {
-    console.log(`HomePageContent: activeSourceId from useLocalStorage is: ${activeSourceId}`);
-  }, [activeSourceId]);
+    if (activeSourceTrigger && activeSourceTrigger !== activeSourceId) {
+      console.log(`HomePageContent: activeSourceTrigger (${activeSourceTrigger}) detected from URL, updating activeSourceId.`);
+      setActiveSourceId(activeSourceTrigger);
+    }
+  }, [activeSourceTrigger, activeSourceId, setActiveSourceId]);
+
+  // Effect to ensure activeSourceId is valid or default
+   useEffect(() => {
+    if (!activeSourceId && sources.length > 0) {
+      // If no active ID, but sources exist, default to the first one.
+      // This also handles the case where activeSourceId might be invalid.
+      const firstSourceIsValid = sources.find(s => s.id === activeSourceId);
+      if (!firstSourceIsValid) {
+        console.log("HomePageContent: Invalid or no activeSourceId, defaulting to first source.");
+        setActiveSourceId(sources[0].id);
+        // To ensure AppHeader syncs, we'd ideally trigger a URL update here or rely on AppHeader's own logic.
+        // For now, setting activeSourceId will trigger data reload if it's a new ID.
+      }
+    } else if (sources.length === 0 && activeSourceId) {
+      // If no sources, but activeSourceId is still set (e.g., all sources removed)
+      console.log("HomePageContent: No sources available, clearing activeSourceId.");
+      setActiveSourceId(null);
+    }
+  }, [sources, activeSourceId, setActiveSourceId]);
+
 
   const activeSourceUrl = useMemo(() => {
     let url = null;
     if (activeSourceId) {
       const source = sources.find(s => s.id === activeSourceId);
       if (source) url = source.url;
-    } else if (sources.length > 0) { // Default to first source if no active one is set or valid
+    } else if (sources.length > 0) {
       url = sources[0].url;
     }
     console.log(`HomePageContent: activeSourceUrl re-calculated to: ${url} (activeSourceId: ${activeSourceId})`);
@@ -62,7 +88,9 @@ function HomePageContent() {
     let changed = false;
     Object.entries(newParams).forEach(([key, value]) => {
       const stringValue = String(value);
-      if (value === undefined || value === null || stringValue.trim() === '') {
+      if (value === undefined || value === null || (typeof value === 'string' && value.trim() === '') || (key === 'page' && value === 1 && !currentParams.has('q') && !currentParams.has('category'))) {
+         // Remove param if value is null/undefined/empty string
+         // Also remove page=1 if it's the only default param
         if (currentParams.has(key)) {
           currentParams.delete(key);
           changed = true;
@@ -76,15 +104,17 @@ function HomePageContent() {
     });
 
     if (changed) {
-        const newQueryString = currentParams.toString();
-        // Preserve activeSourceTrigger if it's already there and not being explicitly changed
-        if (searchParams.has('activeSourceTrigger') && !newParams.activeSourceTrigger) {
-            if(!currentParams.has('activeSourceTrigger') && searchParams.get('activeSourceTrigger')) {
-                 currentParams.set('activeSourceTrigger', searchParams.get('activeSourceTrigger')!);
+        // Preserve activeSourceTrigger and searchTrigger if they exist and aren't being explicitly changed
+        ['activeSourceTrigger', 'searchTrigger'].forEach(triggerKey => {
+            if (searchParams.has(triggerKey) && !newParams[triggerKey]) {
+                if(!currentParams.has(triggerKey) && searchParams.get(triggerKey)) {
+                     currentParams.set(triggerKey, searchParams.get(triggerKey)!);
+                }
             }
-        }
-        console.log(`Updating URL with new params: ${currentParams.toString()}`);
-        router.push(`${pathname}?${currentParams.toString()}`, { scroll: false });
+        });
+        const newQueryString = currentParams.toString();
+        console.log(`Updating URL with new params: ${newQueryString}`);
+        router.push(`${pathname}?${newQueryString}`, { scroll: false });
     }
   }, [router, searchParams, pathname]);
 
@@ -95,17 +125,16 @@ function HomePageContent() {
     categoryId: string,
     searchTerm: string
   ) => {
-    console.log(`Executing loadCategoriesAndContent for source: ${sourceUrlForFetch}, page: ${page}, category: ${categoryId}, search: ${searchTerm}`);
+    console.log(`Executing loadCategoriesAndContent for source: ${sourceUrlForFetch}, page: ${page}, category: ${categoryId}, search: "${searchTerm}"`);
     setIsLoading(true);
     setIsLoadingCategories(true);
     setError(null);
-    // setContentItems([]); // Clear previous content for better UX
+    setContentItems([]); 
 
     if (sourceUrlForFetch) {
       try {
         console.log(`Fetching categories for source: ${sourceUrlForFetch}`);
         const fetchedCategories = await fetchApiCategories(sourceUrlForFetch);
-        console.log("Fetched categories:", fetchedCategories);
         setGlobalCategories(fetchedCategories);
       } catch (e) {
         console.error("Failed to load categories:", e);
@@ -116,7 +145,7 @@ function HomePageContent() {
       }
 
       try {
-        console.log(`Fetching content for source: ${sourceUrlForFetch}, category: ${categoryId}, page: ${page}, search: ${searchTerm}`);
+        console.log(`Fetching content for source: ${sourceUrlForFetch}, category: ${categoryId}, page: ${page}, search: "${searchTerm}"`);
         const response = await fetchApiContentList(sourceUrlForFetch, {
           page,
           categoryId: categoryId === 'all' ? undefined : categoryId,
@@ -146,18 +175,40 @@ function HomePageContent() {
       setIsLoadingCategories(false);
       setIsLoading(false);
     }
-  }, [setGlobalCategories]); // Dependencies: setGlobalCategories is stable from context
+  }, [setGlobalCategories]); 
 
   useEffect(() => {
-    console.log(`HomePage useEffect triggered. ActiveSourceUrl: ${activeSourceUrl}, Page: ${currentPageQuery}, Category: ${selectedCategoryId}, Search: ${currentSearchTermQuery}, Trigger: ${activeSourceTrigger}`);
-    // activeSourceUrl should be up-to-date here due to useMemo and its deps
-    loadCategoriesAndContent(activeSourceUrl, currentPageQuery, selectedCategoryId, currentSearchTermQuery);
-  }, [activeSourceUrl, currentPageQuery, selectedCategoryId, currentSearchTermQuery, loadCategoriesAndContent, activeSourceTrigger]); // Added activeSourceTrigger
+    console.log(`HomePageContent main useEffect. activeSourceId: ${activeSourceId}, Page: ${currentPageQuery}, Category: ${selectedCategoryId}, Search: "${currentSearchTermQuery}", ASTrigger: ${activeSourceTrigger}, SearchTrigger: ${searchTrigger}`);
+    
+    let sourceUrlForFetch: string | null = null;
+    if (activeSourceId) {
+      const source = sources.find(s => s.id === activeSourceId);
+      if (source) sourceUrlForFetch = source.url;
+    } else if (sources.length > 0) {
+      // This case should ideally be handled by the activeSourceId synchronization effect
+      // but as a fallback, use the first source.
+      sourceUrlForFetch = sources[0].url;
+      if (!activeSourceTrigger && !searchParams.has('activeSourceTrigger')) { // Avoid if a trigger is already pending
+          console.warn("HomePageContent: No activeSourceId, falling back to first source AND setting activeSourceId for consistency.");
+          setActiveSourceId(sources[0].id); // Attempt to sync if it's truly unset
+      }
+    }
+    
+    // Only load if we have a valid source URL or if there are no sources (to load mocks)
+    if (sourceUrlForFetch || sources.length === 0) {
+      loadCategoriesAndContent(sourceUrlForFetch, currentPageQuery, selectedCategoryId, currentSearchTermQuery);
+    } else if (sources.length > 0 && !activeSourceId) {
+        console.log("HomePageContent: Waiting for activeSourceId to be determined from sources list.");
+        setIsLoading(true); // Show loading while waiting for activeSourceId sync
+    }
+
+
+  }, [activeSourceId, currentPageQuery, selectedCategoryId, currentSearchTermQuery, loadCategoriesAndContent, sources, activeSourceTrigger, searchTrigger, setActiveSourceId, searchParams]);
 
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
-      updateURLParams({ page: newPage });
+      updateURLParams({ page: newPage, category: selectedCategoryId === 'all' ? null : selectedCategoryId, q: currentSearchTermQuery || null });
     }
   };
 
@@ -223,7 +274,7 @@ function HomePageContent() {
       ) : (
         !isLoading && (
             <div className="text-center py-12 flex flex-col items-center justify-center">
-                <Search className="w-16 h-16 mb-4 text-muted-foreground" />
+                <SearchIcon className="w-16 h-16 mb-4 text-muted-foreground" />
                 <p className="text-xl text-muted-foreground">
                 {currentSearchTermQuery ? `未找到与 "${currentSearchTermQuery}" 相关的内容。` : "此分类下暂无内容。"}
                 </p>

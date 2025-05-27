@@ -9,39 +9,36 @@ import { Search } from 'lucide-react';
 
 export function SearchBar() {
   const router = useRouter();
-  const currentPathname = usePathname();
   const currentSearchParams = useSearchParams();
-  const [query, setQuery] = useState(currentSearchParams.get('q') || '');
-
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmedQuery = query.trim();
-    const newParams = new URLSearchParams(currentSearchParams.toString());
-
-    if (trimmedQuery) {
-      newParams.set('q', encodeURIComponent(trimmedQuery));
-      newParams.set('page', '1'); // Reset to page 1 for new search
-    } else {
-      newParams.delete('q'); // Remove search query if input is empty
-    }
-
-    // Always target the homepage for search functionality for this app's design
-    const targetPath = '/';
-    
-    // Preserve activeSourceTrigger if it exists
-    const activeSourceTrigger = currentSearchParams.get('activeSourceTrigger');
-    if (activeSourceTrigger && !newParams.has('activeSourceTrigger')) {
-        newParams.set('activeSourceTrigger', activeSourceTrigger);
-    }
-    
-    router.push(`${targetPath}?${newParams.toString()}`, { scroll: false });
-  };
+  const [query, setQuery] = useState(''); // Initialize with empty string
 
   // Update query state if URL changes externally
   useEffect(() => {
-    setQuery(currentSearchParams.get('q') || '');
+    setQuery(decodeURIComponent(currentSearchParams.get('q') || ''));
   }, [currentSearchParams]);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    console.log('SearchBar: handleSearch triggered. Current query state:', query);
+    const trimmedQuery = query.trim();
+    
+    // Start with current params to preserve things like activeSourceTrigger
+    const params = new URLSearchParams(currentSearchParams.toString()); 
+
+    if (trimmedQuery) {
+      params.set('q', trimmedQuery); // URLSearchParams handles encoding
+    } else {
+      params.delete('q');
+    }
+    params.set('page', '1'); // Always reset to page 1 for a new search
+    params.set('searchTrigger', Date.now().toString()); // Add a trigger to ensure effect runs
+
+    const targetPath = '/'; // Always search on the homepage
+    const newSearchString = params.toString();
+    
+    console.log('SearchBar: Pushing to path:', targetPath, 'Search string:', newSearchString);
+    router.push(`${targetPath}?${newSearchString}`, { scroll: false });
+  };
 
   return (
     <form onSubmit={handleSearch} className="relative w-full max-w-md">
