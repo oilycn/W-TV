@@ -155,7 +155,9 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             case mediaError.MEDIA_ERR_ABORTED: message = '视频加载已中止。'; break;
             case mediaError.MEDIA_ERR_NETWORK: message = '网络错误导致视频加载失败。'; break;
             case mediaError.MEDIA_ERR_DECODE: message = '视频解码错误。'; break;
-            case mediaError.MEDIA_ERR_SRC_NOT_SUPPORTED: message = '视频源格式不支持或无法访问。'; break;
+            case mediaError.MEDIA_ERR_SRC_NOT_SUPPORTED: 
+              message = '视频源格式不支持或无法访问。部分链接可能为网页播放器，无法在此直接播放。'; 
+              break;
             default: message = `发生媒体错误 (代码: ${mediaError.code})。`; break;
         }
     } else if (error && error.message) { 
@@ -168,7 +170,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
              message += ' (致命错误，无法恢复)';
         }
     } else {
-      message = '无法播放此视频。请检查视频源或网络连接。';
+      message = '无法播放此视频。请检查视频源或网络连接。部分链接可能为网页播放器，无法在此直接播放。';
     }
 
     setVideoPlayerError(message);
@@ -240,7 +242,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                     onPlay={() => setVideoPlayerError(null)} 
                     config={{
                         file: {
-                          attributes: { crossOrigin: 'anonymous' }, // Added crossOrigin attribute
+                          attributes: { crossOrigin: 'anonymous' }, 
                         }
                     }}
                     style={{ display: isPlayerReady || videoPlayerError ? 'block' : 'none' }}
