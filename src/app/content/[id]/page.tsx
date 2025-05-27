@@ -1,7 +1,7 @@
 
 "use client";
 
-import { use, useEffect, useState, Suspense } from 'react';
+import { use, useEffect, useState, Suspense, useRef } from 'react';
 import type { ContentItem, PlaybackSourceGroup, SourceConfig } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, getMockContentItemById } from '@/lib/content-loader';
@@ -14,8 +14,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from '@/components/ui/button';
 import ReactPlayer from 'react-player/lazy';
-// import 'dashjs'; // ReactPlayer handles DASH if dashjs is in dependencies and URL is DASH
-// import 'hls.js'; // ReactPlayer handles HLS if hls.js is in dependencies and URL is HLS
+import 'hls.js'; // ReactPlayer handles HLS if hls.js is in dependencies and URL is HLS
+import 'dashjs'; // ReactPlayer handles DASH if dashjs is in dependencies and URL is DASH
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 const LOCAL_STORAGE_KEY_ACTIVE_SOURCE = 'cinemaViewActiveSourceId';
@@ -71,32 +71,27 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
       setIsLoading(true);
       let itemFound: ContentItem | null | undefined = undefined;
 
-      if (sources.length > 0 && pageId) {
-        // Try fetching from the current active source first, if available
-        const activeSource = sources.find(s => s.id === activeSourceId);
-        if (activeSource) {
-          console.log(`ContentDetail: Attempting to fetch item ${pageId} from active source: ${activeSource.name} (${activeSource.url})`);
-          itemFound = await fetchContentItemById(activeSource.url, pageId);
-        }
+      const activeSourceConfig = sources.find(s => s.id === activeSourceId);
 
-        // If not found in active source, or no active source was set, try all other sources
-        if (!itemFound) {
-          for (const source of sources) {
-            // Skip if we already tried this as the active source
-            if (activeSource && source.id === activeSource.id) {
-              continue;
-            }
-            console.log(`ContentDetail: Attempting to fetch item ${pageId} from other source: ${source.name} (${source.url})`);
-            itemFound = await fetchContentItemById(source.url, pageId);
-            if (itemFound) {
-              console.log(`ContentDetail: Found item ${pageId} in source: ${source.name}`);
-              break; // Found it
-            }
+      if (activeSourceConfig) {
+        console.log(`ContentDetail: Attempting to fetch item ${pageId} from active source: ${activeSourceConfig.name} (${activeSourceConfig.url})`);
+        itemFound = await fetchContentItemById(activeSourceConfig.url, pageId);
+      }
+
+      if (!itemFound) {
+        for (const source of sources) {
+          if (activeSourceConfig && source.id === activeSourceConfig.id) {
+            continue; 
+          }
+          console.log(`ContentDetail: Attempting to fetch item ${pageId} from other source: ${source.name} (${source.url})`);
+          itemFound = await fetchContentItemById(source.url, pageId);
+          if (itemFound) {
+            console.log(`ContentDetail: Found item ${pageId} in source: ${source.name}`);
+            break; 
           }
         }
       }
       
-      // If still not found (e.g., no sources or item not in any source), try mock data
       if (!itemFound && pageId) {
         console.log(`ContentDetail: Item ${pageId} not in any dynamic source, trying mock data.`);
         itemFound = getMockContentItemById(pageId); 
@@ -122,6 +117,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     error: any,
     data?: any, 
     hlsInstance?: any, 
+    // dashInstance?: any // ReactPlayer doesn't seem to pass dashInstance directly in onError
   ) => {
     console.error('ReactPlayer Error:', error, 'Data:', data, 'HLS Instance:', hlsInstance);
     let message = '视频播放时发生未知错误。';
@@ -142,7 +138,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
              message += ' (致命错误，无法恢复)';
         }
       } else if (lowerError.includes('dasherror') && data) {
-        const dashErr = data.error || data; 
+        const dashErr = data.error || data; // data might be the error object itself from dash.js
         message = `DASH 播放错误 (${dashErr.code || 'unknown'}${dashErr.message ? ': ' + dashErr.message : ''})`;
       } else {
         message = `播放器报告错误: ${error}`;
@@ -150,6 +146,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     } else if (error && error.message) { 
       message = error.message;
     } else if (error && error.target && error.target.error && typeof error.target.error.code === 'number') { 
+        // This is likely a native HTML <video> element error
         const mediaError = error.target.error as MediaError;
         switch (mediaError.code) {
             case mediaError.MEDIA_ERR_ABORTED: message = '视频加载已中止。'; break;
@@ -158,7 +155,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             case mediaError.MEDIA_ERR_SRC_NOT_SUPPORTED: message = '视频源格式不支持或无法访问。'; break;
             default: message = `发生媒体错误 (代码: ${mediaError.code})。`; break;
         }
-    } else if (data && data.type) { 
+    } else if (data && data.type) { // Fallback if error object is not helpful but data object is (e.g. from HLS/DASH)
         message = `播放技术性错误 (${data.type}${data.details ? ': ' + data.details : ''})`;
         if (data.fatal === false && (data.type === 'networkError' || data.type === 'mediaError')) {
           message += ' (尝试恢复中)';
