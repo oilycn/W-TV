@@ -10,7 +10,7 @@ import { ContentCard } from '@/components/content/ContentCard';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, Tv2, ChevronLeft, ChevronRight, Search as SearchIcon } from 'lucide-react';
+import { AlertCircle, ChevronLeft, ChevronRight, Search as SearchIcon, Tv2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useCategories } from '@/contexts/CategoryContext';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
@@ -28,61 +28,54 @@ function HomePageContent() {
   const [activeSourceId, setActiveSourceId] = useLocalStorage<string | null>(LOCAL_STORAGE_KEY_ACTIVE_SOURCE, null);
   
   const [contentItems, setContentItems] = useState<ContentItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // For content list
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Derive state from URL search parameters
   const selectedCategoryId = useMemo(() => searchParams.get('category') || 'all', [searchParams]);
   const currentSearchTermQuery = useMemo(() => searchParams.get('q') || '', [searchParams]);
   const currentPageQuery = useMemo(() => parseInt(searchParams.get('page') || '1', 10), [searchParams]);
   const activeSourceTrigger = useMemo(() => searchParams.get('activeSourceTrigger'), [searchParams]);
   const searchTrigger = useMemo(() => searchParams.get('searchTrigger'), [searchParams]);
 
-
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   
   useEffect(() => {
-    // If a source trigger is in the URL, and it's different from current activeSourceId, update activeSourceId
     if (activeSourceTrigger && activeSourceTrigger !== activeSourceId) {
-      console.log(`HomePageContent: activeSourceTrigger (${activeSourceTrigger}) detected from URL, updating activeSourceId.`);
+      console.log(`HomePageContent: activeSourceTrigger (${activeSourceTrigger}) detected, updating activeSourceId.`);
       setActiveSourceId(activeSourceTrigger);
     }
   }, [activeSourceTrigger, activeSourceId, setActiveSourceId]);
 
    useEffect(() => {
-    // This effect ensures a valid activeSourceId is always set if sources are available
     if (sources.length > 0) {
       const activeSourceIsValid = sources.find(s => s.id === activeSourceId);
-      if (!activeSourceIsValid) { // If current activeSourceId is not in sources list or is null
+      if (!activeSourceIsValid) {
         console.log("HomePageContent: Invalid or no activeSourceId, defaulting to first source.");
-        setActiveSourceId(sources[0].id); // Default to the first source
+        setActiveSourceId(sources[0].id);
       }
-    } else if (sources.length === 0 && activeSourceId) { // If no sources, clear activeSourceId
+    } else if (sources.length === 0 && activeSourceId) {
       console.log("HomePageContent: No sources available, clearing activeSourceId.");
       setActiveSourceId(null);
     }
   }, [sources, activeSourceId, setActiveSourceId]);
 
-
   const activeSourceUrl = useMemo(() => {
     if (activeSourceId) {
       const source = sources.find(s => s.id === activeSourceId);
       if (source) {
-        console.log(`HomePageContent: activeSourceUrl determined by activeSourceId: ${source.url}`);
+        console.log(`HomePageContent: activeSourceUrl derived from activeSourceId: ${source.url}`);
         return source.url;
       }
     }
-    // Fallback if activeSourceId is somehow invalid or not yet set, but sources exist
     if (sources.length > 0) {
-      console.warn(`HomePageContent: activeSourceUrl using fallback (first source) because activeSourceId (${activeSourceId}) might be invalid or not yet synced.`);
+      console.warn(`HomePageContent: activeSourceUrl using fallback (first source) as activeSourceId (${activeSourceId}) is invalid or not yet synced.`);
       return sources[0].url;
     }
     console.log(`HomePageContent: activeSourceUrl is null (no sources or no valid activeSourceId).`);
     return null;
   }, [sources, activeSourceId]);
-
 
   const updateURLParams = useCallback((newParams: Record<string, string | number | undefined | null>) => {
     const currentParams = new URLSearchParams(searchParams.toString());
@@ -90,7 +83,6 @@ function HomePageContent() {
     Object.entries(newParams).forEach(([key, value]) => {
       const stringValue = String(value);
       if (value === undefined || value === null || (typeof value === 'string' && value.trim() === '') || (key === 'page' && value === 1 && !currentParams.has('q') && (currentParams.get('category') === 'all' || !currentParams.has('category')) )) {
-         // Remove 'all' category explicitly if it's the default, page is 1, and no search
         if (key === 'category' && value === 'all') {
              if(currentParams.has(key) && currentParams.get(key) === 'all') {
                 currentParams.delete(key);
@@ -109,8 +101,6 @@ function HomePageContent() {
     });
   
     if (changed) {
-        // Preserve triggers if they were part of the initiating searchParams
-        // This helps avoid loops if the trigger itself is removed prematurely by newParams
         ['activeSourceTrigger', 'searchTrigger'].forEach(triggerKey => {
             if (searchParams.has(triggerKey) && !Object.prototype.hasOwnProperty.call(newParams, triggerKey)) {
                 if(!currentParams.has(triggerKey) && searchParams.get(triggerKey)) {
@@ -119,99 +109,82 @@ function HomePageContent() {
             }
         });
         const newQueryString = currentParams.toString();
-        console.log(`Updating URL with new params: ${newQueryString}`);
         router.push(`${pathname}?${newQueryString}`, { scroll: false });
     }
   }, [router, searchParams, pathname]);
 
-
-  const loadCategoriesAndContent = useCallback(async (
-    sourceUrlForFetch: string | null,
-    page: number,
-    categoryId: string,
-    searchTerm: string
-  ) => {
-    console.log(`Executing loadCategoriesAndContent for source: ${sourceUrlForFetch}, page: ${page}, category: ${categoryId}, search: "${searchTerm}"`);
-    setIsLoading(true);
-    setIsLoadingCategories(true);
-    setError(null);
-    setContentItems([]); 
-
-    if (sourceUrlForFetch) {
-      try {
-        console.log(`Fetching categories for source: ${sourceUrlForFetch}`);
-        const fetchedCategories = await fetchApiCategories(sourceUrlForFetch);
-        setGlobalCategories(fetchedCategories);
-      } catch (e) {
-        console.error("Failed to load categories:", e);
-        setError(prev => prev ? `${prev} & 无法加载分类信息。` : "无法加载分类信息。");
-        setGlobalCategories(getMockApiCategories());
-      } finally {
-        setIsLoadingCategories(false);
-      }
-
-      try {
-        console.log(`Fetching content for source: ${sourceUrlForFetch}, category: ${categoryId}, page: ${page}, search: "${searchTerm}"`);
-        const response = await fetchApiContentList(sourceUrlForFetch, {
-          page,
-          categoryId: categoryId === 'all' ? undefined : categoryId,
-          searchTerm: searchTerm || undefined,
+  // Effect for loading categories (runs when activeSourceUrl or sources.length changes)
+  useEffect(() => {
+    if (activeSourceUrl) {
+      console.log(`HomePageContent: Fetching categories for source: ${activeSourceUrl}`);
+      setIsLoadingCategories(true);
+      fetchApiCategories(activeSourceUrl)
+        .then(fetchedCategories => {
+          setGlobalCategories(fetchedCategories);
+          console.log(`HomePageContent: Categories set for ${activeSourceUrl}`, fetchedCategories);
+        })
+        .catch(e => {
+          console.error(`HomePageContent: Failed to load categories for ${activeSourceUrl}:`, e);
+          setError(prev => (prev ? `${prev} & 无法加载分类信息。` : "无法加载分类信息。"));
+          setGlobalCategories(getMockApiCategories()); // Fallback
+        })
+        .finally(() => {
+          setIsLoadingCategories(false);
         });
-        setContentItems(response.items);
-        setTotalPages(response.pageCount || 1);
-        setTotalItems(response.total);
-        console.log("Fetched content:", response);
-      } catch (e) {
-        console.error("Failed to load content:", e);
-        setError(prev => prev ? `${prev} & 无法加载内容。` : "无法加载内容。请检查您的网络连接或内容源配置。");
-        const mockResponse = getMockPaginatedResponse(page, categoryId, searchTerm);
-        setContentItems(mockResponse.items);
-        setTotalPages(mockResponse.pageCount || 1);
-        setTotalItems(mockResponse.total);
-      } finally {
-        setIsLoading(false);
-      }
-    } else {
-      console.log("No active source URL, using mock data for categories and content.");
+    } else if (sources.length === 0 && !isLoadingCategories) { // No sources, use mock categories
+      console.log("HomePageContent: No sources, using mock categories.");
       setGlobalCategories(getMockApiCategories());
-      const mockResponse = getMockPaginatedResponse(page, categoryId, searchTerm);
+      setIsLoadingCategories(false);
+    }
+  }, [activeSourceUrl, setGlobalCategories, sources.length, isLoadingCategories]); // isLoadingCategories added to prevent re-fetch if already loading
+
+
+  // Effect for loading content (runs when source or filters/pagination change)
+  useEffect(() => {
+    if (activeSourceUrl) {
+      console.log(`HomePageContent: Fetching content for source: ${activeSourceUrl}, category: ${selectedCategoryId}, page: ${currentPageQuery}, search: "${currentSearchTermQuery}"`);
+      setIsLoading(true);
+      // Don't clear global error here, let category errors persist if they occurred
+      // setError(null); 
+      setContentItems([]); 
+
+      fetchApiContentList(activeSourceUrl, {
+        page: currentPageQuery,
+        categoryId: selectedCategoryId === 'all' ? undefined : selectedCategoryId,
+        searchTerm: currentSearchTermQuery || undefined,
+      })
+        .then(response => {
+          setContentItems(response.items);
+          setTotalPages(response.pageCount || 1);
+          setTotalItems(response.total);
+          console.log(`HomePageContent: Content fetched for ${activeSourceUrl}:`, response);
+        })
+        .catch(e => {
+          console.error(`HomePageContent: Failed to load content from ${activeSourceUrl}:`, e);
+          if (e instanceof Error && e.message.includes("暂不支持搜索")) {
+            console.warn(`HomePageContent: API Search Not Supported: ${activeSourceUrl}. Message: ${e.message}`);
+             setError(prev => (prev ? `${prev} & 此源不支持搜索。` : "此源不支持搜索。"));
+          } else {
+            setError(prev => (prev ? `${prev} & 无法加载内容列表。` : "无法加载内容列表。"));
+          }
+          const mockResponse = getMockPaginatedResponse(currentPageQuery, selectedCategoryId, currentSearchTermQuery);
+          setContentItems(mockResponse.items);
+          setTotalPages(mockResponse.pageCount || 1);
+          setTotalItems(mockResponse.total);
+        })
+        .finally(() => {
+          setIsLoading(false);
+        });
+    } else if (sources.length === 0) { // No sources, use mock content
+      console.log("HomePageContent: No sources, using mock content.");
+      const mockResponse = getMockPaginatedResponse(currentPageQuery, selectedCategoryId, currentSearchTermQuery);
       setContentItems(mockResponse.items);
       setTotalPages(mockResponse.pageCount || 1);
       setTotalItems(mockResponse.total);
-      setIsLoadingCategories(false);
       setIsLoading(false);
     }
-  }, [setGlobalCategories]); 
-
-  // Main effect to load data when activeSourceId, page, category, or search term changes
-  useEffect(() => {
-    console.log(`HomePageContent main useEffect. ActiveSourceId: ${activeSourceId}, Page: ${currentPageQuery}, Category: ${selectedCategoryId}, Search: "${currentSearchTermQuery}", SearchTrigger: ${searchTrigger}`);
-    
-    let sourceUrlForFetch: string | null = null;
-    if (activeSourceId) {
-      const source = sources.find(s => s.id === activeSourceId);
-      if (source) {
-        sourceUrlForFetch = source.url;
-      } else {
-        console.warn(`HomePageContent: activeSourceId ${activeSourceId} is invalid. No fetch attempt.`);
-      }
-    } else if (sources.length > 0) {
-      console.warn("HomePageContent: No activeSourceId, but sources exist. This might indicate a sync delay or issue.");
-      setIsLoading(true); 
-      return; 
-    }
-
-
-    if (sourceUrlForFetch || sources.length === 0) { 
-      loadCategoriesAndContent(sourceUrlForFetch, currentPageQuery, selectedCategoryId, currentSearchTermQuery);
-    } else if (sources.length > 0 && !activeSourceId) {
-        console.log("HomePageContent: Waiting for activeSourceId to be determined from sources list.");
-        setIsLoading(true); 
-    } else {
-        console.log("HomePageContent: No valid source URL and no sources, data fetching skipped (mocks will be used by loadCategoriesAndContent if sourceUrlForFetch is null).");
-        loadCategoriesAndContent(null, currentPageQuery, selectedCategoryId, currentSearchTermQuery);
-    }
-  }, [activeSourceId, currentPageQuery, selectedCategoryId, currentSearchTermQuery, sources, loadCategoriesAndContent, searchTrigger]);
+  // searchTrigger included to ensure re-fetch on new search even if other params are same
+  }, [activeSourceUrl, currentPageQuery, selectedCategoryId, currentSearchTermQuery, sources.length, searchTrigger]);
 
 
   const handlePageChange = (newPage: number) => {
@@ -236,7 +209,6 @@ function HomePageContent() {
     );
   }
 
-
   return (
     <div className="space-y-6">
       {error && (
@@ -247,12 +219,22 @@ function HomePageContent() {
          </Alert>
       )}
 
+      {isLoadingCategories && (
+        <div className="space-y-2 p-3 border rounded-md shadow-sm mb-6 bg-card">
+            <div className="flex space-x-2">
+                <Skeleton className="h-9 w-20" />
+                <Skeleton className="h-9 w-24" />
+                <Skeleton className="h-9 w-16" />
+                <Skeleton className="h-9 w-28" />
+            </div>
+        </div>
+      )}
       {(!isLoadingCategories && globalCategories.length > 0) && (
         <ScrollArea className="w-full whitespace-nowrap rounded-md border shadow-sm mb-6 bg-card">
           <div className="flex space-x-2 p-3">
             {globalCategories.map(category => (
               <Button
-                key={category.id}
+                key={`${activeSourceUrl || 'mock'}-${category.id}`} // Ensure key uniqueness on source change
                 variant={selectedCategoryId === category.id ? "default" : "outline"}
                 onClick={() => updateURLParams({ category: category.id, page: 1, q: null })}
                 className="whitespace-nowrap text-sm h-9 px-4"
@@ -265,21 +247,11 @@ function HomePageContent() {
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
       )}
-      {isLoadingCategories && (
-        <div className="space-y-2 p-3 border rounded-md shadow-sm mb-6 bg-card">
-            <div className="flex space-x-2">
-                <Skeleton className="h-9 w-20" />
-                <Skeleton className="h-9 w-24" />
-                <Skeleton className="h-9 w-16" />
-                <Skeleton className="h-9 w-28" />
-            </div>
-        </div>
-      )}
+      
 
-
-      {(isLoading || contentItems.length > 0 || totalItems > 0 || currentPageQuery > 1) && (
+      {(isLoading || contentItems.length > 0 || totalItems > 0 || currentPageQuery > 1 || currentSearchTermQuery ) && (
           <div className="flex items-center justify-between text-sm text-muted-foreground pt-2 p-4 bg-card rounded-lg shadow">
-            <span>总共 {totalItems} 条结果</span>
+            <span>总共 {totalItems} 条结果 {currentSearchTermQuery && `(搜索 "${currentSearchTermQuery}")`}</span>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPageQuery - 1)} disabled={currentPageQuery <= 1 || isLoading}>
                 <ChevronLeft className="h-4 w-4" />
@@ -312,7 +284,7 @@ function HomePageContent() {
         </div>
       ) : (
         !isLoading && (
-            <div className="text-center py-12 flex flex-col items-center justify-center">
+            <div className="text-center py-12 flex flex-col items-center justify-center min-h-[300px]">
                 <SearchIcon className="w-16 h-16 mb-4 text-muted-foreground" />
                 <p className="text-xl text-muted-foreground">
                 {currentSearchTermQuery ? `未找到与 "${currentSearchTermQuery}" 相关的内容。` : "此分类下暂无内容。"}
@@ -320,6 +292,9 @@ function HomePageContent() {
                 { !activeSourceUrl && sources.length > 0 && ( 
                     <p className="mt-2 text-sm text-muted-foreground">内容源可能正在加载或选择中，请稍候。</p>
                 )}
+                 { error && error.includes("此源不支持搜索") && currentSearchTermQuery && (
+                     <p className="mt-2 text-sm text-destructive">提示: 当前内容源不支持搜索功能。</p>
+                 )}
             </div>
         )
       )}
