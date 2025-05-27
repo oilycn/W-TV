@@ -6,7 +6,7 @@ import { SearchBar } from "@/components/search/SearchBar";
 import AppLogo from "./AppLogo";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Settings, Wand2, List, Sun, Moon } from "lucide-react"; // Removed Home icon
+import { Settings, List, Sun, Moon } from "lucide-react"; // Removed Wand2 icon
 import {
   Select,
   SelectContent,
@@ -77,12 +77,7 @@ export function AppHeader() {
       </Link>
 
       <nav className="flex items-center gap-1 sm:gap-2">
-        {/* Home button removed */}
-        <Button variant="ghost" size="icon" asChild aria-label="AI推荐">
-          <Link href="/recommendations">
-            <Wand2 className="h-5 w-5" />
-          </Link>
-        </Button>
+        {/* AI Recommendations button removed */}
       </nav>
 
       <div className="ml-auto flex items-center gap-2 sm:gap-4">
