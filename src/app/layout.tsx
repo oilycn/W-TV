@@ -32,7 +32,7 @@ const AppHeaderFallback = () => (
     height: '64px', /* Corresponds to h-16 */
     alignItems: 'center',
     borderBottom: '1px solid hsl(var(--border))',
-    backgroundColor: 'hsl(var(--background))', // Use CSS var for fallback consistency
+    backgroundColor: 'hsl(var(--background))', 
     paddingLeft: '1rem',
     paddingRight: '1rem',
   }} />
@@ -45,9 +45,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning> {/* Add suppressHydrationWarning here */}
+    <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <ThemeProvider> {/* Wrap with ThemeProvider */}
+        <ThemeProvider> 
           <CategoryProvider>
             <div className="flex flex-col min-h-screen">
               <Suspense fallback={<AppHeaderFallback />}>
