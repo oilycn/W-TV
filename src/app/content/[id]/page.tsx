@@ -1,4 +1,3 @@
-
 "use client";
 
 import { use, useEffect, useState, Suspense, useRef } from 'react';
@@ -41,6 +40,8 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
   const [currentVideoTitle, setCurrentVideoTitle] = useState<string>('');
   const [videoPlayerError, setVideoPlayerError] = useState<string | null>(null);
   const [isPlayerReady, setIsPlayerReady] = useState(false);
+  const [useIframeFallback, setUseIframeFallback] = useState(false);
+
 
   useEffect(() => {
     if (resolvedParams && resolvedParams.id) {
@@ -48,6 +49,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
       setCurrentPlayUrl(null); 
       setVideoPlayerError(null);
       setIsPlayerReady(false);
+      setUseIframeFallback(false);
     } else {
       setPageId(null);
     }
@@ -56,7 +58,8 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
   useEffect(() => {
     if (currentPlayUrl) {
       setVideoPlayerError(null);
-      setIsPlayerReady(false); 
+      setIsPlayerReady(false);
+      setUseIframeFallback(false); // Reset to ReactPlayer for new URL
     }
   }, [currentPlayUrl]);
 
@@ -111,24 +114,37 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     setCurrentVideoTitle(`${item?.title || '视频'} - ${name}`);
     setVideoPlayerError(null);
     setIsPlayerReady(false);
+    setUseIframeFallback(false); // Always try ReactPlayer first
   };
   
   const handlePlayerError = (
     error: any, 
     data?: any, 
     hlsInstance?: any
-    // dashInstance?: any // ReactPlayer doesn't seem to pass dashInstance directly in onError
   ) => {
     if (error && typeof error === 'object' && Object.keys(error).length === 0 && !data && !hlsInstance) {
       console.warn('ReactPlayer encountered an error but provided no specific details. The video source may be invalid or inaccessible. Raw error object:', error);
     } else {
-      console.error('ReactPlayer Error:', error, 'Data:', data, 'HLS Instance:', hlsInstance);
+      console.log('ReactPlayer Error:', error, 'Data:', data, 'HLS Instance:', hlsInstance);
     }
     setIsPlayerReady(true); 
 
     let message = '视频播放时发生未知错误。';
+    let attemptIframeFallback = false;
 
-    if (typeof error === 'string') {
+    if (error && error.target && error.target.error && typeof error.target.error.code === 'number') { 
+        const mediaError = error.target.error as MediaError;
+        switch (mediaError.code) {
+            case MediaError.MEDIA_ERR_ABORTED: message = '视频加载已中止。'; break;
+            case MediaError.MEDIA_ERR_NETWORK: message = '网络错误导致视频加载失败。'; break;
+            case MediaError.MEDIA_ERR_DECODE: message = '视频解码错误。'; break;
+            case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED: 
+              message = '播放器无法直接播放此视频格式。'; 
+              attemptIframeFallback = true; // Key change: trigger iframe for this error
+              break;
+            default: message = `发生媒体错误 (代码: ${mediaError.code})。`; break;
+        }
+    } else if (typeof error === 'string') {
       const lowerError = error.toLowerCase();
       if (lowerError.includes('hlserror') && data && data.type) {
         message = `HLS 播放错误 (${data.type}${data.details ? ': ' + data.details : ''})`;
@@ -149,19 +165,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
       } else {
         message = `播放器报告错误: ${error}`;
       }
-    } else if (error && error.target && error.target.error && typeof error.target.error.code === 'number') { 
-        const mediaError = error.target.error as MediaError;
-        switch (mediaError.code) {
-            case mediaError.MEDIA_ERR_ABORTED: message = '视频加载已中止。'; break;
-            case mediaError.MEDIA_ERR_NETWORK: message = '网络错误导致视频加载失败。'; break;
-            case mediaError.MEDIA_ERR_DECODE: message = '视频解码错误。'; break;
-            case mediaError.MEDIA_ERR_SRC_NOT_SUPPORTED: 
-              message = '视频源格式不支持或无法访问。部分链接可能为网页播放器，无法在此直接播放。'; 
-              break;
-            default: message = `发生媒体错误 (代码: ${mediaError.code})。`; break;
-        }
-    } else if (error && error.message) { 
-      message = error.message;
     } else if (data && data.type) { 
         message = `播放技术性错误 (${data.type}${data.details ? ': ' + data.details : ''})`;
         if (data.fatal === false && (data.type === 'networkError' || data.type === 'mediaError')) {
@@ -170,10 +173,20 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
              message += ' (致命错误，无法恢复)';
         }
     } else {
-      message = '无法播放此视频。请检查视频源或网络连接。部分链接可能为网页播放器，无法在此直接播放。';
+      // Generic error, might be a candidate for iframe if nothing else matches
+      message = '无法播放此视频。请检查视频源或网络连接。';
+      // Consider making this a condition for iframe fallback too if it's very generic
+      // attemptIframeFallback = true; 
     }
 
-    setVideoPlayerError(message);
+    if (attemptIframeFallback) {
+      console.log(`ReactPlayer failed with SRC_NOT_SUPPORTED or similar for ${currentPlayUrl}. Attempting iframe fallback.`);
+      setUseIframeFallback(true);
+      setVideoPlayerError(null); // Clear error as we are trying iframe
+    } else {
+      setVideoPlayerError(message);
+      setUseIframeFallback(false); // Ensure we are not in iframe mode for other errors
+    }
   };
 
 
@@ -216,8 +229,23 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     <div className="container mx-auto py-8">
       {currentPlayUrl && (
         <div className="mb-8 rounded-lg overflow-hidden shadow-lg bg-card">
-          <AspectRatio ratio={16 / 9} className="bg-black">
-            {videoPlayerError ? (
+          <AspectRatio ratio={16 / 9} className="bg-black relative">
+            {useIframeFallback ? (
+              <>
+                <iframe
+                  src={currentPlayUrl}
+                  width="100%"
+                  height="100%"
+                  allow="autoplay; encrypted-media; picture-in-picture"
+                  allowFullScreen
+                  title="Video Fallback Player"
+                  className="border-0"
+                />
+                <p className="absolute bottom-1 left-1 text-xs bg-black/70 text-white p-1 rounded z-10">
+                  尝试通过内嵌框架播放。部分链接可能不兼容此模式。
+                </p>
+              </>
+            ) : videoPlayerError ? (
               <div className="w-full h-full flex flex-col items-center justify-center bg-black text-destructive-foreground p-4 text-center">
                 <AlertCircle className="w-12 h-12 mb-2 text-destructive" />
                 <p className="text-lg font-semibold">播放错误</p>
@@ -225,7 +253,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
               </div>
             ) : (
               <>
-                {!isPlayerReady && !videoPlayerError && (
+                {!isPlayerReady && (
                   <div className="w-full h-full flex items-center justify-center">
                     <Skeleton className="w-full h-full" />
                      <p className="absolute text-muted-foreground">播放器准备中...</p>
@@ -239,10 +267,13 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                     height="100%"
                     onError={handlePlayerError}
                     onReady={() => setIsPlayerReady(true)}
-                    onPlay={() => setVideoPlayerError(null)} 
+                    onPlay={() => {
+                        setVideoPlayerError(null);
+                        setUseIframeFallback(false); // If it starts playing, ensure we are not in iframe mode
+                    }}
                     config={{
                         file: {
-                          attributes: { crossOrigin: 'anonymous' }, 
+                          attributes: { crossOrigin: 'anonymous' },
                         }
                     }}
                     style={{ display: isPlayerReady || videoPlayerError ? 'block' : 'none' }}
@@ -257,7 +288,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             </p>
            )}
            <p className="p-2 text-xs text-muted-foreground">
-            提示：如果播放失败或卡顿，请尝试其他播放源或检查网络连接。部分视频格式可能需要现代浏览器支持。
+            提示：如果播放失败或卡顿，请尝试其他播放源或检查网络连接。部分视频源可能需要现代浏览器或特定播放器支持。
           </p>
         </div>
       )}
