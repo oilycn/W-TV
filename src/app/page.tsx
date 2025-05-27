@@ -10,7 +10,7 @@ import { ContentCard } from '@/components/content/ContentCard';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, Tv2, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { AlertCircle, Tv2, ChevronLeft, ChevronRight, Search } from 'lucide-react'; // Added Tv2 import
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useCategories } from '@/contexts/CategoryContext';
 
@@ -21,7 +21,7 @@ function HomePageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const { categories, setCategories: setGlobalCategories } = useCategories();
+  const { categories: globalCategories, setCategories: setGlobalCategories } = useCategories(); // Renamed to globalCategories for clarity
 
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
   const [activeSourceId] = useLocalStorage<string | null>(LOCAL_STORAGE_KEY_ACTIVE_SOURCE, null);
@@ -31,20 +31,31 @@ function HomePageContent() {
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Derive state from URL search parameters
   const selectedCategoryId = useMemo(() => searchParams.get('category') || 'all', [searchParams]);
   const currentSearchTermQuery = useMemo(() => searchParams.get('q') || '', [searchParams]);
   const currentPageQuery = useMemo(() => parseInt(searchParams.get('page') || '1', 10), [searchParams]);
+  const activeSourceTrigger = useMemo(() => searchParams.get('activeSourceTrigger'), [searchParams]); // Listen to the trigger
 
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+  
+  useEffect(() => {
+    console.log(`HomePageContent: activeSourceId from useLocalStorage is: ${activeSourceId}`);
+  }, [activeSourceId]);
 
   const activeSourceUrl = useMemo(() => {
+    let url = null;
     if (activeSourceId) {
       const source = sources.find(s => s.id === activeSourceId);
-      if (source) return source.url;
+      if (source) url = source.url;
+    } else if (sources.length > 0) { // Default to first source if no active one is set or valid
+      url = sources[0].url;
     }
-    return sources.length > 0 ? sources[0].url : null;
+    console.log(`HomePageContent: activeSourceUrl re-calculated to: ${url} (activeSourceId: ${activeSourceId})`);
+    return url;
   }, [sources, activeSourceId]);
+
 
   const updateURLParams = useCallback((newParams: Record<string, string | number | undefined | null>) => {
     const currentParams = new URLSearchParams(searchParams.toString());
@@ -66,9 +77,17 @@ function HomePageContent() {
 
     if (changed) {
         const newQueryString = currentParams.toString();
-        router.push(`${pathname}?${newQueryString}`, { scroll: false });
+        // Preserve activeSourceTrigger if it's already there and not being explicitly changed
+        if (searchParams.has('activeSourceTrigger') && !newParams.activeSourceTrigger) {
+            if(!currentParams.has('activeSourceTrigger') && searchParams.get('activeSourceTrigger')) {
+                 currentParams.set('activeSourceTrigger', searchParams.get('activeSourceTrigger')!);
+            }
+        }
+        console.log(`Updating URL with new params: ${currentParams.toString()}`);
+        router.push(`${pathname}?${currentParams.toString()}`, { scroll: false });
     }
   }, [router, searchParams, pathname]);
+
 
   const loadCategoriesAndContent = useCallback(async (
     sourceUrlForFetch: string | null,
@@ -76,16 +95,17 @@ function HomePageContent() {
     categoryId: string,
     searchTerm: string
   ) => {
-    console.log(`loadCategoriesAndContent called with sourceUrlForFetch: ${sourceUrlForFetch}, page: ${page}, categoryId: ${categoryId}, searchTerm: ${searchTerm}`);
+    console.log(`Executing loadCategoriesAndContent for source: ${sourceUrlForFetch}, page: ${page}, category: ${categoryId}, search: ${searchTerm}`);
     setIsLoading(true);
     setIsLoadingCategories(true);
     setError(null);
-    // setContentItems([]); // Clear previous content for better UX when source changes
+    // setContentItems([]); // Clear previous content for better UX
 
     if (sourceUrlForFetch) {
       try {
         console.log(`Fetching categories for source: ${sourceUrlForFetch}`);
         const fetchedCategories = await fetchApiCategories(sourceUrlForFetch);
+        console.log("Fetched categories:", fetchedCategories);
         setGlobalCategories(fetchedCategories);
       } catch (e) {
         console.error("Failed to load categories:", e);
@@ -105,6 +125,7 @@ function HomePageContent() {
         setContentItems(response.items);
         setTotalPages(response.pageCount || 1);
         setTotalItems(response.total);
+        console.log("Fetched content:", response);
       } catch (e) {
         console.error("Failed to load content:", e);
         setError(prev => prev ? `${prev} & 无法加载内容。` : "无法加载内容。请检查您的网络连接或内容源配置。");
@@ -125,12 +146,13 @@ function HomePageContent() {
       setIsLoadingCategories(false);
       setIsLoading(false);
     }
-  }, [setGlobalCategories]); // Dependencies of useCallback
+  }, [setGlobalCategories]); // Dependencies: setGlobalCategories is stable from context
 
   useEffect(() => {
-    console.log(`HomePage useEffect triggered. ActiveSourceUrl: ${activeSourceUrl}, Page: ${currentPageQuery}, Category: ${selectedCategoryId}, Search: ${currentSearchTermQuery}`);
+    console.log(`HomePage useEffect triggered. ActiveSourceUrl: ${activeSourceUrl}, Page: ${currentPageQuery}, Category: ${selectedCategoryId}, Search: ${currentSearchTermQuery}, Trigger: ${activeSourceTrigger}`);
+    // activeSourceUrl should be up-to-date here due to useMemo and its deps
     loadCategoriesAndContent(activeSourceUrl, currentPageQuery, selectedCategoryId, currentSearchTermQuery);
-  }, [activeSourceUrl, currentPageQuery, selectedCategoryId, currentSearchTermQuery, loadCategoriesAndContent]);
+  }, [activeSourceUrl, currentPageQuery, selectedCategoryId, currentSearchTermQuery, loadCategoriesAndContent, activeSourceTrigger]); // Added activeSourceTrigger
 
 
   const handlePageChange = (newPage: number) => {
@@ -139,7 +161,7 @@ function HomePageContent() {
     }
   };
 
-  if (sources.length === 0 && !activeSourceUrl && !isLoading && !isLoadingCategories && (!categories.length || categories.every(c => c.id.startsWith('mock-'))) ) {
+  if (sources.length === 0 && !activeSourceUrl && !isLoading && !isLoadingCategories && (!globalCategories.length || globalCategories.every(c => c.id.startsWith('mock-'))) ) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-10rem)] text-center p-4">
         <Tv2 className="w-24 h-24 mb-6 text-muted-foreground" />
@@ -248,3 +270,4 @@ function HomePageSkeleton() {
     </div>
   )
 }
+
