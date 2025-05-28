@@ -39,9 +39,9 @@ export default function SettingsPage() {
 
     if (sources && sources.length === 0 && !hasBeenProcessed) {
       const defaultSource: SourceConfig = {
-        id: `default-ffzy-${Date.now().toString()}`, 
-        name: "采集资源 FFZY",
-        url: "https://cj.ffzyapi.com/api.php/provide/vod"
+        id: `default-heimuer-${Date.now().toString()}`, 
+        name: "黑木耳",
+        url: "https://json.heimuer.tv/api.php/provide/vod"
       };
       setSources([defaultSource]);
       setActiveSourceId(defaultSource.id); // Set the new default source as active
@@ -50,7 +50,7 @@ export default function SettingsPage() {
       setTimeout(() => {
         toast({
           title: "默认内容源已添加",
-          description: "“采集资源 FFZY” 已作为默认源添加。您可以在下方管理它。",
+          description: `“${defaultSource.name}” 已作为默认源添加。您可以在下方管理它。`,
           duration: 5000,
         });
       }, 100);
@@ -206,3 +206,4 @@ export default function SettingsPage() {
     </div>
   );
 }
+
