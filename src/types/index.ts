@@ -44,3 +44,13 @@ export interface PaginatedContentResponse {
   limit: number; // Items per page
   total: number; // Total number of items across all pages for this query
 }
+
+export interface RawSubscriptionSourceItem {
+  key?: string;
+  name?: string;
+  type: number; // 0 for player, 1 for VOD source
+  api?: string;
+  searchable?: number; // 0 or 1
+  quickSearch?: number; // 0 or 1
+  changeable?: number; // 0 or 1
+}
