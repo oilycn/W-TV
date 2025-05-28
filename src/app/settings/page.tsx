@@ -25,7 +25,7 @@ export default function SettingsPage() {
   
   const [newSourceName, setNewSourceName] = useState('');
   const [newSourceUrl, setNewSourceUrl] = useState('');
-  const [currentSubscriptionUrlInput, setCurrentSubscriptionUrlInput] = useState(subscriptionUrl);
+  const [currentSubscriptionUrlInput, setCurrentSubscriptionUrlInput] = useState('');
   const [isLoadingSubscription, setIsLoadingSubscription] = useState(false);
 
   const { toast } = useToast();
@@ -33,8 +33,13 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setIsClient(true);
-    setCurrentSubscriptionUrlInput(subscriptionUrl); 
-  }, [subscriptionUrl]);
+  }, []); // Runs once on mount
+
+  useEffect(() => {
+    if (isClient) {
+      setCurrentSubscriptionUrlInput(subscriptionUrl);
+    }
+  }, [subscriptionUrl, isClient]);
 
 
   useEffect(() => {
@@ -91,7 +96,7 @@ export default function SettingsPage() {
     const newSource = { id: Date.now().toString(), name: newSourceName, url: newSourceUrl };
     const updatedSources = [...sources, newSource];
     setSources(updatedSources);
-    if (sources.length === 0) {
+    if (sources.length === 0) { // if this is the first source being added
         setActiveSourceId(newSource.id);
     }
 
@@ -115,7 +120,7 @@ export default function SettingsPage() {
         setActiveSourceId(updatedSources[0].id);
       } else {
         setActiveSourceId(null);
-         if (isClient) localStorage.removeItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY);
+         if (isClient) localStorage.removeItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY); // No sources left, can re-add default later
       }
     }
     toast({
@@ -123,6 +128,7 @@ export default function SettingsPage() {
       description: "内容源已移除。",
     });
     if (updatedSources.length === 0 && isClient) {
+       // If all sources are removed (including potentially the default one), clear the flag
        localStorage.removeItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY);
     }
   };
@@ -144,8 +150,8 @@ export default function SettingsPage() {
     try {
       const proxyRequestUrl = `/api/proxy?url=${encodeURIComponent(currentSubscriptionUrlInput)}`;
       const response = await fetch(proxyRequestUrl);
-      
       const proxyResponseData = await response.json();
+
       console.log("Subscription: Data received from proxy on settings page:", JSON.stringify(proxyResponseData, null, 2).substring(0, 500) + "...");
 
       if (!response.ok) { 
@@ -162,11 +168,10 @@ export default function SettingsPage() {
       let rawItems: RawSubscriptionSourceItem[] = [];
 
       if (typeof proxyResponseData.nonJsonData === 'string') {
-        const fullContentString = proxyResponseData.nonJsonData;
-        console.warn("Subscription: Proxy returned raw string. Attempting to extract and parse 'sites' array string or individual objects from this content:", fullContentString.substring(0, 300) + "...");
+        console.warn("Subscription: Proxy returned raw string. Attempting to extract and parse 'sites' array string or individual objects from this content:", proxyResponseData.nonJsonData.substring(0, 300) + "...");
         
         const sitesRegex = /"sites"\s*:\s*(\[(?:.|\n|\r)*?\])/s;
-        const match = fullContentString.match(sitesRegex);
+        const match = proxyResponseData.nonJsonData.match(sitesRegex);
 
         if (match && match[1]) {
           const sitesArrayString = match[1];
@@ -227,11 +232,12 @@ export default function SettingsPage() {
           throw new Error("无法在订阅内容中定位 'sites' 数组。请检查订阅源格式。");
         }
       } else if (typeof proxyResponseData === 'object' && proxyResponseData !== null) {
+        // Proxy returned valid JSON, which should be the subscription data directly.
         console.log("Subscription: Proxy returned pre-parsed JSON or successfully parsed upstream. Looking for 'sites' array.");
         if (proxyResponseData.sites && Array.isArray(proxyResponseData.sites)) {
           rawItems = proxyResponseData.sites as RawSubscriptionSourceItem[];
           console.log(`Subscription: Successfully extracted 'sites' array from pre-parsed JSON. Found ${rawItems.length} items.`);
-        } else if (Array.isArray(proxyResponseData)) { 
+        } else if (Array.isArray(proxyResponseData)) { // Fallback: if the root is an array of source items
           rawItems = proxyResponseData as RawSubscriptionSourceItem[];
           console.log(`Subscription: Pre-parsed JSON is an array itself. Found ${rawItems.length} items.`);
         } else {
@@ -261,15 +267,15 @@ export default function SettingsPage() {
       if (newSubscribedSources.length > 0) {
         setSources(newSubscribedSources);
         setActiveSourceId(newSubscribedSources[0]?.id || null);
-        setSubscriptionUrl(currentSubscriptionUrlInput); 
-        localStorage.setItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY, 'true'); 
+        setSubscriptionUrl(currentSubscriptionUrlInput); // Save the valid subscription URL
+        localStorage.setItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY, 'true'); // Mark as processed since we got sources
         toast({ title: "成功", description: `从订阅链接加载了 ${newSubscribedSources.length} 个内容源。` });
       } else {
-        setSources([]); 
+        setSources([]); // Clear existing sources if subscription yields none
         setActiveSourceId(null);
         // Keep subscriptionUrl if user entered one, even if it yields no sources
         // setSubscriptionUrl(currentSubscriptionUrlInput); 
-        localStorage.removeItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY); 
+        localStorage.removeItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY); // No valid sources from subscription, can add default later
         toast({ title: "提示", description: "订阅链接中未找到有效的内容源 (类型为1)。现有内容源已清空。", variant: "default" });
       }
 
@@ -366,7 +372,7 @@ export default function SettingsPage() {
             <DownloadCloud className="mr-2 h-4 w-4" /> 
             {isLoadingSubscription ? "加载中..." : "加载订阅"}
           </Button>
-          {subscriptionUrl && (
+          {isClient && subscriptionUrl && (
             <Button
               variant="destructive"
               onClick={handleRemoveSubscription}
