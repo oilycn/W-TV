@@ -153,16 +153,31 @@ export default function SettingsPage() {
       if (data.nonJsonData) {
         throw new Error(`订阅链接返回的不是有效的JSON数据: ${data.nonJsonData.substring(0,100)}`);
       }
+      
+      let rawItems: RawSubscriptionSourceItem[] | undefined;
 
-      if (!Array.isArray(data)) {
-        throw new Error("订阅链接返回的数据格式不是预期的数组。");
+      if (data && typeof data === 'object' && data !== null && Array.isArray(data.sites)) {
+        // Handle { "sites": [...] } structure
+        rawItems = data.sites as RawSubscriptionSourceItem[];
+        console.log("Subscription: Parsed 'sites' array from subscription object.");
+      } else if (Array.isArray(data)) {
+        // Handle direct array structure (for simpler subscriptions)
+        rawItems = data as RawSubscriptionSourceItem[];
+        console.log("Subscription: Parsed direct array from subscription.");
+      } else {
+        console.error("Subscription: Invalid data format from subscription link.", data);
+        throw new Error("订阅链接返回的数据格式无效。既不是预期的数组，其 'sites' 属性也不是数组。");
       }
       
-      const rawItems = data as RawSubscriptionSourceItem[];
+      if (!rawItems) {
+         console.error("Subscription: Could not extract rawItems from subscription data.");
+         throw new Error("无法从订阅链接中解析出内容源列表。");
+      }
+
       const newSubscribedSources: SourceConfig[] = rawItems
-        .filter(item => item.type === 1 && item.api && (item.name || item.key))
+        .filter(item => item && typeof item === 'object' && item.type === 1 && item.api && (item.name || item.key))
         .map(item => ({
-          id: `sub-${item.api}-${item.name || item.key}`, // Basic unique ID
+          id: `sub-${item.api}-${item.name || item.key}-${Math.random().toString(36).substring(2, 9)}`, // Ensure more unique ID
           name: (item.name || item.key)!,
           url: item.api!,
         }));
@@ -176,7 +191,7 @@ export default function SettingsPage() {
       } else {
         // Keep existing sources if subscription is empty or invalid, but still save the URL if user intended.
         setSubscriptionUrl(currentSubscriptionUrlInput); 
-        toast({ title: "提示", description: "订阅链接中未找到有效的内容源 (类型为1)。现有内容源未更改。", variant: "default" });
+        toast({ title: "提示", description: "订阅链接中未找到有效的内容源 (类型为1，且包含api和name/key)。现有内容源未更改。", variant: "default" });
       }
     } catch (error) {
       console.error("Error loading subscription:", error);
@@ -301,3 +316,4 @@ export default function SettingsPage() {
     </div>
   );
 }
+
