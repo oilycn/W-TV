@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense, useCallback } from 'react';
 import type { ContentItem, SourceConfig } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { fetchApiContentList, getMockContentItems } from '@/lib/content-loader';
+import { fetchApiContentList } from '@/lib/content-loader';
 import { ContentCard } from '@/components/content/ContentCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, SearchIcon as SearchIconLucide } from 'lucide-react';
@@ -74,12 +74,6 @@ function SearchResults() {
     } catch (e) {
       console.error("Search: Unexpected error during search aggregation:", e);
       setError("搜索时发生意外错误。");
-      // Fallback to mock on critical error - consider if this is desired or just empty
-      // const mockItems = getMockContentItems().filter(item => item.title.toLowerCase().includes(currentQuery.toLowerCase()));
-      // if (mockItems.length > 0 && currentSources.length > 0) {
-      //   setSearchResultsBySource([{ source: { id: 'mock', name: '模拟数据源', url: '' }, items: mockItems }]);
-      //   setTotalResultsCount(mockItems.length);
-      // }
     } finally {
       setIsLoading(false);
     }
@@ -103,8 +97,8 @@ function SearchResults() {
       <div className="space-y-8">
         <Skeleton className="h-8 w-1/3 mb-6" />
         {Array.from({ length: 2 }).map((_, groupIndex) => (
-          <div key={`skeleton-group-${groupIndex}`}>
-            <Skeleton className="h-6 w-1/4 mb-4" />
+          <div key={`skeleton-group-${groupIndex}`} className="space-y-4">
+            <Skeleton className="h-7 w-1/4" />
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8 2xl:grid-cols-10 gap-4 md:gap-6">
               {Array.from({ length: 5 }).map((_, index) => (
                 <div key={index} className="space-y-2">
@@ -132,28 +126,31 @@ function SearchResults() {
 
   if (!query) {
     return (
-      <div className="text-center py-12 flex flex-col items-center justify-center min-h-[300px]">
-        <SearchIconLucide className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
-        <p className="text-xl text-muted-foreground">请输入搜索词以查找内容。</p>
+      <div className="text-center py-12 flex flex-col items-center justify-center min-h-[300px] text-muted-foreground">
+        <SearchIconLucide className="mx-auto h-16 w-16 mb-4" />
+        <p className="text-xl">请输入搜索词以查找内容。</p>
       </div>
     );
   }
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold mb-2 text-foreground">
-        搜索 "{decodeURIComponent(query)}" 的结果
+      <h1 className="text-3xl font-bold mb-2 text-foreground">
+        搜索 "<span className="text-primary">{decodeURIComponent(query)}</span>" 的结果
       </h1>
-      <p className="text-muted-foreground mb-6">共找到 {totalResultsCount} 条相关内容。</p>
+      <p className="text-muted-foreground mb-8">共找到 {totalResultsCount} 条相关内容。</p>
 
       {searchResultsBySource.length > 0 ? (
-        <div className="space-y-8">
+        <div className="space-y-10">
           {searchResultsBySource.map(group => (
             group.items.length > 0 && (
-              <section key={group.source.id}>
-                <h2 className="text-xl font-medium mb-4 text-foreground border-b pb-2">
-                  来自: {group.source.name} ({group.items.length} 条)
+              <section key={group.source.id} className="bg-card p-4 sm:p-6 rounded-lg shadow-md">
+                <h2 className="text-2xl font-semibold mb-1 text-foreground">
+                  来自: {group.source.name}
                 </h2>
+                <p className="text-sm text-muted-foreground mb-6">
+                  找到 {group.items.length} 条结果
+                </p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8 2xl:grid-cols-10 gap-4 md:gap-6">
                   {group.items.map(item => (
                     <ContentCard key={`${item.id}-search-${group.source.id}`} item={item} />
@@ -164,11 +161,11 @@ function SearchResults() {
           ))}
         </div>
       ) : (
-        <div className="text-center py-12 flex flex-col items-center justify-center min-h-[300px]">
-            <SearchIconLucide className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
-            <p className="text-xl text-muted-foreground">未找到与 "{decodeURIComponent(query)}" 相关的内容。</p>
+        <div className="text-center py-12 flex flex-col items-center justify-center min-h-[300px] text-muted-foreground">
+            <SearchIconLucide className="mx-auto h-16 w-16 mb-4" />
+            <p className="text-xl">未找到与 "{decodeURIComponent(query)}" 相关的内容。</p>
              {sources.length === 0 && (
-                <p className="mt-2 text-sm text-muted-foreground">提示：您尚未配置任何内容源。</p>
+                <p className="mt-2 text-sm">提示：您尚未配置任何内容源。</p>
             )}
         </div>
       )}
@@ -179,22 +176,27 @@ function SearchResults() {
 export default function SearchPage() {
   return (
     <Suspense fallback={
-        <div className="space-y-6">
+        <div className="space-y-8">
             <Skeleton className="h-8 w-1/3 mb-6" />
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8 2xl:grid-cols-10 gap-4 md:gap-6">
-                {Array.from({ length: 10 }).map((_, index) => (
-                <div key={index} className="space-y-2">
-                    <Skeleton className="aspect-[2/3] w-full rounded-lg" />
-                    <Skeleton className="h-5 w-3/4" />
-                    <Skeleton className="h-4 w-1/2" />
+            {Array.from({ length: 2 }).map((_, groupIndex) => (
+              <div key={`skeleton-group-fallback-${groupIndex}`} className="bg-card p-4 sm:p-6 rounded-lg shadow-md space-y-4">
+                <Skeleton className="h-7 w-1/4" />
+                <Skeleton className="h-5 w-1/5" />
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8 2xl:grid-cols-10 gap-4 md:gap-6">
+                    {Array.from({ length: 5 }).map((_, index) => (
+                    <div key={`skeleton-item-fallback-${index}`} className="space-y-2">
+                        <Skeleton className="aspect-[2/3] w-full rounded-lg" />
+                        <Skeleton className="h-5 w-3/4" />
+                        <Skeleton className="h-4 w-1/2" />
+                    </div>
+                    ))}
                 </div>
-                ))}
-            </div>
+              </div>
+            ))}
         </div>
     }>
       <SearchResults />
     </Suspense>
   );
 }
-
     
