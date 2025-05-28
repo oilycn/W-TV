@@ -19,13 +19,12 @@ export async function GET(request: NextRequest) {
     const response = await fetch(decodedTargetUrl, {
       headers: {
         'User-Agent': 'CinemaViewApp/1.0 (NextJS Proxy)',
-        // We remove 'Accept': 'application/json' here to be more flexible
-        // as some servers might not respond correctly if this header is too strict.
       },
     });
 
     if (!response.ok) {
       const errorText = await response.text();
+      // Log the first 500 characters of the error text for easier debugging.
       console.error(`Proxy: Error fetching ${decodedTargetUrl}: ${response.status} ${response.statusText}`, errorText.substring(0, 500));
       return NextResponse.json(
         { error: `Failed to fetch from target: ${response.status} ${response.statusText}`, details: errorText.substring(0, 500) },
@@ -38,22 +37,20 @@ export async function GET(request: NextRequest) {
     const contentType = response.headers.get('content-type');
 
     try {
-      // Attempt to parse as JSON regardless of content type first
+      // Attempt to parse as JSON 
       const jsonData = JSON.parse(textData);
+      // If parsing succeeds, return the JSON data directly
       return NextResponse.json(jsonData);
     } catch (jsonError) {
-      // If JSON parsing fails, and it wasn't declared as JSON, then treat as nonJsonData
-      if (contentType && contentType.toLowerCase().includes('application/json')) {
-        // If it claimed to be JSON but failed to parse, that's an error with the source
-        console.error(`Proxy: Failed to parse JSON from ${decodedTargetUrl} even though Content-Type was ${contentType}. Data: ${textData.substring(0,200)}...`);
-        return NextResponse.json({ error: 'Failed to parse JSON response from target', details: textData.substring(0,500) }, { status: 500 });
-      }
-      // If not JSON or failed to parse, and content type wasn't application/json, return as nonJsonData
-      console.warn(`Proxy: Response from ${decodedTargetUrl} was not parseable as JSON (Content-Type: ${contentType}). Returning as nonJsonData. Data: ${textData.substring(0,100)}...`);
+      // If JSON parsing fails, it means the upstream source provided invalid JSON
+      // or non-JSON data. The proxy should indicate this.
+      console.warn(`Proxy: Response from ${decodedTargetUrl} was not parseable as valid JSON (Content-Type: ${contentType}). Returning as nonJsonData. Data snippet: ${textData.substring(0,200)}...`);
+      // Return the raw textData wrapped in a nonJsonData field
       return NextResponse.json({ nonJsonData: textData });
     }
 
   } catch (error) {
+    // This catches errors from the fetch operation itself (e.g., network issues to the target)
     console.error(`Proxy: Exception fetching ${targetUrl}:`, error);
     let errorMessage = 'Unknown proxy error';
     if (error instanceof Error) {
