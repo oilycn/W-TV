@@ -1,12 +1,13 @@
+tsx
 "use client";
 
 import { use, useEffect, useState, Suspense, useRef } from 'react';
-import type { ContentItem, PlaybackSourceGroup, SourceConfig } from '@/types';
+import type { ContentItem, PlaybackSourceGroup, SourceConfig, PlaybackURL } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, getMockContentItemById } from '@/lib/content-loader';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
-import { Star, CalendarDays, Clock, Video, AlertCircle } from 'lucide-react';
+import { Star, CalendarDays, Clock, Video, AlertCircle, SkipBack, SkipForward } from 'lucide-react';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -36,11 +37,15 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
   const [activeSourceId] = useLocalStorage<string | null>(LOCAL_STORAGE_KEY_ACTIVE_SOURCE, null);
   const [item, setItem] = useState<ContentItem | null | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
+  
   const [currentPlayUrl, setCurrentPlayUrl] = useState<string | null>(null);
   const [currentVideoTitle, setCurrentVideoTitle] = useState<string>('');
   const [videoPlayerError, setVideoPlayerError] = useState<string | null>(null);
   const [isPlayerReady, setIsPlayerReady] = useState(false);
   const [useIframeFallback, setUseIframeFallback] = useState(false);
+
+  const [currentSourceGroupIndex, setCurrentSourceGroupIndex] = useState<number | null>(null);
+  const [currentUrlIndex, setCurrentUrlIndex] = useState<number | null>(null);
 
 
   useEffect(() => {
@@ -50,6 +55,8 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
       setVideoPlayerError(null);
       setIsPlayerReady(false);
       setUseIframeFallback(false);
+      setCurrentSourceGroupIndex(null);
+      setCurrentUrlIndex(null);
     } else {
       setPageId(null);
     }
@@ -109,23 +116,26 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
   }, [pageId, sources, activeSourceId]);
 
 
-  const handlePlayVideo = (url: string, name: string) => {
+  const handlePlayVideo = (url: string, name: string, sourceGroupIndex?: number, urlIndex?: number) => {
     setCurrentPlayUrl(url);
     setCurrentVideoTitle(`${item?.title || '视频'} - ${name}`);
     setVideoPlayerError(null);
     setIsPlayerReady(false);
     setUseIframeFallback(false); // Always try ReactPlayer first
+    if (sourceGroupIndex !== undefined) setCurrentSourceGroupIndex(sourceGroupIndex);
+    if (urlIndex !== undefined) setCurrentUrlIndex(urlIndex);
   };
   
   const handlePlayerError = (
     error: any, 
     data?: any, 
     hlsInstance?: any
+    // dashInstance?: any // ReactPlayer doesn't seem to pass dashInstance directly in onError
   ) => {
     if (error && typeof error === 'object' && Object.keys(error).length === 0 && !data && !hlsInstance) {
       console.warn('ReactPlayer encountered an error but provided no specific details. The video source may be invalid or inaccessible. Raw error object:', error);
     } else {
-      console.log('ReactPlayer Error:', error, 'Data:', data, 'HLS Instance:', hlsInstance);
+      console.error('ReactPlayer Error:', error, 'Data:', data, 'HLS Instance:', hlsInstance);
     }
     setIsPlayerReady(true); 
 
@@ -139,7 +149,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             case MediaError.MEDIA_ERR_NETWORK: message = '网络错误导致视频加载失败。'; break;
             case MediaError.MEDIA_ERR_DECODE: message = '视频解码错误。'; break;
             case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED: 
-              message = '播放器无法直接播放此视频格式。'; 
+              message = '播放器无法直接播放此视频格式。部分链接可能为网页播放器，无法在此直接播放。'; 
               attemptIframeFallback = true; // Key change: trigger iframe for this error
               break;
             default: message = `发生媒体错误 (代码: ${mediaError.code})。`; break;
@@ -173,10 +183,8 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
              message += ' (致命错误，无法恢复)';
         }
     } else {
-      // Generic error, might be a candidate for iframe if nothing else matches
-      message = '无法播放此视频。请检查视频源或网络连接。';
-      // Consider making this a condition for iframe fallback too if it's very generic
-      // attemptIframeFallback = true; 
+      message = '无法播放此视频。请检查视频源或网络连接。部分链接可能为网页播放器，无法在此直接播放。';
+      attemptIframeFallback = true; 
     }
 
     if (attemptIframeFallback) {
@@ -186,6 +194,68 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     } else {
       setVideoPlayerError(message);
       setUseIframeFallback(false); // Ensure we are not in iframe mode for other errors
+    }
+  };
+
+  const getPreviousEpisode = (): PlaybackURL & { sourceGroupIndex: number; urlIndex: number } | null => {
+    if (!item || !item.playbackSources || currentSourceGroupIndex === null || currentUrlIndex === null) return null;
+
+    if (currentUrlIndex > 0) {
+      return { 
+        ...item.playbackSources[currentSourceGroupIndex].urls[currentUrlIndex - 1], 
+        sourceGroupIndex: currentSourceGroupIndex, 
+        urlIndex: currentUrlIndex - 1 
+      };
+    }
+    if (currentSourceGroupIndex > 0) {
+      const prevGroup = item.playbackSources[currentSourceGroupIndex - 1];
+      if (prevGroup.urls.length > 0) {
+        return { 
+          ...prevGroup.urls[prevGroup.urls.length - 1], 
+          sourceGroupIndex: currentSourceGroupIndex - 1, 
+          urlIndex: prevGroup.urls.length - 1 
+        };
+      }
+    }
+    return null;
+  };
+
+  const getNextEpisode = (): PlaybackURL & { sourceGroupIndex: number; urlIndex: number } | null => {
+    if (!item || !item.playbackSources || currentSourceGroupIndex === null || currentUrlIndex === null) return null;
+
+    const currentGroup = item.playbackSources[currentSourceGroupIndex];
+    if (currentUrlIndex < currentGroup.urls.length - 1) {
+      return { 
+        ...currentGroup.urls[currentUrlIndex + 1], 
+        sourceGroupIndex: currentSourceGroupIndex, 
+        urlIndex: currentUrlIndex + 1 
+      };
+    }
+    if (currentSourceGroupIndex < item.playbackSources.length - 1) {
+      const nextGroup = item.playbackSources[currentSourceGroupIndex + 1];
+      if (nextGroup.urls.length > 0) {
+        return { 
+          ...nextGroup.urls[0], 
+          sourceGroupIndex: currentSourceGroupIndex + 1, 
+          urlIndex: 0 
+        };
+      }
+    }
+    return null;
+  };
+
+  const previousEpisode = getPreviousEpisode();
+  const nextEpisode = getNextEpisode();
+
+  const playPrevious = () => {
+    if (previousEpisode) {
+      handlePlayVideo(previousEpisode.url, previousEpisode.name, previousEpisode.sourceGroupIndex, previousEpisode.urlIndex);
+    }
+  };
+
+  const playNext = () => {
+    if (nextEpisode) {
+      handlePlayVideo(nextEpisode.url, nextEpisode.name, nextEpisode.sourceGroupIndex, nextEpisode.urlIndex);
     }
   };
 
@@ -228,7 +298,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
   return (
     <div className="container mx-auto py-8">
       {currentPlayUrl && (
-        <div className="mb-8 rounded-lg overflow-hidden shadow-lg bg-card">
+        <div className="mb-4 rounded-lg overflow-hidden shadow-lg bg-card">
           <AspectRatio ratio={16 / 9} className="bg-black relative">
             {useIframeFallback ? (
               <>
@@ -292,6 +362,18 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
           </p>
         </div>
       )}
+      
+      {currentPlayUrl && item?.playbackSources && item.playbackSources.length > 0 && (
+        <div className="flex justify-between items-center mb-6">
+          <Button onClick={playPrevious} disabled={!previousEpisode} variant="outline">
+            <SkipBack className="mr-2 h-4 w-4" /> 上一集
+          </Button>
+          <Button onClick={playNext} disabled={!nextEpisode} variant="outline">
+            下一集 <SkipForward className="ml-2 h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
 
       <div className="grid md:grid-cols-3 gap-8">
         <div className="md:col-span-1">
@@ -365,18 +447,18 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             <div className="mt-8">
               <h2 className="text-2xl font-semibold mb-3 text-foreground">播放源</h2>
               <Accordion type="single" collapsible className="w-full" defaultValue="item-0">
-                {item.playbackSources.map((sourceGroup: PlaybackSourceGroup, index: number) => (
-                  <AccordionItem value={`item-${index}`} key={`${pageId || `fallbackKey-${index}`}-source-${index}`}>
+                {item.playbackSources.map((sourceGroup: PlaybackSourceGroup, groupIdx: number) => (
+                  <AccordionItem value={`item-${groupIdx}`} key={`${pageId || `fallbackKey-${groupIdx}`}-source-${groupIdx}`}>
                     <AccordionTrigger className="text-lg hover:no-underline">
-                      {sourceGroup.sourceName || `播放线路 ${index + 1}`}
+                      {sourceGroup.sourceName || `播放线路 ${groupIdx + 1}`}
                     </AccordionTrigger>
                     <AccordionContent>
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 pt-2">
-                        {sourceGroup.urls.map((playUrl, urlIndex) => (
+                        {sourceGroup.urls.map((playUrl, urlIdx) => (
                           <Button 
-                            key={`${pageId || `fallbackKey-${index}`}-source-${index}-url-${urlIndex}`} 
-                            variant="outline" 
-                            onClick={() => handlePlayVideo(playUrl.url, playUrl.name)}
+                            key={`${pageId || `fallbackKey-${groupIdx}`}-source-${groupIdx}-url-${urlIdx}`} 
+                            variant={(currentSourceGroupIndex === groupIdx && currentUrlIndex === urlIdx) ? "default" : "outline"}
+                            onClick={() => handlePlayVideo(playUrl.url, playUrl.name, groupIdx, urlIdx)}
                             title={`播放 ${item.title} - ${playUrl.name}`}
                           >
                             {playUrl.name}
