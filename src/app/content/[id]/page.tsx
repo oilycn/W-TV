@@ -1,4 +1,4 @@
-tsx
+
 "use client";
 
 import { use, useEffect, useState, Suspense, useRef } from 'react';
