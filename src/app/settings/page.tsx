@@ -9,12 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, PlusCircle, KeyRound, Save } from 'lucide-react';
+import { Trash2, PlusCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 const DEFAULT_SOURCE_PROCESSED_FLAG_KEY = 'cinemaViewDefaultSourceProcessed';
-const GEMINI_API_KEY_LS_KEY = 'cinemaViewGeminiApiKey';
 const LOCAL_STORAGE_KEY_ACTIVE_SOURCE = 'cinemaViewActiveSourceId';
 
 
@@ -26,18 +25,9 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const [isClient, setIsClient] = useState(false);
 
-  const [geminiApiKey, setGeminiApiKey] = useLocalStorage<string>(GEMINI_API_KEY_LS_KEY, '');
-  const [tempApiKey, setTempApiKey] = useState('');
-
   useEffect(() => {
     setIsClient(true);
   }, []);
-
-  useEffect(() => {
-    if (isClient) {
-      setTempApiKey(geminiApiKey);
-    }
-  }, [isClient, geminiApiKey]);
 
 
   useEffect(() => {
@@ -134,14 +124,6 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSaveApiKey = () => {
-    setGeminiApiKey(tempApiKey);
-    toast({
-      title: "API 密钥已保存",
-      description: "Gemini API 密钥已保存到浏览器本地存储。",
-    });
-  };
-
   const renderSourcesList = () => {
     if (!isClient) {
       return (
@@ -220,36 +202,6 @@ export default function SettingsPage() {
         <h2 className="text-2xl font-semibold mb-4 text-foreground">当前内容源</h2>
         {renderSourcesList()}
       </div>
-
-      <Card className="shadow-lg">
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <KeyRound className="mr-2 h-5 w-5 text-primary" />
-            Gemini API 密钥设置
-          </CardTitle>
-          <CardDescription>
-            在此处配置您的 Google Gemini API 密钥。此密钥将存储在您的浏览器本地存储中。
-            对于AI推荐功能，Genkit后端通常需要通过环境变量 (GOOGLE_API_KEY) 配置此密钥。
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="geminiApiKey">API 密钥</Label>
-            <Input
-              id="geminiApiKey"
-              type="password"
-              value={tempApiKey}
-              onChange={(e) => setTempApiKey(e.target.value)}
-              placeholder="输入您的 Gemini API 密钥"
-            />
-          </div>
-        </CardContent>
-        <CardFooter>
-          <Button onClick={handleSaveApiKey} className="bg-primary hover:bg-primary/90 text-primary-foreground">
-            <Save className="mr-2 h-4 w-4" /> 保存密钥
-          </Button>
-        </CardFooter>
-      </Card>
 
     </div>
   );
