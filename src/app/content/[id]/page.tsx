@@ -351,30 +351,34 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
               </>
             )}
           </AspectRatio>
-           <p className="p-2 text-sm text-muted-foreground">正在播放: {currentVideoTitle}</p>
+          <div className="flex justify-between items-center p-2">
+            <p className="text-sm text-muted-foreground truncate mr-4">正在播放: {currentVideoTitle}</p>
+            {item?.playbackSources && item.playbackSources.length > 0 && (
+              <div className="flex gap-2">
+                <Button onClick={playPrevious} disabled={!previousEpisode} variant="outline" size="sm">
+                  <SkipBack className="mr-1 md:mr-2 h-4 w-4" /> 
+                  <span className="hidden sm:inline">上一集</span>
+                  <span className="sm:hidden">上集</span>
+                </Button>
+                <Button onClick={playNext} disabled={!nextEpisode} variant="outline" size="sm">
+                  <span className="hidden sm:inline">下一集</span>
+                  <span className="sm:hidden">下集</span>
+                  <SkipForward className="ml-1 md:ml-2 h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
            {currentPlayUrl && (
-            <p className="p-2 text-xs text-muted-foreground break-all">
+            <p className="px-2 pb-2 text-xs text-muted-foreground break-all">
               视频链接: {currentPlayUrl}
             </p>
            )}
-           <p className="p-2 text-xs text-muted-foreground">
+           <p className="px-2 pb-2 text-xs text-muted-foreground">
             提示：如果播放失败或卡顿，请尝试其他播放源或检查网络连接。部分视频源可能需要现代浏览器或特定播放器支持。
           </p>
         </div>
       )}
       
-      {currentPlayUrl && item?.playbackSources && item.playbackSources.length > 0 && (
-        <div className="flex justify-between items-center mb-6">
-          <Button onClick={playPrevious} disabled={!previousEpisode} variant="outline">
-            <SkipBack className="mr-2 h-4 w-4" /> 上一集
-          </Button>
-          <Button onClick={playNext} disabled={!nextEpisode} variant="outline">
-            下一集 <SkipForward className="ml-2 h-4 w-4" />
-          </Button>
-        </div>
-      )}
-
-
       <div className="grid md:grid-cols-3 gap-8">
         <div className="md:col-span-1">
           <Card className="overflow-hidden shadow-lg">
@@ -490,4 +494,3 @@ export default function ContentDetailPage(props: ContentDetailPageProps) {
     </Suspense>
   );
 }
-
