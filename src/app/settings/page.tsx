@@ -33,7 +33,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setIsClient(true);
-    setCurrentSubscriptionUrlInput(subscriptionUrl); // Sync input field with loaded storage value
+    setCurrentSubscriptionUrlInput(subscriptionUrl); 
   }, [subscriptionUrl]);
 
 
@@ -140,57 +140,65 @@ export default function SettingsPage() {
     }
 
     setIsLoadingSubscription(true);
+    let actualSubscriptionData: any;
+
     try {
       const proxyRequestUrl = `/api/proxy?url=${encodeURIComponent(currentSubscriptionUrlInput)}`;
       const response = await fetch(proxyRequestUrl);
       
-      // Try to parse the proxy's response as JSON. The proxy should always return JSON.
-      let data;
-      try {
-        data = await response.json();
-        console.log("Subscription: Data received from proxy on settings page:", JSON.stringify(data, null, 2));
-      } catch (e) {
-        // This means the proxy itself returned something that wasn't JSON (e.g., an HTML error page)
-        console.error("Subscription: Failed to parse JSON response from proxy. Status:", response.status, "Response Text:", await response.text().catch(() => "Could not get response text."));
-        throw new Error(`代理服务返回了无效的响应 (状态: ${response.status})。`);
-      }
+      const proxyResponseData = await response.json();
+      console.log("Subscription: Data received from proxy on settings page:", JSON.stringify(proxyResponseData, null, 2));
 
-      if (!response.ok) { // Check if proxy itself returned an error status (e.g., 4xx, 5xx)
-        const errorMessage = data.error || data.message || `获取订阅失败: ${response.statusText}`;
-        console.error("Subscription: Proxy returned an error status. Response data from proxy:", data);
-        throw new Error(errorMessage);
+      if (!response.ok) { 
+        // Error originated from the proxy itself or proxy couldn't reach target
+        console.error("Subscription: Proxy returned an error status. Response data from proxy:", proxyResponseData);
+        throw new Error(proxyResponseData.error || proxyResponseData.message || `代理服务错误: ${response.statusText}`);
       }
       
-      // At this point, response.ok was true, and `data` is the JSON parsed from the proxy's response.
-      // Now check if the `data` from proxy indicates an error *it* caught from upstream, or if it's nonJsonData
-      if (data.error) { 
-        console.error("Subscription: Proxy reported an error from upstream subscription URL:", data.error, "Details:", data.details);
-        throw new Error(data.error + (data.details ? `: ${data.details}` : ''));
+      if (proxyResponseData.error) { 
+        // Proxy is reporting an error it caught from upstream (e.g., upstream was 404 or 500)
+        // but the proxy itself responded with 200 OK.
+        console.error("Subscription: Proxy reported an error from upstream subscription URL:", proxyResponseData.error, "Details:", proxyResponseData.details);
+        throw new Error(proxyResponseData.error + (proxyResponseData.details ? `: ${proxyResponseData.details}` : ''));
       }
 
-      if (data.nonJsonData) { 
-        console.warn("Subscription: Proxy reported upstream subscription URL returned non-JSON text:", data.nonJsonData.substring(0,200));
-        throw new Error(`订阅链接返回的不是有效的JSON数据: ${data.nonJsonData.substring(0,100)}`);
+      if (typeof proxyResponseData.nonJsonData === 'string') { 
+        // Proxy indicated upstream was non-JSON, nonJsonData contains the raw string.
+        // Let's try to parse this string as JSON.
+        console.warn("Subscription: Proxy reported upstream subscription URL returned non-JSON text. Attempting to parse nonJsonData string:", proxyResponseData.nonJsonData.substring(0,200) + "...");
+        try {
+            actualSubscriptionData = JSON.parse(proxyResponseData.nonJsonData);
+            console.log("Subscription: Successfully parsed nonJsonData string.");
+        } catch (e) {
+            console.error("Subscription: Failed to parse nonJsonData string as JSON. Error:", e);
+            throw new Error(`订阅链接内容无法解析为JSON: ${proxyResponseData.nonJsonData.substring(0,100)}...`);
+        }
+      } else if (typeof proxyResponseData === 'object' && proxyResponseData !== null) {
+        // Proxy returned valid JSON, which should be the subscription data directly.
+        actualSubscriptionData = proxyResponseData;
+        console.log("Subscription: Proxy returned parsed JSON directly.");
+      } else {
+        console.error("Subscription: Unexpected response format from proxy:", proxyResponseData);
+        throw new Error("从代理服务收到了意外的响应格式。");
       }
       
-      // If we reach here, `data` should be the actual JSON from the subscription URL (passed through by the proxy)
+      // At this point, actualSubscriptionData should hold the parsed subscription content
       let rawItems: RawSubscriptionSourceItem[] | undefined;
-      console.log("Subscription: Attempting to extract 'sites' array from the data.");
+      console.log("Subscription: Attempting to extract 'sites' array from actualSubscriptionData:", actualSubscriptionData);
 
-      if (typeof data === 'object' && data !== null && data.sites !== undefined) {
-        if (Array.isArray(data.sites)) {
-            rawItems = data.sites as RawSubscriptionSourceItem[];
+      if (typeof actualSubscriptionData === 'object' && actualSubscriptionData !== null && actualSubscriptionData.sites !== undefined) {
+        if (Array.isArray(actualSubscriptionData.sites)) {
+            rawItems = actualSubscriptionData.sites as RawSubscriptionSourceItem[];
             console.log(`Subscription: Successfully extracted 'sites' array with ${rawItems.length} items.`);
         } else {
-            console.error("Subscription: 'data.sites' exists but is not an array. Value:", data.sites);
+            console.error("Subscription: 'actualSubscriptionData.sites' exists but is not an array. Value:", actualSubscriptionData.sites);
             throw new Error("订阅链接中的 'sites' 属性不是一个有效的列表。");
         }
-      } else if (Array.isArray(data)) {
-        // Fallback for simpler subscriptions where the root is the array of items
-        rawItems = data as RawSubscriptionSourceItem[];
-        console.log(`Subscription: Data itself is an array (fallback scenario) with ${rawItems.length} items.`);
+      } else if (Array.isArray(actualSubscriptionData)) {
+        rawItems = actualSubscriptionData as RawSubscriptionSourceItem[];
+        console.log(`Subscription: actualSubscriptionData itself is an array (fallback scenario) with ${rawItems.length} items.`);
       } else {
-        console.error("Subscription: Invalid data format from subscription link. Expected object with 'sites' array or a direct array. Received:", data);
+        console.error("Subscription: Invalid data format from subscription link. Expected object with 'sites' array or a direct array. Received:", actualSubscriptionData);
         throw new Error("订阅链接返回的数据格式无效。请检查订阅源的JSON结构。");
       }
       
@@ -211,12 +219,10 @@ export default function SettingsPage() {
         localStorage.setItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY, 'true'); 
         toast({ title: "成功", description: `从订阅链接加载了 ${newSubscribedSources.length} 个内容源。` });
       } else {
-        // If subscription yields no valid type:1 sources, clear existing manual/default sources
-        // and save the subscription URL. This allows an "empty" subscription to effectively reset.
         setSources([]); 
         setActiveSourceId(null);
         setSubscriptionUrl(currentSubscriptionUrlInput);
-        localStorage.removeItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY); // Allow default to re-add if sub is later removed
+        localStorage.removeItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY); 
         toast({ title: "提示", description: "订阅链接中未找到有效的内容源 (类型为1)。现有内容源已清空。", variant: "default" });
       }
 
