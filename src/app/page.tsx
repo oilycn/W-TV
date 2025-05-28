@@ -3,6 +3,7 @@
 
 import { useEffect, useState, useMemo, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import Link from 'next/link'; // Added import for Link
 import type { ContentItem, SourceConfig, ApiCategory, PaginatedContentResponse } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchApiCategories, fetchApiContentList, getMockApiCategories, getMockPaginatedResponse } from '@/lib/content-loader';
@@ -35,6 +36,8 @@ function HomePageContent() {
   const selectedCategoryId = useMemo(() => searchParamsHook.get('category') || 'all', [searchParamsHook]);
   const currentPageQuery = useMemo(() => parseInt(searchParamsHook.get('page') || '1', 10), [searchParamsHook]);
   const activeSourceTrigger = useMemo(() => searchParamsHook.get('activeSourceTrigger'), [searchParamsHook]);
+  const currentSearchTermQuery = useMemo(() => searchParamsHook.get('q') || '', [searchParamsHook]);
+  const searchTrigger = useMemo(() => searchParamsHook.get('searchTrigger'), [searchParamsHook]);
   
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -79,8 +82,8 @@ function HomePageContent() {
   }, [sources, activeSourceId]);
 
 
-  // Helper to update URL parameters
-  const updateURLParams = useCallback((newParams: Record<string, string | number | undefined | null>) => {
+  // Helper to update URL parameters for category and page changes
+  const updateURLParamsForNav = useCallback((newParams: Record<string, string | number | undefined | null>) => {
     const currentParams = new URLSearchParams(searchParamsHook.toString());
     let changed = false;
 
@@ -99,28 +102,51 @@ function HomePageContent() {
       }
     });
   
+    // Preserve activeSourceTrigger if it exists in current URL and not being explicitly changed
     if (searchParamsHook.has('activeSourceTrigger') && !Object.prototype.hasOwnProperty.call(newParams, 'activeSourceTrigger')) {
         if(!currentParams.has('activeSourceTrigger') && searchParamsHook.get('activeSourceTrigger')) {
              currentParams.set('activeSourceTrigger', searchParamsHook.get('activeSourceTrigger')!);
         }
     }
+    // Preserve search term and searchTrigger if they exist and not being explicitly changed (category change should clear search)
+    if (Object.prototype.hasOwnProperty.call(newParams, 'category') && currentParams.has('q')) {
+        currentParams.delete('q');
+        currentParams.delete('searchTrigger');
+        changed = true;
+    } else {
+        if (searchParamsHook.has('q') && !Object.prototype.hasOwnProperty.call(newParams, 'q')) {
+            if(!currentParams.has('q') && searchParamsHook.get('q')) {
+                currentParams.set('q', searchParamsHook.get('q')!);
+            }
+        }
+        if (searchParamsHook.has('searchTrigger') && !Object.prototype.hasOwnProperty.call(newParams, 'searchTrigger')) {
+             if(!currentParams.has('searchTrigger') && searchParamsHook.get('searchTrigger')) {
+                currentParams.set('searchTrigger', searchParamsHook.get('searchTrigger')!);
+            }
+        }
+    }
+
 
     const newQueryString = currentParams.toString();
-    if (changed || (pathname + (newQueryString ? `?${newQueryString}` : '')) !== (pathname + (searchParamsHook.toString() ? `?${searchParamsHook.toString()}` : ''))) {
-        console.log(`HomePageContent: updateURLParams pushing to: ${pathname}?${newQueryString}`);
-        router.push(`${pathname}?${newQueryString}`, { scroll: false });
+    const currentFullPath = pathname + (searchParamsHook.toString() ? `?${searchParamsHook.toString()}` : '');
+    const newFullPath = pathname + (newQueryString ? `?${newQueryString}` : '');
+
+    if (changed || currentFullPath !== newFullPath) {
+        console.log(`HomePageContent: updateURLParamsForNav pushing to: ${newFullPath}`);
+        router.push(newFullPath, { scroll: false });
     }
   }, [router, searchParamsHook, pathname]);
 
 
-  // Effect for fetching/setting categories
+  // Effect for fetching categories
   useEffect(() => {
+    console.log(`HomePageContent: (Effect: Categories) activeSourceUrl: ${activeSourceUrl}, sources.length: ${sources.length}`);
     if (activeSourceUrl) {
       console.log(`HomePageContent: (Effect: Categories) Valid activeSourceUrl: ${activeSourceUrl}. Fetching.`);
       setIsLoadingCategories(true);
       fetchApiCategories(activeSourceUrl)
         .then(fetchedCategories => {
-          setGlobalCategories(fetchedCategories);
+          setGlobalCategories(fetchedCategories); // This now compares internally if update is needed
           console.log(`HomePageContent: (Effect: Categories) Categories set for ${activeSourceUrl}:`, fetchedCategories.length);
         })
         .catch(e => {
@@ -138,8 +164,9 @@ function HomePageContent() {
         setGlobalCategories(getMockApiCategories());
         setIsLoadingCategories(false);
       } else {
-        console.log("HomePageContent: (Effect: Categories) activeSourceUrl is null, but sources exist. Setting isLoadingCategories=true.");
+        console.log("HomePageContent: (Effect: Categories) activeSourceUrl is null, but sources exist. Setting isLoadingCategories=true, won't fetch until URL is valid.");
         setIsLoadingCategories(true); 
+        // Don't clear global categories here, wait for a valid activeSourceUrl
       }
     }
   }, [activeSourceUrl, setGlobalCategories, sources.length]);
@@ -148,14 +175,14 @@ function HomePageContent() {
   // Effect for fetching content list
   useEffect(() => {
     if (activeSourceUrl) {
-      console.log(`HomePageContent: (Effect: Content) Fetching for source: ${activeSourceUrl}, category: ${selectedCategoryId}, page: ${currentPageQuery}`);
+      console.log(`HomePageContent: (Effect: Content) Fetching for source: ${activeSourceUrl}, category: ${selectedCategoryId}, page: ${currentPageQuery}, search: "${currentSearchTermQuery}" (searchTrigger: ${searchTrigger})`);
       setIsLoadingContent(true);
       setContentItems([]); 
 
       fetchApiContentList(activeSourceUrl, {
         page: currentPageQuery,
         categoryId: selectedCategoryId === 'all' ? undefined : selectedCategoryId,
-        // searchTerm: undefined, // Search term is handled on /search page
+        searchTerm: currentSearchTermQuery || undefined,
       })
         .then(response => {
           setContentItems(response.items);
@@ -166,7 +193,7 @@ function HomePageContent() {
         .catch(e => {
           console.error(`HomePageContent: (Effect: Content) Failed to load content from ${activeSourceUrl}:`, e);
           setError(prev => (prev ? `${prev} & 无法加载内容列表。` : "无法加载内容列表。"));
-          const mockResponse = getMockPaginatedResponse(currentPageQuery, selectedCategoryId);
+          const mockResponse = getMockPaginatedResponse(currentPageQuery, selectedCategoryId, currentSearchTermQuery);
           setContentItems(mockResponse.items);
           setTotalPages(mockResponse.pageCount || 1);
           setTotalItems(mockResponse.total);
@@ -177,25 +204,36 @@ function HomePageContent() {
     } else if (sources.length === 0) { 
       console.log("HomePageContent: (Effect: Content) No sources, using mock content.");
       setIsLoadingContent(true);
-      const mockResponse = getMockPaginatedResponse(currentPageQuery, selectedCategoryId);
+      const mockResponse = getMockPaginatedResponse(currentPageQuery, selectedCategoryId, currentSearchTermQuery);
       setContentItems(mockResponse.items);
       setTotalPages(mockResponse.pageCount || 1);
       setTotalItems(mockResponse.total);
       setIsLoadingContent(false);
     } else {
         console.log("HomePageContent: (Effect: Content) activeSourceUrl is null, but sources exist. Setting isLoadingContent=true.");
-        setIsLoadingContent(true);
+        setIsLoadingContent(true); // Waiting for a valid source
     }
-  }, [activeSourceUrl, currentPageQuery, selectedCategoryId, sources.length]);
+  }, [activeSourceUrl, currentPageQuery, selectedCategoryId, currentSearchTermQuery, searchTrigger, sources.length]);
 
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
-      updateURLParams({ 
+      updateURLParamsForNav({ 
         page: newPage, 
-        category: selectedCategoryId === 'all' ? null : selectedCategoryId, 
+        category: selectedCategoryId === 'all' ? null : selectedCategoryId,
+        q: currentSearchTermQuery || null, 
+        // searchTrigger will be preserved by updateURLParamsForNav if q is present
       });
     }
+  };
+
+  const handleCategoryChange = (newCategoryId: string) => {
+    updateURLParamsForNav({ 
+        category: newCategoryId === 'all' ? null : newCategoryId, 
+        page: 1, // Reset page
+        q: null, // Clear search term
+        searchTrigger: null // Clear search trigger
+    });
   };
 
   if (sources.length === 0 && !activeSourceUrl && !isLoadingCategories && !isLoadingContent ) {
@@ -225,13 +263,8 @@ function HomePageContent() {
       )}
 
       {isLoadingCategories && (
-        <div className="space-y-2 p-3 border rounded-md shadow-sm mb-6 bg-card">
-            <div className="flex space-x-2">
-                <Skeleton className="h-9 w-20" />
-                <Skeleton className="h-9 w-24" />
-                <Skeleton className="h-9 w-16" />
-                <Skeleton className="h-9 w-28" />
-            </div>
+        <div className="bg-card p-3 rounded-md shadow-sm mb-6">
+          <Skeleton className="h-9 w-full" />
         </div>
       )}
       {(!isLoadingCategories && globalCategories.length > 0) && (
@@ -241,7 +274,7 @@ function HomePageContent() {
               <Button
                 key={`${activeSourceUrl || 'mock'}-${category.id}`}
                 variant={selectedCategoryId === category.id ? "default" : "outline"}
-                onClick={() => updateURLParams({ category: category.id, page: 1 })}
+                onClick={() => handleCategoryChange(category.id)}
                 className="whitespace-nowrap text-sm h-9 px-4"
                 size="sm"
               >
@@ -254,9 +287,12 @@ function HomePageContent() {
       )}
       
 
-      {(isLoadingContent || contentItems.length > 0 || totalItems > 0 || currentPageQuery > 1 ) && (
+      {(isLoadingContent || contentItems.length > 0 || totalItems > 0 || currentPageQuery > 1 || currentSearchTermQuery ) && (
           <div className="flex items-center justify-between text-sm text-muted-foreground pt-2 p-4 bg-card rounded-lg shadow">
-            <span>总共 {totalItems} 条结果</span>
+            <span>
+                {currentSearchTermQuery ? `搜索 "${currentSearchTermQuery}" ` : ''}
+                总共 {totalItems} 条结果
+            </span>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPageQuery - 1)} disabled={currentPageQuery <= 1 || isLoadingContent}>
                 <ChevronLeft className="h-4 w-4" />
@@ -292,7 +328,7 @@ function HomePageContent() {
             <div className="text-center py-12 flex flex-col items-center justify-center min-h-[300px]">
                 <SearchIconTv className="w-16 h-16 mb-4 text-muted-foreground" />
                 <p className="text-xl text-muted-foreground">
-                  此分类下暂无内容。
+                  {currentSearchTermQuery ? `未找到与 "${currentSearchTermQuery}" 相关的内容。` : "此分类下暂无内容。"}
                 </p>
                 { !activeSourceUrl && sources.length > 0 && ( 
                     <p className="mt-2 text-sm text-muted-foreground">内容源可能正在加载或选择中，请稍候。</p>
@@ -315,13 +351,8 @@ export default function HomePage() {
 function HomePageSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="space-y-2 p-3 border rounded-md shadow-sm mb-6 bg-card">
-          <div className="flex space-x-2">
-              <Skeleton className="h-9 w-20" />
-              <Skeleton className="h-9 w-24" />
-              <Skeleton className="h-9 w-16" />
-              <Skeleton className="h-9 w-28" />
-          </div>
+      <div className="bg-card p-3 rounded-md shadow-sm mb-6">
+        <Skeleton className="h-9 w-full" />
       </div>
       <div className="space-y-4 p-4 bg-card rounded-lg shadow">
         <div className="flex items-center justify-between pt-2">
