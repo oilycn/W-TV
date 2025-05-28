@@ -44,7 +44,6 @@ export default function SettingsPage() {
 
     const hasBeenProcessed = localStorage.getItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY);
 
-    // Only add default if no sources, no flag, and no subscription URL that might provide sources
     if (sources.length === 0 && !hasBeenProcessed && !subscriptionUrl) {
       const defaultSource: SourceConfig = {
         id: `default-heimuer-${Date.now().toString()}`, 
@@ -144,40 +143,51 @@ export default function SettingsPage() {
     try {
       const proxyRequestUrl = `/api/proxy?url=${encodeURIComponent(currentSubscriptionUrlInput)}`;
       const response = await fetch(proxyRequestUrl);
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: `HTTP error ${response.status}` }));
-        throw new Error(errorData.error || `获取订阅失败: ${response.statusText}`);
-      }
-      const data = await response.json();
+      
+      const data = await response.json(); // Always try to parse proxy response as JSON
 
-      if (data.nonJsonData) {
+      if (!response.ok) { // Check if proxy itself returned an error status
+        const errorMessage = data.error || data.message || `获取订阅失败: ${response.statusText}`;
+        console.error("Subscription: Proxy returned an error:", data);
+        throw new Error(errorMessage);
+      }
+      
+      // At this point, response.ok was true.
+      // Now check if the `data` from proxy indicates an error *it* caught from upstream, or if it's nonJsonData
+      if (data.error) { // Proxy reported an error from upstream (e.g., upstream JSON parse error)
+        console.error("Subscription: Proxy reported upstream error:", data.error, "Details:", data.details);
+        throw new Error(data.error + (data.details ? `: ${data.details}` : ''));
+      }
+
+      if (data.nonJsonData) { // Proxy indicates upstream was non-JSON text
+        console.warn("Subscription: Proxy reported upstream as non-JSON text:", data.nonJsonData.substring(0,100));
         throw new Error(`订阅链接返回的不是有效的JSON数据: ${data.nonJsonData.substring(0,100)}`);
       }
       
+      // If we reach here, `data` should be the actual JSON from the subscription URL
       let rawItems: RawSubscriptionSourceItem[] | undefined;
 
-      if (data && typeof data === 'object' && data !== null && Array.isArray(data.sites)) {
-        // Handle { "sites": [...] } structure
+      if (typeof data === 'object' && data !== null && Array.isArray(data.sites)) {
         rawItems = data.sites as RawSubscriptionSourceItem[];
-        console.log("Subscription: Parsed 'sites' array from subscription object.");
+        console.log("Subscription: Parsed 'sites' array from subscription object:", rawItems.length);
       } else if (Array.isArray(data)) {
-        // Handle direct array structure (for simpler subscriptions)
         rawItems = data as RawSubscriptionSourceItem[];
-        console.log("Subscription: Parsed direct array from subscription.");
+        console.log("Subscription: Parsed direct array from subscription:", rawItems.length);
       } else {
-        console.error("Subscription: Invalid data format from subscription link.", data);
+        console.error("Subscription: Invalid data format from subscription link. Data received:", data);
         throw new Error("订阅链接返回的数据格式无效。既不是预期的数组，其 'sites' 属性也不是数组。");
       }
       
-      if (!rawItems) {
-         console.error("Subscription: Could not extract rawItems from subscription data.");
-         throw new Error("无法从订阅链接中解析出内容源列表。");
+      if (!rawItems || rawItems.length === 0) {
+         console.warn("Subscription: No raw items could be extracted or rawItems array is empty.");
+         // Do not throw an error here if rawItems is empty but parsing was structurally "successful"
+         // This allows an empty but valid subscription to clear sources.
       }
 
-      const newSubscribedSources: SourceConfig[] = rawItems
+      const newSubscribedSources: SourceConfig[] = (rawItems || [])
         .filter(item => item && typeof item === 'object' && item.type === 1 && item.api && (item.name || item.key))
         .map(item => ({
-          id: `sub-${item.api}-${item.name || item.key}-${Math.random().toString(36).substring(2, 9)}`, // Ensure more unique ID
+          id: `sub-${item.api}-${item.name || item.key}-${Math.random().toString(36).substring(2, 9)}`,
           name: (item.name || item.key)!,
           url: item.api!,
         }));
@@ -185,13 +195,17 @@ export default function SettingsPage() {
       if (newSubscribedSources.length > 0) {
         setSources(newSubscribedSources);
         setActiveSourceId(newSubscribedSources[0]?.id || null);
-        setSubscriptionUrl(currentSubscriptionUrlInput); // Save the valid subscription URL
-        localStorage.setItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY, 'true'); // Mark as processed if sub provides sources
+        setSubscriptionUrl(currentSubscriptionUrlInput); 
+        localStorage.setItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY, 'true'); 
         toast({ title: "成功", description: `从订阅链接加载了 ${newSubscribedSources.length} 个内容源。` });
       } else {
-        // Keep existing sources if subscription is empty or invalid, but still save the URL if user intended.
-        setSubscriptionUrl(currentSubscriptionUrlInput); 
-        toast({ title: "提示", description: "订阅链接中未找到有效的内容源 (类型为1，且包含api和name/key)。现有内容源未更改。", variant: "default" });
+        // If subscription yields no valid type:1 sources, clear existing manual/default sources
+        // and save the subscription URL. This allows an "empty" subscription to effectively reset.
+        setSources([]); 
+        setActiveSourceId(null);
+        setSubscriptionUrl(currentSubscriptionUrlInput);
+        localStorage.removeItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY); // Allow default to re-add if sub is later removed
+        toast({ title: "提示", description: "订阅链接中未找到有效的内容源 (类型为1)。现有内容源已清空。", variant: "default" });
       }
     } catch (error) {
       console.error("Error loading subscription:", error);
@@ -316,4 +330,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
