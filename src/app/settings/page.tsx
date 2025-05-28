@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, PlusCircle, DownloadCloud } from 'lucide-react';
+import { Trash2, PlusCircle, DownloadCloud, XCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
@@ -145,20 +145,16 @@ export default function SettingsPage() {
       const proxyRequestUrl = `/api/proxy?url=${encodeURIComponent(currentSubscriptionUrlInput)}`;
       const response = await fetch(proxyRequestUrl);
       
-      // This will contain the PROXY's response. It might be the actual data, or an error object from the proxy.
       const proxyResponseData = await response.json();
       console.log("Subscription: Data received from proxy on settings page:", JSON.stringify(proxyResponseData, null, 2).substring(0, 500) + "...");
 
       if (!response.ok) { 
-        // The proxy itself returned an error (e.g., 500, 400 from the proxy route)
         const errorMsg = proxyResponseData.error || proxyResponseData.message || `代理服务错误: ${response.statusText}`;
         console.error("Subscription: Proxy returned an error status. Error:", errorMsg, "Details:", proxyResponseData.details);
         throw new Error(errorMsg);
       }
       
       if (proxyResponseData.error && !proxyResponseData.nonJsonData) { 
-        // Proxy is reporting an error it caught from upstream (e.g., upstream was 404 or 500)
-        // AND it's not the case where upstream was non-JSON (that's handled next)
         console.error("Subscription: Proxy reported an error from upstream subscription URL:", proxyResponseData.error, "Details:", proxyResponseData.details);
         throw new Error(proxyResponseData.error + (proxyResponseData.details ? `: ${proxyResponseData.details}` : ''));
       }
@@ -169,7 +165,7 @@ export default function SettingsPage() {
         const fullContentString = proxyResponseData.nonJsonData;
         console.warn("Subscription: Proxy returned raw string. Attempting to extract and parse 'sites' array string or individual objects from this content:", fullContentString.substring(0, 300) + "...");
         
-        const sitesRegex = /"sites"\s*:\s*(\[(?:.|\n|\r)*?\])/s; // Added 's' flag for dotall
+        const sitesRegex = /"sites"\s*:\s*(\[(?:.|\n|\r)*?\])/s;
         const match = fullContentString.match(sitesRegex);
 
         if (match && match[1]) {
@@ -231,7 +227,6 @@ export default function SettingsPage() {
           throw new Error("无法在订阅内容中定位 'sites' 数组。请检查订阅源格式。");
         }
       } else if (typeof proxyResponseData === 'object' && proxyResponseData !== null) {
-        // Proxy returned valid, pre-parsed JSON.
         console.log("Subscription: Proxy returned pre-parsed JSON or successfully parsed upstream. Looking for 'sites' array.");
         if (proxyResponseData.sites && Array.isArray(proxyResponseData.sites)) {
           rawItems = proxyResponseData.sites as RawSubscriptionSourceItem[];
@@ -272,7 +267,8 @@ export default function SettingsPage() {
       } else {
         setSources([]); 
         setActiveSourceId(null);
-        setSubscriptionUrl(currentSubscriptionUrlInput);
+        // Keep subscriptionUrl if user entered one, even if it yields no sources
+        // setSubscriptionUrl(currentSubscriptionUrlInput); 
         localStorage.removeItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY); 
         toast({ title: "提示", description: "订阅链接中未找到有效的内容源 (类型为1)。现有内容源已清空。", variant: "default" });
       }
@@ -283,6 +279,20 @@ export default function SettingsPage() {
     } finally {
       setIsLoadingSubscription(false);
     }
+  };
+
+  const handleRemoveSubscription = () => {
+    setSubscriptionUrl('');
+    setCurrentSubscriptionUrlInput('');
+    setSources([]);
+    setActiveSourceId(null);
+    if (isClient) {
+      localStorage.removeItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY);
+    }
+    toast({
+      title: "订阅已移除",
+      description: "订阅链接和所有相关内容源已清除。",
+    });
   };
 
 
@@ -347,7 +357,7 @@ export default function SettingsPage() {
             />
           </div>
         </CardContent>
-        <CardFooter>
+        <CardFooter className="flex justify-between">
           <Button 
             onClick={handleLoadSubscription} 
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
@@ -356,6 +366,16 @@ export default function SettingsPage() {
             <DownloadCloud className="mr-2 h-4 w-4" /> 
             {isLoadingSubscription ? "加载中..." : "加载订阅"}
           </Button>
+          {subscriptionUrl && (
+            <Button
+              variant="destructive"
+              onClick={handleRemoveSubscription}
+              disabled={isLoadingSubscription}
+            >
+              <XCircle className="mr-2 h-4 w-4" />
+              移除订阅
+            </Button>
+          )}
         </CardFooter>
       </Card>
 
