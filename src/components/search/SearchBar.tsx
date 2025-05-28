@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search } from 'lucide-react';
@@ -10,34 +10,25 @@ import { Search } from 'lucide-react';
 export function SearchBar() {
   const router = useRouter();
   const currentSearchParams = useSearchParams();
-  const [query, setQuery] = useState(''); // Initialize with empty string
+  const [query, setQuery] = useState('');
 
-  // Update query state if URL changes externally
+  // Update query state if URL 'q' parameter changes (e.g., on /search page)
   useEffect(() => {
     setQuery(decodeURIComponent(currentSearchParams.get('q') || ''));
   }, [currentSearchParams]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('SearchBar: handleSearch triggered. Current query state:', query);
     const trimmedQuery = query.trim();
     
-    // Start with current params to preserve things like activeSourceTrigger
-    const params = new URLSearchParams(currentSearchParams.toString()); 
-
     if (trimmedQuery) {
-      params.set('q', trimmedQuery); // URLSearchParams handles encoding
+      // Navigate to the dedicated search page with the query
+      router.push(`/search?q=${encodeURIComponent(trimmedQuery)}`, { scroll: false });
     } else {
-      params.delete('q');
+      // If query is empty, navigate to search page without query, or handle as desired
+      // For now, navigating to /search which might show a prompt to enter a search term
+      router.push(`/search`, { scroll: false });
     }
-    params.set('page', '1'); // Always reset to page 1 for a new search
-    params.set('searchTrigger', Date.now().toString()); // Add a trigger to ensure effect runs
-
-    const targetPath = '/'; // Always search on the homepage
-    const newSearchString = params.toString();
-    
-    console.log('SearchBar: Pushing to path:', targetPath, 'Search string:', newSearchString);
-    router.push(`${targetPath}?${newSearchString}`, { scroll: false });
   };
 
   return (
