@@ -145,63 +145,98 @@ export default function SettingsPage() {
       const proxyRequestUrl = `/api/proxy?url=${encodeURIComponent(currentSubscriptionUrlInput)}`;
       const response = await fetch(proxyRequestUrl);
       
+      // This will contain the PROXY's response. It might be the actual data, or an error object from the proxy.
       const proxyResponseData = await response.json();
       console.log("Subscription: Data received from proxy on settings page:", JSON.stringify(proxyResponseData, null, 2).substring(0, 500) + "...");
 
-
       if (!response.ok) { 
+        // The proxy itself returned an error (e.g., 500, 400 from the proxy route)
         const errorMsg = proxyResponseData.error || proxyResponseData.message || `代理服务错误: ${response.statusText}`;
         console.error("Subscription: Proxy returned an error status. Error:", errorMsg, "Details:", proxyResponseData.details);
         throw new Error(errorMsg);
       }
       
       if (proxyResponseData.error && !proxyResponseData.nonJsonData) { 
-        // Proxy is reporting an error it caught from upstream (e.g., upstream was 404 or 500, or proxy itself had an issue)
+        // Proxy is reporting an error it caught from upstream (e.g., upstream was 404 or 500)
         // AND it's not the case where upstream was non-JSON (that's handled next)
-        console.error("Subscription: Proxy reported an error from upstream subscription URL or proxy internal error:", proxyResponseData.error, "Details:", proxyResponseData.details);
+        console.error("Subscription: Proxy reported an error from upstream subscription URL:", proxyResponseData.error, "Details:", proxyResponseData.details);
         throw new Error(proxyResponseData.error + (proxyResponseData.details ? `: ${proxyResponseData.details}` : ''));
       }
       
-      let rawItems: RawSubscriptionSourceItem[] | undefined;
+      let rawItems: RawSubscriptionSourceItem[] = [];
 
       if (typeof proxyResponseData.nonJsonData === 'string') {
-        // Proxy indicated upstream returned non-JSON; nonJsonData contains the raw string from upstream.
-        // Attempt to extract "sites" array string from this raw content.
         const fullContentString = proxyResponseData.nonJsonData;
-        console.warn("Subscription: Proxy returned raw string. Attempting to extract 'sites' array string from this content:", fullContentString.substring(0, 300) + "...");
+        console.warn("Subscription: Proxy returned raw string. Attempting to extract and parse 'sites' array string or individual objects from this content:", fullContentString.substring(0, 300) + "...");
         
-        const sitesRegex = /"sites"\s*:\s*(\[(?:.|\n|\r)*?\])/; 
+        const sitesRegex = /"sites"\s*:\s*(\[(?:.|\n|\r)*?\])/s; // Added 's' flag for dotall
         const match = fullContentString.match(sitesRegex);
 
         if (match && match[1]) {
           const sitesArrayString = match[1];
           console.log("Subscription: Extracted 'sites' array string candidate:", sitesArrayString.substring(0, 300) + "...");
           try {
-            const parsedSites = JSON.parse(sitesArrayString);
-            if (Array.isArray(parsedSites)) {
-              rawItems = parsedSites as RawSubscriptionSourceItem[];
-              console.log(`Subscription: Successfully parsed extracted 'sites' array. Found ${rawItems.length} items.`);
+            rawItems = JSON.parse(sitesArrayString);
+            console.log(`Subscription: Successfully parsed extracted 'sites' array string directly. Found ${rawItems.length} items.`);
+          } catch (mainParseError) {
+            console.warn("Subscription: Failed to parse the extracted 'sites' array string directly. Error:", (mainParseError as Error).message, "Attempting to parse individual objects within it...");
+            
+            const contentInsideBracketsMatch = sitesArrayString.match(/^\s*\[(.*)\]\s*$/s);
+            if (contentInsideBracketsMatch && contentInsideBracketsMatch[1]) {
+                const contentInsideBrackets = contentInsideBracketsMatch[1];
+                const objectCandidateStrings = [];
+                let balance = 0;
+                let currentObjectStartIndex = -1;
+
+                for (let i = 0; i < contentInsideBrackets.length; i++) {
+                    if (contentInsideBrackets[i] === '{') {
+                        if (balance === 0) {
+                            currentObjectStartIndex = i;
+                        }
+                        balance++;
+                    } else if (contentInsideBrackets[i] === '}') {
+                        balance--;
+                        if (balance === 0 && currentObjectStartIndex !== -1) {
+                            objectCandidateStrings.push(contentInsideBrackets.substring(currentObjectStartIndex, i + 1));
+                            currentObjectStartIndex = -1;
+                        }
+                    }
+                }
+                
+                console.log(`Subscription: Found ${objectCandidateStrings.length} potential object strings within sites array.`);
+                const parsedIndividualItems: RawSubscriptionSourceItem[] = [];
+                for (const objStr of objectCandidateStrings) {
+                    try {
+                        const item = JSON.parse(objStr) as RawSubscriptionSourceItem;
+                        parsedIndividualItems.push(item);
+                    } catch (individualParseError) {
+                        console.warn(`Subscription: Failed to parse individual object: "${objStr.substring(0, 100)}...". Error:`, (individualParseError as Error).message);
+                    }
+                }
+
+                if (parsedIndividualItems.length > 0) {
+                    rawItems = parsedIndividualItems;
+                    console.log(`Subscription: Successfully parsed ${rawItems.length} individual objects after main 'sites' array parse failed.`);
+                } else {
+                    console.error("Subscription: Failed to parse the 'sites' array string and also failed to parse any individual objects within it.");
+                    throw new Error(`无法解析提取的 'sites' 数组，也无法解析其内部对象: ${(mainParseError as Error).message}.`);
+                }
             } else {
-              console.error("Subscription: Extracted 'sites' string parsed, but it's not an array. Value:", parsedSites);
-              throw new Error("从订阅链接的 'sites' 提取的数据不是有效的列表。");
+                console.error("Subscription: Extracted 'sites' string was not in a valid array [...] format for fallback parsing.");
+                throw new Error(`提取的 'sites' 内容不是有效的数组格式，无法进行回退解析: ${(mainParseError as Error).message}.`);
             }
-          } catch (e) {
-            const error = e as Error;
-            console.error("Subscription: Failed to parse the extracted 'sites' array string. Error:", error.message, "Extracted string snippet:", sitesArrayString.substring(0,200));
-            throw new Error(`无法解析提取的 'sites' 数组: ${error.message}.`);
           }
         } else {
           console.error("Subscription: Could not find 'sites' array string in the raw content using regex. The content might be malformed or not contain a 'sites' key with an array.");
           throw new Error("无法在订阅内容中定位 'sites' 数组。请检查订阅源格式。");
         }
       } else if (typeof proxyResponseData === 'object' && proxyResponseData !== null) {
-        // Proxy returned valid, pre-parsed JSON (or it successfully parsed the upstream).
+        // Proxy returned valid, pre-parsed JSON.
         console.log("Subscription: Proxy returned pre-parsed JSON or successfully parsed upstream. Looking for 'sites' array.");
         if (proxyResponseData.sites && Array.isArray(proxyResponseData.sites)) {
           rawItems = proxyResponseData.sites as RawSubscriptionSourceItem[];
           console.log(`Subscription: Successfully extracted 'sites' array from pre-parsed JSON. Found ${rawItems.length} items.`);
         } else if (Array.isArray(proxyResponseData)) { 
-          // Fallback if the root of the pre-parsed JSON is an array of sources (common in simpler configs)
           rawItems = proxyResponseData as RawSubscriptionSourceItem[];
           console.log(`Subscription: Pre-parsed JSON is an array itself. Found ${rawItems.length} items.`);
         } else {
@@ -213,8 +248,8 @@ export default function SettingsPage() {
         throw new Error("从代理服务收到了意外的响应格式。");
       }
       
-      if (!rawItems) { 
-         console.error("Subscription: 'rawItems' is undefined after all parsing attempts. This implies an unexpected state or failed extraction.");
+      if (!rawItems || !Array.isArray(rawItems)) { 
+         console.error("Subscription: 'rawItems' is undefined or not an array after all parsing attempts. This implies an unexpected state or failed extraction.");
          throw new Error("无法从订阅数据中提取有效的源列表。");
       }
       
@@ -235,10 +270,8 @@ export default function SettingsPage() {
         localStorage.setItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY, 'true'); 
         toast({ title: "成功", description: `从订阅链接加载了 ${newSubscribedSources.length} 个内容源。` });
       } else {
-        // If subscription yields no valid type:1 sources, clear existing ones.
         setSources([]); 
         setActiveSourceId(null);
-        // Still save the subscription URL as it was successfully fetched, even if empty of usable sources.
         setSubscriptionUrl(currentSubscriptionUrlInput);
         localStorage.removeItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY); 
         toast({ title: "提示", description: "订阅链接中未找到有效的内容源 (类型为1)。现有内容源已清空。", variant: "default" });
