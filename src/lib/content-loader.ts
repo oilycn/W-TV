@@ -13,8 +13,8 @@ const mockContentItems: ContentItem[] = [
     id: 'mock-1',
     title: '科幻巨制：星际漫游 (模拟)',
     description: '一部探索宇宙深处奥秘的史诗级科幻电影。人类面临存亡危机，勇敢的宇航员踏上未知的旅程。',
-    posterUrl: 'https://placehold.co/400x600.png?text=星际漫游',
-    backdropUrl: 'https://placehold.co/1280x720.png?text=星际漫游背景',
+    posterUrl: 'https://placehold.co/400x600.png',
+    backdropUrl: 'https://placehold.co/1280x720.png',
     cast: ['张三', '李四', '王五'],
     director: ['赵六'],
     userRating: 8.5,
@@ -43,8 +43,8 @@ const mockContentItems: ContentItem[] = [
     id: 'mock-2',
     title: '都市悬疑剧：谜案追踪 (模拟)',
     description: '资深侦探揭开层层迷雾，追踪城市中离奇案件的真凶。每集一个新案件，剧情扣人心弦。',
-    posterUrl: 'https://placehold.co/400x600.png?text=谜案追踪',
-    backdropUrl: 'https://placehold.co/1280x720.png?text=谜案追踪背景',
+    posterUrl: 'https://placehold.co/400x600.png',
+    backdropUrl: 'https://placehold.co/1280x720.png',
     cast: ['刘能', '赵四', '谢广坤'],
     userRating: 9.0,
     genres: ['悬疑', '剧情', '犯罪'],
@@ -65,7 +65,7 @@ const mockContentItems: ContentItem[] = [
 
 function mapApiItemToContentItem(apiItem: any): ContentItem | null {
   if (!apiItem || !apiItem.vod_id || !apiItem.vod_name) {
-    console.warn('Skipping item due to missing essential fields (vod_id, vod_name):', apiItem);
+    console.warn('Skipping item due to missing essential fields (vod_id, vod_name):', JSON.stringify(apiItem).substring(0,200));
     return null;
   }
 
@@ -92,21 +92,22 @@ function mapApiItemToContentItem(apiItem: any): ContentItem | null {
                     url = parts[1]?.trim();
                 } else if (parts.length === 1) {
                     const singlePart = parts[0]?.trim();
-                    if (singlePart && (singlePart.startsWith('http://') || singlePart.startsWith('https://') || singlePart.includes('.m3u8') || singlePart.includes('.mp4'))) {
+                    if (singlePart && (singlePart.startsWith('http://') || singlePart.startsWith('https://') || singlePart.includes('.m3u8') || singlePart.includes('.mp4') || singlePart.includes('.mpd'))) {
                         url = singlePart;
-                        // Fallback name if only URL is present
                     }
                 }
-                 // Ensure a name if URL is valid but name wasn't parsed
-                if (url && !name) {
+                
+                if (url && !name) { // Ensure a name if URL is valid but name wasn't parsed
                     name = `播放 ${urlIdx + 1}`;
                 }
 
-
-                if (name && url && (url.startsWith('http://') || url.startsWith('https://') || url.includes('.m3u8') || url.includes('.mp4'))) {
+                if (name && url && (url.startsWith('http://') || url.startsWith('https://') || url.includes('.m3u8') || url.includes('.mp4') || url.includes('.mpd'))) {
                     parsedUrls.push({ name, url });
-                } else if (url && (url.startsWith('http://') || url.startsWith('https://') || url.includes('.m3u8') || url.includes('.mp4'))){
+                } else if (url && (url.startsWith('http://') || url.startsWith('https://') || url.includes('.m3u8') || url.includes('.mp4') || url.includes('.mpd'))){
+                    // Fallback for URLs without explicit names
                     parsedUrls.push({ name: `播放 ${urlIdx + 1}`, url });
+                } else {
+                    // console.warn(`Skipping invalid episode string part: "${episodeStr}" in group "${sourceName}" for item "${apiItem.vod_name}"`);
                 }
             });
         }
@@ -133,18 +134,17 @@ function mapApiItemToContentItem(apiItem: any): ContentItem | null {
 
   const genres = apiItem.vod_class ? String(apiItem.vod_class).split(/[,，、\s]+/).filter(Boolean) : (apiItem.type_name ? String(apiItem.type_name).split(/[,，、\s]+/).filter(Boolean) : []);
 
-
   return {
     id: String(apiItem.vod_id),
     title: apiItem.vod_name || "未知标题",
     description: apiItem.vod_blurb || apiItem.vod_content || '暂无简介',
-    posterUrl: apiItem.vod_pic || `https://placehold.co/400x600.png?text=${encodeURIComponent(apiItem.vod_name || 'Poster')}`,
-    backdropUrl: apiItem.vod_pic_slide || apiItem.vod_pic || `https://placehold.co/1280x720.png?text=${encodeURIComponent(apiItem.vod_name || 'Backdrop')} backdrop`,
+    posterUrl: apiItem.vod_pic || `https://placehold.co/400x600.png`,
+    backdropUrl: apiItem.vod_pic_slide || apiItem.vod_pic || `https://placehold.co/1280x720.png`,
     cast: apiItem.vod_actor ? String(apiItem.vod_actor).split(/[,，、\s]+/).filter(Boolean) : [],
     director: apiItem.vod_director ? String(apiItem.vod_director).split(/[,，、\s]+/).filter(Boolean) : [],
     userRating: parseFloat(apiItem.vod_douban_score) || parseFloat(apiItem.vod_score) || undefined,
     genres: genres,
-    releaseYear: parseInt(apiItem.vod_year) || undefined,
+    releaseYear: parseInt(String(apiItem.vod_year)) || undefined,
     runtime: apiItem.vod_duration || apiItem.vod_remarks || undefined,
     type: type,
     availableQualities: apiItem.vod_quality ? String(apiItem.vod_quality).split(',') : (apiItem.vod_remarks && String(apiItem.vod_remarks).match(/[0-9]+[pP]/g) ? String(apiItem.vod_remarks).match(/[0-9]+[pP]/g) : undefined),
@@ -154,49 +154,60 @@ function mapApiItemToContentItem(apiItem: any): ContentItem | null {
 
 async function fetchViaProxy(targetUrl: string, sourceName?: string): Promise<any> {
   const proxyRequestUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
-  console.log(`fetchViaProxy: Requesting ${proxyRequestUrl} (for ${sourceName || targetUrl})`);
+  console.log(`fetchViaProxy: Requesting ${proxyRequestUrl} (for ${sourceName || 'target resource'})`);
   
   try {
     const response = await fetch(proxyRequestUrl);
 
     if (!response.ok) {
       let errorDetails = `Status: ${response.status}`;
+      let errorTextFromServer = '';
       try {
-        const errorData = await response.json();
+        const errorData = await response.json(); // Proxy should return JSON error
         errorDetails = errorData.error || errorData.message || errorDetails;
-        if (errorData.details) errorDetails += ` Details: ${errorData.details}`;
-      } catch (e) { /* ignore if error response is not JSON */ }
+        if (errorData.details) {
+            errorTextFromServer = String(errorData.details); // Store details text
+            errorDetails += ` Details: ${errorTextFromServer.substring(0,100)}...`;
+        }
+      } catch (e) { 
+         // If proxy error response isn't JSON, try to get text
+        try {
+            errorTextFromServer = await response.text();
+            errorDetails += ` Raw Response: ${errorTextFromServer.substring(0,100)}...`;
+        } catch {
+            // ignore if cant get text
+        }
+      }
       const errorMessage = `Error fetching from ${sourceName || 'source'} (via proxy ${proxyRequestUrl}): ${errorDetails}`;
       console.error(`fetchViaProxy: ${errorMessage}`);
-      throw new Error(errorMessage);
+      // Include the full details if available for higher-level error handling
+      const errorToThrow = new Error(errorMessage);
+      (errorToThrow as any).details = errorTextFromServer; 
+      throw errorToThrow;
+    }
+    
+    const proxyResponseData = await response.json();
+
+    if (proxyResponseData.error && !proxyResponseData.nonJsonData) {
+        console.error(`fetchViaProxy: Proxy reported an error from upstream for ${targetUrl}:`, proxyResponseData.error, "Details:", proxyResponseData.details);
+        const errorToThrow = new Error(proxyResponseData.error + (proxyResponseData.details ? `: ${proxyResponseData.details}` : ''));
+        (errorToThrow as any).details = proxyResponseData.details;
+        throw errorToThrow;
     }
 
-    // It's crucial to get the raw text first to attempt JSON parsing,
-    // as response.json() consumes the body.
-    const textData = await response.text();
-    const contentType = response.headers.get('content-type');
-
-    try {
-      // Attempt to parse as JSON regardless of content type first
-      const jsonData = JSON.parse(textData);
-      console.log(`fetchViaProxy: Successfully received and parsed JSON data from proxy for ${sourceName || targetUrl}`);
-      return jsonData; // This should be the actual JSON data from the target source
-    } catch (jsonError) {
-      // If JSON parsing fails, this means the *target source* returned non-JSON data
-      // Our proxy should have wrapped this in { nonJsonData: "..." } if it correctly identified non-JSON content-type
-      // OR if the proxy's own response structure is different.
-      // Let's re-check the structure of what our proxy sends for nonJsonData
-      
-      // If textData itself is the "nonJsonData" string (e.g. "暂不支持搜索"), this path is taken.
-      console.warn(`fetchViaProxy: Failed to parse textData as JSON from ${targetUrl}. Content-Type: ${contentType}. Data: "${textData.substring(0, 200)}"`);
-      // Throw an error indicating the original source returned non-JSON, including the text itself.
-      throw new Error(`Source returned non-JSON data that could not be parsed: ${textData.substring(0, 100)}`);
+    if (typeof proxyResponseData.nonJsonData === 'string') {
+      console.warn(`fetchViaProxy: Proxy returned raw string for ${targetUrl}. Attempting to use as nonJsonData. Data: "${proxyResponseData.nonJsonData.substring(0, 200)}"`);
+      // This is a special case where the upstream sent text, and proxy wrapped it.
+      // The caller (e.g., fetchApiContentList) should decide if this text is an error or expected.
+      return { nonJsonData: proxyResponseData.nonJsonData }; // Return the object containing nonJsonData
     }
+    
+    console.log(`fetchViaProxy: Successfully received and parsed JSON data from proxy for ${sourceName || targetUrl}`);
+    return proxyResponseData;
 
   } catch (error) {
-    // This catches fetch errors to the proxy itself, or errors thrown above.
     console.error(`fetchViaProxy: Exception for ${targetUrl}:`, error);
-    throw error; // Re-throw the error to be handled by the caller
+    throw error; 
   }
 }
 
@@ -219,11 +230,10 @@ export async function fetchApiCategories(sourceUrl: string): Promise<ApiCategory
       console.log(`fetchApiCategories: Successfully fetched ${categories.length} categories from ${sourceUrl}.`);
       return categories;
     }
-    console.warn(`No 'class' array found in category data from ${sourceUrl}`, data);
-    // Ensure 'All' category is always present as a fallback.
+    console.warn(`No 'class' array found in category data from ${sourceUrl}`, JSON.stringify(data).substring(0,200));
     return [{ id: 'all', name: '全部 (默认)' }]; 
   } catch (error) {
-    console.error(`Failed to fetch categories from ${sourceUrl}. Error:`, error instanceof Error ? error.message : String(error));
+    // Error is already logged by fetchViaProxy if it's a network/proxy issue
     // Ensure 'All' category is always present, even on error.
     return [{ id: 'all', name: '全部 (错误)' }]; 
   }
@@ -248,13 +258,28 @@ export async function fetchApiContentList(
   try {
     const actualData = await fetchViaProxy(apiUrl.toString(), `content list/item from ${sourceUrl}`);
     
+    if (actualData.nonJsonData && typeof actualData.nonJsonData === 'string') {
+      // The upstream API returned plain text (e.g., "暂不支持搜索")
+      // This is an error *from the source API*, not a JSON parsing error of our own making.
+      const sourceErrorMessage = actualData.nonJsonData.substring(0, 100);
+      const message = `Target source (${params.ids ? 'item' : 'content list'} from ${sourceUrl}) returned non-JSON data: "${sourceErrorMessage}"`;
+      
+      if (params.searchTerm && sourceErrorMessage.includes('暂不支持搜索')) {
+        console.warn(`API Search Not Supported: ${sourceUrl} (API URL: ${apiUrl.toString()}). Message: ${sourceErrorMessage}`);
+      } else {
+        console.error(message);
+      }
+      // Return empty for non-JSON response that wasn't explicitly an error from proxy
+      return { items: [], page: 1, pageCount: 1, limit: 20, total: 0 };
+    }
+    
     const items = (actualData.list && Array.isArray(actualData.list))
       ? actualData.list.map(mapApiItemToContentItem).filter((item: ContentItem | null): item is ContentItem => item !== null)
       : [];
     
     const page = parseInt(String(actualData.page), 10) || 1;
     const pageCount = parseInt(String(actualData.pagecount || actualData.page_count), 10) || 1;
-    const total = parseInt(String(actualData.total), 10) || (items.length > 0 ? items.length : 0); // Ensure total isn't negative or NaN
+    const total = parseInt(String(actualData.total), 10) || (items.length > 0 ? items.length : 0); 
     const limit = parseInt(String(actualData.limit), 10) || (items.length > 0 ? items.length : 20);
 
 
@@ -268,10 +293,13 @@ export async function fetchApiContentList(
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    if (params.searchTerm && errorMessage.includes('暂不支持搜索')) {
-      console.warn(`API Search Not Supported: ${sourceUrl} (API URL: ${apiUrl.toString()}). Message: ${errorMessage}`);
+    // Check if the error message (which might come from fetchViaProxy) indicates search not supported
+    if (params.searchTerm && (errorMessage.includes('暂不支持搜索') || (error as any).details?.includes('暂不支持搜索') )) {
+      console.warn(`API Search Not Supported (caught in fetchApiContentList): ${sourceUrl} (API URL: ${apiUrl.toString()}). Message: ${errorMessage}`);
     } else {
-      console.error(`Failed to fetch or parse content list from ${sourceUrl} (API URL: ${apiUrl.toString()}). Error:`, errorMessage);
+      // Error already logged by fetchViaProxy if it's a proxy/network issue.
+      // This log is for unexpected errors during processing *after* successful proxy fetch, or if fetchViaProxy re-throws.
+      // console.error(`Failed to fetch or parse content list from ${sourceUrl} (API URL: ${apiUrl.toString()}). Error:`, errorMessage);
     }
     return { items: [], page: 1, pageCount: 1, limit: 20, total: 0 };
   }
@@ -288,11 +316,10 @@ export async function fetchContentItemById(sourceUrl: string, itemId: string): P
     console.warn(`fetchContentItemById: Item with ID ${itemId} not found or error in response from ${sourceUrl}. Response items count:`, response.items?.length);
     return null;
   } catch (error) {
-     console.error(`fetchContentItemById: Error fetching item ${itemId} from ${sourceUrl}:`, error);
+     // Errors would be logged by fetchApiContentList or fetchViaProxy
      return null;
   }
 }
-
 
 export async function fetchAllContent(sources: SourceConfig[]): Promise<ContentItem[]> {
   if (!sources || sources.length === 0) {
@@ -304,7 +331,7 @@ export async function fetchAllContent(sources: SourceConfig[]): Promise<ContentI
     fetchApiContentList(source.url, { page: 1 }) 
       .then(response => response.items) 
       .catch(err => {
-        console.error(`Error in fetchAllContent for source ${source.name} (${source.url}):`, err);
+        // Error already logged by fetchApiContentList or fetchViaProxy
         return []; 
       })
   );
@@ -365,4 +392,3 @@ export function getMockPaginatedResponse(page: number = 1, categoryId?: string, 
     total,
   };
 }
-
