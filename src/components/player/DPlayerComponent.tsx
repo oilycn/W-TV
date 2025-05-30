@@ -33,7 +33,6 @@ const DPlayerComponent: FC<DPlayerComponentProps> = ({
 
   useEffect(() => {
     if (!DPlayer || !playerContainerRef.current || !videoUrl) {
-      // Destroy player if DPlayer is not available or videoUrl is null
       if (playerRef.current) {
         playerRef.current.destroy();
         playerRef.current = null;
@@ -41,7 +40,6 @@ const DPlayerComponent: FC<DPlayerComponentProps> = ({
       return;
     }
 
-    // If player already exists, destroy it before creating a new one
     if (playerRef.current) {
       playerRef.current.destroy();
       playerRef.current = null;
@@ -52,39 +50,57 @@ const DPlayerComponent: FC<DPlayerComponentProps> = ({
       autoplay: autoplay,
       video: {
         url: videoUrl,
-        type: 'auto', // DPlayer will try to infer type (mp4, m3u8, flv, dash)
+        type: 'auto', 
       },
-      theme: '#00a1d6', // A common DPlayer theme color
+      theme: '#00a1d6',
       lang: 'zh-cn',
       screenshot: true,
       hotkey: true,
       preload: 'auto',
-      mutex: true, // Pauses other DPlayer instances when this one plays
+      mutex: true,
     };
 
     try {
       const dp = new DPlayer(options);
       playerRef.current = dp;
 
-      // Event for when metadata is loaded - good indicator player is "ready" with video info
       dp.on('loadedmetadata' as DPlayerEvents, () => {
         if (onPlayerReady) {
           onPlayerReady();
         }
       });
       
-      // Event for when player can start playing (might still buffer)
-      // dp.on('canplay' as DPlayerEvents, () => {
-      //   if (onPlayerReady && !playerRef.current?.paused) { // Check if already ready from loadedmetadata
-      //     onPlayerReady();
-      //   }
-      // });
-
-
       if (onPlayerError) {
-        dp.on('error' as DPlayerEvents, (data: any) => {
-          console.warn('DPlayer Component Event: error', data);
-          onPlayerError('dplayer_error', data);
+        dp.on('error' as DPlayerEvents, (dplayerEventData: any) => {
+          let errorToReport = dplayerEventData; // Default to what DPlayer provides
+
+          // Check if it's a standard DOM Event that might contain a MediaError
+          // DPlayer's 'error' event might pass the original HTMLMediaElement event or its error property
+          if (dplayerEventData instanceof Event && dplayerEventData.target && (dplayerEventData.target as HTMLVideoElement).error) {
+            const mediaError = (dplayerEventData.target as HTMLVideoElement).error;
+            if (mediaError) { 
+              errorToReport = mediaError; 
+              console.warn('DPlayerComponent: Extracted MediaError from DOM Event:', JSON.stringify(errorToReport, Object.getOwnPropertyNames(errorToReport)));
+            } else {
+              console.warn('DPlayerComponent: DOM Event received, but target.error is null. Using DPlayer event data:', dplayerEventData);
+            }
+          } else if (dplayerEventData && dplayerEventData.type && dplayerEventData.details) {
+            // This looks like an HLS.js or DASH.js error object DPlayer might pass directly
+             console.warn('DPlayerComponent: Error looks like HLS/DASH.js error object:', JSON.stringify(dplayerEventData));
+             // errorToReport is already dplayerEventData
+          } else if (dplayerEventData && typeof dplayerEventData.code === 'number' && typeof dplayerEventData.message === 'string') {
+            // This might be a MediaError object passed directly by DPlayer
+            console.warn('DPlayerComponent: Error looks like a direct MediaError object:', JSON.stringify(dplayerEventData));
+            // errorToReport is already dplayerEventData
+          }
+          else {
+             console.warn('DPlayerComponent: DPlayer "error" event payload (not a DOM event with MediaError or recognized HLS/DASH error):', 
+                (typeof dplayerEventData === 'object' && dplayerEventData !== null) 
+                ? JSON.stringify(dplayerEventData) 
+                : dplayerEventData
+            );
+          }
+          onPlayerError('dplayer_error', errorToReport);
         });
       }
     } catch (error) {
