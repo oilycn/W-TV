@@ -52,25 +52,34 @@ const DPlayerComponent: FC<DPlayerComponentProps> = ({
       autoplay: autoplay,
       video: {
         url: videoUrl,
-        type: 'auto',
+        type: 'auto', // DPlayer will try to infer type (mp4, m3u8, flv, dash)
       },
-      theme: '#00a1d6',
+      theme: '#00a1d6', // A common DPlayer theme color
       lang: 'zh-cn',
       screenshot: true,
       hotkey: true,
       preload: 'auto',
-      mutex: true,
+      mutex: true, // Pauses other DPlayer instances when this one plays
     };
 
     try {
       const dp = new DPlayer(options);
       playerRef.current = dp;
 
-      dp.on('ready' as DPlayerEvents, () => {
+      // Event for when metadata is loaded - good indicator player is "ready" with video info
+      dp.on('loadedmetadata' as DPlayerEvents, () => {
         if (onPlayerReady) {
           onPlayerReady();
         }
       });
+      
+      // Event for when player can start playing (might still buffer)
+      // dp.on('canplay' as DPlayerEvents, () => {
+      //   if (onPlayerReady && !playerRef.current?.paused) { // Check if already ready from loadedmetadata
+      //     onPlayerReady();
+      //   }
+      // });
+
 
       if (onPlayerError) {
         dp.on('error' as DPlayerEvents, (data: any) => {
