@@ -1,7 +1,7 @@
 
 "use client";
 
-import { use, useEffect, useState, Suspense, useRef } from 'react';
+import { use, useEffect, useState, Suspense } from 'react';
 import type { ContentItem, PlaybackSourceGroup, SourceConfig, PlaybackURL } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, getMockContentItemById } from '@/lib/content-loader';
@@ -13,9 +13,7 @@ import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from '@/components/ui/button';
-import ReactPlayer from 'react-player/lazy';
-import 'hls.js'; // Import for side-effects to make HLS.js available to ReactPlayer
-// import 'dashjs'; // Removed to prevent SSR error: "self is not defined"
+import DPlayerComponent from '@/components/player/DPlayerComponent';
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 const LOCAL_STORAGE_KEY_ACTIVE_SOURCE = 'cinemaViewActiveSourceId';
@@ -41,8 +39,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
   const [currentPlayUrl, setCurrentPlayUrl] = useState<string | null>(null);
   const [currentVideoTitle, setCurrentVideoTitle] = useState<string>('');
   const [videoPlayerError, setVideoPlayerError] = useState<string | null>(null);
-  const [isPlayerReady, setIsPlayerReady] = useState(false);
-  const [useIframeFallback, setUseIframeFallback] = useState(false);
+  const [isPlayerReady, setIsPlayerReady] = useState(false); // For DPlayer loading state
 
   const [currentSourceGroupIndex, setCurrentSourceGroupIndex] = useState<number | null>(null);
   const [currentUrlIndex, setCurrentUrlIndex] = useState<number | null>(null);
@@ -54,7 +51,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
       setCurrentPlayUrl(null); 
       setVideoPlayerError(null);
       setIsPlayerReady(false);
-      setUseIframeFallback(false);
       setCurrentSourceGroupIndex(null);
       setCurrentUrlIndex(null);
     } else {
@@ -65,8 +61,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
   useEffect(() => {
     if (currentPlayUrl) {
       setVideoPlayerError(null);
-      setIsPlayerReady(false);
-      setUseIframeFallback(false); // Reset to ReactPlayer for new URL
+      setIsPlayerReady(false); // Reset ready state for new URL
     }
   }, [currentPlayUrl]);
 
@@ -120,82 +115,38 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     setCurrentPlayUrl(url);
     setCurrentVideoTitle(`${item?.title || '视频'} - ${name}`);
     setVideoPlayerError(null);
-    setIsPlayerReady(false);
-    setUseIframeFallback(false); // Always try ReactPlayer first
+    setIsPlayerReady(false); 
     if (sourceGroupIndex !== undefined) setCurrentSourceGroupIndex(sourceGroupIndex);
     if (urlIndex !== undefined) setCurrentUrlIndex(urlIndex);
   };
   
-  const handlePlayerError = (
-    error: any, 
-    data?: any, 
-    hlsInstance?: any
-    // dashInstance?: any // ReactPlayer doesn't seem to pass dashInstance directly in onError
-  ) => {
-    if (error && typeof error === 'object' && Object.keys(error).length === 0 && !data && !hlsInstance) {
-      console.warn('ReactPlayer encountered an error but provided no specific details. The video source may be invalid or inaccessible. Raw error object:', error);
-    } else {
-      console.error('ReactPlayer Error:', error, 'Data:', data, 'HLS Instance:', hlsInstance);
-    }
-    setIsPlayerReady(true); 
-
+  const handleDPlayerError = (errorType: string, errorData: any) => {
+    console.error('DPlayer Error in Page - Type:', errorType, 'Raw Error Data:', errorData);
     let message = '视频播放时发生未知错误。';
-    let attemptIframeFallback = false;
 
-    if (error && error.target && error.target.error && typeof error.target.error.code === 'number') { 
-        const mediaError = error.target.error as MediaError;
-        switch (mediaError.code) {
-            case MediaError.MEDIA_ERR_ABORTED: message = '视频加载已中止。'; break;
-            case MediaError.MEDIA_ERR_NETWORK: message = '网络错误导致视频加载失败。'; break;
-            case MediaError.MEDIA_ERR_DECODE: message = '视频解码错误。'; break;
-            case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED: 
-              message = '播放器无法直接播放此视频格式。部分链接可能为网页播放器，无法在此直接播放。'; 
-              attemptIframeFallback = true; // Key change: trigger iframe for this error
-              break;
-            default: message = `发生媒体错误 (代码: ${mediaError.code})。`; break;
-        }
-    } else if (typeof error === 'string') {
-      const lowerError = error.toLowerCase();
-      if (lowerError.includes('hlserror') && data && data.type) {
-        message = `HLS 播放错误 (${data.type}${data.details ? ': ' + data.details : ''})`;
-        if (data.fatal === false) {
-            if (data.type === 'networkError' && data.details === 'fragLoadError') {
-                 message = '视频片段加载失败，尝试恢复中...';
-            } else if (data.type === 'mediaError' && data.details === 'bufferStalledError') {
-                 message = '视频缓冲卡顿，尝试恢复中...';
-            } else {
-                 message += ' (尝试恢复中)';
+    if (errorData) {
+        if (typeof errorData === 'string') {
+            message = `播放器报告: ${errorData}`;
+        } else if (errorData.message) {
+            message = `播放器错误: ${errorData.message}`;
+        } else if (errorData.type && errorData.details) { // HLS.js-like error structure within DPlayer
+            message = `播放错误 (${errorData.type}${errorData.details ? ': ' + errorData.details : ''})`;
+            if (errorData.fatal === false) {
+                message += ' (尝试恢复中)';
             }
-        } else if (data.fatal === true) {
-             message += ' (致命错误，无法恢复)';
+        } else if (errorData.code) {
+            message = `播放器错误代码: ${errorData.code}`;
         }
-      } else if (lowerError.includes('dasherror') && data) {
-        const dashErr = data.error || data; 
-        message = `DASH 播放错误 (${dashErr.code || 'unknown'}${dashErr.message ? ': ' + dashErr.message : ''})`;
-      } else {
-        message = `播放器报告错误: ${error}`;
-      }
-    } else if (data && data.type) { 
-        message = `播放技术性错误 (${data.type}${data.details ? ': ' + data.details : ''})`;
-        if (data.fatal === false && (data.type === 'networkError' || data.type === 'mediaError')) {
-          message += ' (尝试恢复中)';
-        } else if (data.fatal === true) {
-             message += ' (致命错误，无法恢复)';
-        }
-    } else {
-      message = '无法播放此视频。请检查视频源或网络连接。部分链接可能为网页播放器，无法在此直接播放。';
-      attemptIframeFallback = true; 
+    }
+    // Add a hint for potential webpage links if error is generic
+    if (message === '视频播放时发生未知错误。' || (errorData && !errorData.type && !errorData.details && !errorData.message) ) {
+         message += ' 部分链接可能为网页播放器，无法在此直接播放。';
     }
 
-    if (attemptIframeFallback) {
-      console.log(`ReactPlayer failed with SRC_NOT_SUPPORTED or similar for ${currentPlayUrl}. Attempting iframe fallback.`);
-      setUseIframeFallback(true);
-      setVideoPlayerError(null); // Clear error as we are trying iframe
-    } else {
-      setVideoPlayerError(message);
-      setUseIframeFallback(false); // Ensure we are not in iframe mode for other errors
-    }
+    setVideoPlayerError(message);
+    setIsPlayerReady(true); // Still set to true to hide skeleton on error
   };
+
 
   const getPreviousEpisode = (): PlaybackURL & { sourceGroupIndex: number; urlIndex: number } | null => {
     if (!item || !item.playbackSources || currentSourceGroupIndex === null || currentUrlIndex === null) return null;
@@ -207,15 +158,18 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         urlIndex: currentUrlIndex - 1 
       };
     }
-    if (currentSourceGroupIndex > 0) {
-      const prevGroup = item.playbackSources[currentSourceGroupIndex - 1];
-      if (prevGroup.urls.length > 0) {
-        return { 
-          ...prevGroup.urls[prevGroup.urls.length - 1], 
-          sourceGroupIndex: currentSourceGroupIndex - 1, 
-          urlIndex: prevGroup.urls.length - 1 
-        };
-      }
+    // Check previous group, last episode
+    let prevGroupIdx = currentSourceGroupIndex - 1;
+    while(prevGroupIdx >= 0) {
+        const prevGroup = item.playbackSources[prevGroupIdx];
+        if (prevGroup.urls.length > 0) {
+            return { 
+                ...prevGroup.urls[prevGroup.urls.length - 1], 
+                sourceGroupIndex: prevGroupIdx, 
+                urlIndex: prevGroup.urls.length - 1 
+            };
+        }
+        prevGroupIdx--;
     }
     return null;
   };
@@ -231,15 +185,18 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         urlIndex: currentUrlIndex + 1 
       };
     }
-    if (currentSourceGroupIndex < item.playbackSources.length - 1) {
-      const nextGroup = item.playbackSources[currentSourceGroupIndex + 1];
-      if (nextGroup.urls.length > 0) {
-        return { 
-          ...nextGroup.urls[0], 
-          sourceGroupIndex: currentSourceGroupIndex + 1, 
-          urlIndex: 0 
-        };
-      }
+    // Check next group, first episode
+    let nextGroupIdx = currentSourceGroupIndex + 1;
+    while(nextGroupIdx < item.playbackSources.length) {
+        const nextGroup = item.playbackSources[nextGroupIdx];
+        if (nextGroup.urls.length > 0) {
+            return { 
+                ...nextGroup.urls[0], 
+                sourceGroupIndex: nextGroupIdx, 
+                urlIndex: 0 
+            };
+        }
+        nextGroupIdx++;
     }
     return null;
   };
@@ -300,22 +257,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
       {currentPlayUrl && (
         <div className="mb-4 rounded-lg overflow-hidden shadow-lg bg-card">
           <AspectRatio ratio={16 / 9} className="bg-black relative">
-            {useIframeFallback ? (
-              <>
-                <iframe
-                  src={currentPlayUrl}
-                  width="100%"
-                  height="100%"
-                  allow="autoplay; encrypted-media; picture-in-picture"
-                  allowFullScreen
-                  title="Video Fallback Player"
-                  className="border-0"
-                />
-                <p className="absolute bottom-1 left-1 text-xs bg-black/70 text-white p-1 rounded z-10">
-                  尝试通过内嵌框架播放。部分链接可能不兼容此模式。
-                </p>
-              </>
-            ) : videoPlayerError ? (
+            {videoPlayerError ? (
               <div className="w-full h-full flex flex-col items-center justify-center bg-black text-destructive-foreground p-4 text-center">
                 <AlertCircle className="w-12 h-12 mb-2 text-destructive" />
                 <p className="text-lg font-semibold">播放错误</p>
@@ -329,24 +271,11 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                      <p className="absolute text-muted-foreground">播放器准备中...</p>
                   </div>
                 )}
-                 <ReactPlayer
-                    url={currentPlayUrl}
-                    playing={true}
-                    controls={true}
-                    width="100%"
-                    height="100%"
-                    onError={handlePlayerError}
-                    onReady={() => setIsPlayerReady(true)}
-                    onPlay={() => {
-                        setVideoPlayerError(null);
-                        setUseIframeFallback(false); // If it starts playing, ensure we are not in iframe mode
-                    }}
-                    config={{
-                        file: {
-                          attributes: { crossOrigin: 'anonymous' },
-                        }
-                    }}
-                    style={{ display: isPlayerReady ? 'block' : 'none' }}
+                 <DPlayerComponent
+                    videoUrl={currentPlayUrl}
+                    autoplay={true}
+                    onPlayerError={handleDPlayerError}
+                    onPlayerReady={() => setIsPlayerReady(true)}
                   />
               </>
             )}
@@ -374,7 +303,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             </p>
            )}
            <p className="px-2 pb-2 text-xs text-muted-foreground">
-            提示：如果播放失败或卡顿，请尝试其他播放源或检查网络连接。部分视频源可能需要现代浏览器或特定播放器支持。
+            提示：如果播放失败或卡顿，请尝试其他播放源或检查网络连接。DPlayer 支持多种格式，但部分源可能仍存在兼容性问题。
           </p>
         </div>
       )}
