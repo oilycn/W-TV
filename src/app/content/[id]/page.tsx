@@ -1,7 +1,7 @@
 
 "use client";
 
-import { use, useEffect, useState, Suspense } from 'react';
+import { use, useEffect, useState, Suspense, useRef } from 'react';
 import type { ContentItem, PlaybackSourceGroup, SourceConfig, PlaybackURL } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, getMockContentItemById } from '@/lib/content-loader';
@@ -121,7 +121,11 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
   };
   
   const handleDPlayerError = (errorType: string, errorData: any) => {
-    console.error('DPlayer Error in Page - Type:', errorType, 'Raw Error Data:', typeof errorData === 'object' && errorData !== null ? JSON.stringify(errorData, null, 2) : errorData);
+    console.error(
+      'DPlayer Error in Page - Type:', errorType, 
+      'Raw Error Data (direct log):', errorData, 
+      'Raw Error Data (stringified):', typeof errorData === 'object' && errorData !== null ? JSON.stringify(errorData, null, 2) : errorData
+    );
     let message = '视频播放时发生未知错误。';
 
     if (errorData) {
@@ -139,7 +143,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         }
     }
     // Add a hint for potential webpage links if error is generic
-    if (message === '视频播放时发生未知错误。' || (errorData && !errorData.type && !errorData.details && !errorData.message) ) {
+    if (message === '视频播放时发生未知错误。' || (errorData && !errorData.type && !errorData.details && !errorData.message && !errorData.code) ) {
          message += ' 部分链接可能为网页播放器，无法在此直接播放。';
     }
 
