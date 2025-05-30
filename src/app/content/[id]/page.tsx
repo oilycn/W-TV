@@ -346,7 +346,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                           attributes: { crossOrigin: 'anonymous' },
                         }
                     }}
-                    style={{ display: isPlayerReady || videoPlayerError ? 'block' : 'none' }}
+                    style={{ display: isPlayerReady ? 'block' : 'none' }}
                   />
               </>
             )}
@@ -494,3 +494,4 @@ export default function ContentDetailPage(props: ContentDetailPageProps) {
     </Suspense>
   );
 }
+
