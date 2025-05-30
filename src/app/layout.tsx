@@ -2,7 +2,7 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
-// import 'dplayer/dist/DPlayer.css'; // Import DPlayer CSS (non-minified) - REMOVED TO PREVENT BUILD ERROR
+// import 'dplayer/dist/DPlayer.css'; // Removed due to build issues
 import { AppHeader } from '@/components/common/AppHeader';
 import { Toaster } from "@/components/ui/toaster";
 import { CategoryProvider } from '@/contexts/CategoryContext';
@@ -48,9 +48,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* If DPlayer CSS is manually placed in public folder, link it here: */}
-        {/* <link rel="stylesheet" href="/DPlayer.css" /> */}
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.css" />
+        {/* <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.css" /> */}
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <ThemeProvider> 
