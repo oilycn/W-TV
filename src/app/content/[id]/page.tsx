@@ -121,7 +121,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
   };
   
   const handleDPlayerError = (errorType: string, errorData: any) => {
-    console.error('DPlayer Error in Page - Type:', errorType, 'Raw Error Data:', errorData);
+    console.error('DPlayer Error in Page - Type:', errorType, 'Raw Error Data:', typeof errorData === 'object' && errorData !== null ? JSON.stringify(errorData, null, 2) : errorData);
     let message = '视频播放时发生未知错误。';
 
     if (errorData) {
@@ -131,7 +131,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             message = `播放器错误: ${errorData.message}`;
         } else if (errorData.type && errorData.details) { // HLS.js-like error structure within DPlayer
             message = `播放错误 (${errorData.type}${errorData.details ? ': ' + errorData.details : ''})`;
-            if (errorData.fatal === false) {
+            if (errorData.fatal === false && (errorData.type === 'networkError' || errorData.type === 'mediaError')) {
                 message += ' (尝试恢复中)';
             }
         } else if (errorData.code) {
