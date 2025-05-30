@@ -2,10 +2,11 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
+// import 'dplayer/dist/DPlayer.css'; // Import DPlayer CSS (non-minified) - REMOVED TO PREVENT BUILD ERROR
 import { AppHeader } from '@/components/common/AppHeader';
 import { Toaster } from "@/components/ui/toaster";
 import { CategoryProvider } from '@/contexts/CategoryContext';
-import { ThemeProvider } from '@/contexts/ThemeContext'; // Import ThemeProvider
+import { ThemeProvider } from '@/contexts/ThemeContext';
 import { Suspense } from 'react';
 
 const geistSans = Geist({
@@ -46,6 +47,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* If DPlayer CSS is manually placed in public folder, link it here: */}
+        {/* <link rel="stylesheet" href="/DPlayer.css" /> */}
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <ThemeProvider> 
           <CategoryProvider>

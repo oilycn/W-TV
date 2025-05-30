@@ -4,12 +4,12 @@
 import type { FC } from 'react';
 import { useEffect, useRef } from 'react';
 import DPlayer, { type DPlayerOptions, type DPlayerEvents } from 'dplayer';
-import 'dplayer/dist/DPlayer.min.css'; // Import DPlayer CSS
+// Ensure no DPlayer CSS is imported here if it causes build issues elsewhere
 
 interface DPlayerComponentProps {
   videoUrl: string | null;
   autoplay?: boolean;
-  onPlayerError?: (errorType: DPlayerEvents | string, errorData: any) => void;
+  onPlayerError?: (errorType: string, errorData: any) => void;
   onPlayerReady?: () => void;
 }
 
@@ -36,12 +36,12 @@ const DPlayerComponent: FC<DPlayerComponentProps> = ({
           url: videoUrl,
           type: 'auto', 
         },
-        theme: '#00a1d6', // A nice blue theme
+        theme: '#00a1d6', 
         lang: 'zh-cn',
         screenshot: true,
         hotkey: true,
         preload: 'auto',
-        mutex: true, // Pause other DPlayers
+        mutex: true, 
       };
 
       try {
@@ -57,9 +57,10 @@ const DPlayerComponent: FC<DPlayerComponentProps> = ({
         if (onPlayerError) {
           dp.on('error', (data: any) => {
             console.warn('DPlayer Component Event: error', data);
-            onPlayerError('error', data); 
+            onPlayerError('dplayer_error', data); 
           });
         }
+
       } catch (error) {
         console.error('Failed to initialize DPlayer:', error);
         if (onPlayerError) {
