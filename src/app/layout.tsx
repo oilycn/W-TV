@@ -50,6 +50,7 @@ export default function RootLayout({
       <head>
         {/* If DPlayer CSS is manually placed in public folder, link it here: */}
         {/* <link rel="stylesheet" href="/DPlayer.css" /> */}
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.css" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <ThemeProvider> 
