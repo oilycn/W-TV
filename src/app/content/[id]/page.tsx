@@ -7,7 +7,7 @@ import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, getMockContentItemById } from '@/lib/content-loader';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
-import { Star, CalendarDays, Clock, Video, AlertCircle, SkipBack, SkipForward } from 'lucide-react';
+import { Star, CalendarDays, Clock, Video, AlertCircle, SkipBack, SkipForward, Loader2 } from 'lucide-react';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -15,11 +15,11 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Button } from '@/components/ui/button';
 import ReactPlayer from 'react-player/lazy';
 import 'hls.js'; // Import for side-effects to make HLS.js available to ReactPlayer
-// import 'dashjs'; // Import for side-effects to make dash.js available to ReactPlayer (if needed)
 
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 const LOCAL_STORAGE_KEY_ACTIVE_SOURCE = 'cinemaViewActiveSourceId';
+const MAX_HLS_RETRIES = 3;
 
 
 interface ContentDetailPageParams {
@@ -48,6 +48,10 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
   const [currentSourceGroupIndex, setCurrentSourceGroupIndex] = useState<number | null>(null);
   const [currentUrlIndex, setCurrentUrlIndex] = useState<number | null>(null);
 
+  const [playerKey, setPlayerKey] = useState(0); // Used to force ReactPlayer re-initialization
+  const [hlsRetryCount, setHlsRetryCount] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
+
 
   useEffect(() => {
     if (resolvedParams && resolvedParams.id) {
@@ -58,6 +62,9 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
       setUseIframeFallback(false);
       setCurrentSourceGroupIndex(null);
       setCurrentUrlIndex(null);
+      setHlsRetryCount(0);
+      setIsRetrying(false);
+      setPlayerKey(prev => prev + 1); // New page ID, new player instance
     } else {
       setPageId(null);
     }
@@ -115,53 +122,103 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     setCurrentVideoTitle(`${item?.title || '视频'} - ${name}`);
     setVideoPlayerError(null);
     setIsPlayerReady(false); 
-    setUseIframeFallback(false); // Attempt ReactPlayer first
+    setUseIframeFallback(false);
+    setHlsRetryCount(0); // Reset retry count for new video/source
+    setIsRetrying(false);
+    setPlayerKey(prev => prev + 1); // Force new player instance for new URL
+
     if (sourceGroupIndex !== undefined) setCurrentSourceGroupIndex(sourceGroupIndex);
     if (urlIndex !== undefined) setCurrentUrlIndex(urlIndex);
   };
   
   const handlePlayerError = (error: any, data?: any, hlsInstance?: any) => {
-    console.error('ReactPlayer Error:', error, 'Data:', data, 'HLS Instance:', hlsInstance);
+    console.error('ReactPlayer Error:', error, 'Data:', typeof data === 'object' && data !== null ? JSON.stringify(data) : data, 'HLS Instance:', typeof hlsInstance === 'object' && hlsInstance !== null ? 'HLSInstancePresent' : 'NoHLSInstance');
     let message = '视频播放时发生未知错误。';
+    setIsRetrying(false); // Reset retrying message if an error occurs
 
-    if (typeof error === 'string' && error.toLowerCase().includes('hlserror') && data) {
-        // HLS.js specific error
-        message = `HLS 播放错误: ${data.type} - ${data.details}`;
-        if (data.fatal === false && (data.type === 'networkError' || data.type === 'mediaError')) {
-            message += ' (尝试恢复中)';
-        } else if (data.fatal) {
-            setUseIframeFallback(true); // If HLS.js gives a fatal error, try iframe
-            return; // Iframe will render, no need to set videoPlayerError for ReactPlayer
+    if (typeof error === 'string' && error.toLowerCase().includes('hlserror') && data && typeof data === 'object') {
+        const hlsErrorType = data.type; 
+        const hlsErrorDetails = data.details;
+        const hlsErrorFatal = data.fatal;
+
+        message = `HLS 播放错误 (类型: ${hlsErrorType || 'N/A'}, 详情: ${hlsErrorDetails || 'N/A'})`;
+
+        const isRetryableNetwork = hlsErrorType === 'networkError';
+        const isRetryableMedia = hlsErrorType === 'mediaError' && 
+                                (hlsErrorDetails === 'fragLoadError' || 
+                                 hlsErrorDetails === 'fragLoadTimeout' ||
+                                 hlsErrorDetails === 'bufferStalledError' ||
+                                 hlsErrorDetails === 'manifestLoadError' ||
+                                 hlsErrorDetails === 'levelLoadError');
+        
+        // Retry for fatal (or undefined fatal status) network errors or fatal retryable media errors
+        if ((isRetryableNetwork || isRetryableMedia) && hlsErrorFatal !== false) { 
+            if (hlsRetryCount < MAX_HLS_RETRIES) {
+                const retryAttempt = hlsRetryCount + 1;
+                console.warn(`HLS Error: Attempting retry ${retryAttempt}/${MAX_HLS_RETRIES} for ${hlsErrorDetails || hlsErrorType} on URL: ${currentPlayUrl}`);
+                setIsRetrying(true);
+                setVideoPlayerError(null); // Clear previous error message while retrying
+
+                const delay = 1000 * Math.pow(2, hlsRetryCount); // Exponential backoff: 1s, 2s, 4s
+                setTimeout(() => {
+                    setPlayerKey(prev => prev + 1); 
+                    // isRetrying will be reset by onReady or next onError
+                }, delay);
+                setHlsRetryCount(retryAttempt);
+                return; 
+            } else {
+                message += `. 已达到最大重试次数 (${MAX_HLS_RETRIES})。尝试使用备用播放方式。`;
+                console.warn(`HLS Error: Max retries (${MAX_HLS_RETRIES}) reached for ${hlsErrorDetails || hlsErrorType}. Falling back.`);
+                setUseIframeFallback(true);
+            }
+        } else if (hlsErrorFatal) { 
+            message += '. 这是一个无法自动恢复的严重错误，尝试使用备用播放方式。';
+            setUseIframeFallback(true);
+            // return; // Fall through to setVideoPlayerError
+        } else if (hlsErrorFatal === false) { 
+            message += ' (HLS.js 正在尝试恢复)';
+             // No explicit action needed from our side; hls.js handles it.
+        } else {
+            // Generic HLS error where 'fatal' might be undefined or data fields are missing.
+            // Treat as potentially serious and try fallback.
+            message += '. 未知 HLS 错误，尝试使用备用播放方式。';
+            setUseIframeFallback(true);
         }
+
     } else if (typeof error === 'object' && error !== null) {
-        // Check for native MediaError
         if (error.target && error.target.error && typeof error.target.error.code === 'number') {
             const mediaError = error.target.error;
             message = `媒体错误 (代码: ${mediaError.code})。`;
             if (mediaError.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
-                message += ' 视频源格式不支持或无法访问。';
-                setUseIframeFallback(true); // Key change: trigger iframe fallback
-                return; // Iframe will render, no need to set videoPlayerError for ReactPlayer
+                message += ' 视频源格式不支持或无法访问。尝试使用备用播放方式。';
+                setUseIframeFallback(true); 
+                // return; // Fall through
             } else if (mediaError.message) {
                  message += ` ${mediaError.message}`;
             }
-        } else if (error.message) { // Generic error object
+        } else if (error.message) { 
             message = `播放器报告: ${error.message}`;
         }
-    } else if (typeof error === 'string') { // Generic string error from ReactPlayer
+    } else if (typeof error === 'string') { 
         message = `播放器报告: ${error}`;
     }
     
     if (message.includes('MEDIA_ERR_SRC_NOT_SUPPORTED') || message.includes('视频源格式不支持')) {
-      message += ' 部分链接可能为网页播放器，无法在此直接播放。';
-      if(!useIframeFallback) { // Only set iframe fallback if not already trying
+      if(!useIframeFallback) { 
+        message += ' 部分链接可能为网页播放器，将尝试内嵌框架播放。';
         setUseIframeFallback(true);
-        return;
       }
     }
 
     setVideoPlayerError(message);
-    setIsPlayerReady(true); // Still set to true to hide skeleton on error
+    setIsPlayerReady(true); // Still set to true to hide skeleton on error, error message will show
+  };
+
+  const handlePlayerReady = () => {
+    setIsPlayerReady(true);
+    setHlsRetryCount(0); // Reset retries on successful load/ready
+    setIsRetrying(false);
+    setVideoPlayerError(null); // Clear any previous error/retry messages
   };
 
 
@@ -281,31 +338,38 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                 allowFullScreen
                 title="Video Fallback Player"
                 className="border-0"
-                onLoad={() => setIsPlayerReady(true)} // Consider iframe loaded as "ready"
+                onLoad={() => { setIsPlayerReady(true); setIsRetrying(false); }} 
               ></iframe>
-            ) : videoPlayerError ? (
+            ) : videoPlayerError && !isRetrying ? (
               <div className="w-full h-full flex flex-col items-center justify-center bg-black text-destructive-foreground p-4 text-center">
                 <AlertCircle className="w-12 h-12 mb-2 text-destructive" />
                 <p className="text-lg font-semibold">播放错误</p>
                 <p className="text-sm">{videoPlayerError}</p>
               </div>
+            ) : isRetrying ? (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-black text-muted-foreground p-4 text-center">
+                    <Loader2 className="w-12 h-12 mb-4 animate-spin text-primary" />
+                    <p className="text-lg font-semibold">播放器加载中...</p>
+                    <p className="text-sm">正在尝试重新加载视频 (尝试 {hlsRetryCount}/{MAX_HLS_RETRIES})</p>
+                </div>
             ) : (
               <>
-                {!isPlayerReady && !useIframeFallback && (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Skeleton className="w-full h-full" />
-                     <p className="absolute text-muted-foreground">播放器准备中...</p>
+                {!isPlayerReady && !useIframeFallback && !isRetrying && (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-black text-muted-foreground">
+                    <Loader2 className="w-12 h-12 mb-4 animate-spin text-primary" />
+                     <p>播放器准备中...</p>
                   </div>
                 )}
                  <ReactPlayer
+                    key={playerKey} // Important for re-initialization on retry or URL change
                     url={currentPlayUrl}
                     playing={true}
                     controls={true}
                     width="100%"
                     height="100%"
                     onError={handlePlayerError}
-                    onReady={() => setIsPlayerReady(true)}
-                    style={{ display: isPlayerReady || useIframeFallback ? 'block' : 'none' }}
+                    onReady={handlePlayerReady} // Use specific onReady to reset retry state
+                    style={{ display: isPlayerReady && !videoPlayerError && !isRetrying ? 'block' : 'none' }}
                     config={{
                         file: {
                           attributes: {
@@ -313,8 +377,8 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                           },
                           hlsOptions: {
                             // HLS.js specific options can go here if needed
+                            // Example: enableSoftwareAES: true for certain streams
                           },
-                          // dashVersion: '4.7.2' // Example if you need a specific dash.js version
                         },
                       }}
                   />
@@ -340,7 +404,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
           </div>
            {currentPlayUrl && (
             <p className="px-2 pb-2 text-xs text-muted-foreground break-all">
-              视频链接: {currentPlayUrl}
+              视频链接: {currentPlayUrl.split('?retry=')[0]} {/* Display original URL without retry param */}
             </p>
            )}
            <p className="px-2 pb-2 text-xs text-muted-foreground">
@@ -458,6 +522,9 @@ export default function ContentDetailPage(props: ContentDetailPageProps) {
         <Skeleton className="w-full aspect-video mb-8 rounded-lg" />
         <Skeleton className="h-12 w-3/4 mb-4" />
         <Skeleton className="h-8 w-1/2 mb-8" />
+        <div className="flex items-center justify-center mt-8">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        </div>
       </div>
     }>
       <ContentDetailDisplay {...props} />
