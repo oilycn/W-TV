@@ -35,7 +35,6 @@ USER nextjs
 # Copy standalone output from builder stage
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
 # Expose port 3000 (Next.js default port for production)
 EXPOSE 3000
