@@ -3,6 +3,8 @@
 
 这是一个基于 Next.js 构建的个性化影院体验应用程序，在 Firebase Studio 中创建。
 
+![](https://raw.githubusercontent.com/oilycn/MyPic/master/IMG/wanfeng-tv.png)
+
 核心功能包括：
 - **动态内容加载**: 从用户配置的多个内容源 (类似TVBox的通用视频API接口) 动态加载和解析内容。
 - **内容源管理**:
