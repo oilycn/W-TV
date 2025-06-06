@@ -37,8 +37,20 @@ npm run dev
 *注意: 项目中包含了 Genkit (用于AI功能) 的基础配置 (`src/ai/genkit.ts`), 但核心的AI推荐功能目前已移除。*
 
 ## 使用 Docker 运行
+* dockercompose安装
+```bash
+version: "3.3"
+services:
+  wanfeng-tv:
+    ports:
+      - 9002:3000
+    container_name: wanfeng-tv-app
+    restart: always
+    image: oilycn/wanfeng-tv:1.0.0
+networks: {}
+```
 
-您可以使用 Docker 构建和运行此应用程序。
+您也可以使用 Docker 自行构建和运行此应用程序。
 
 ### 前提条件
 
