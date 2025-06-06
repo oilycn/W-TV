@@ -60,16 +60,16 @@ npm run dev
 镜像构建完成后，您可以将其作为容器运行：
 
 ```bash
-docker run -p 3000:3000 wanfeng-tv
+docker run -p 9002:3000 wanfeng-tv
 ```
 
 此命令将：
 *   运行 `wanfeng-tv` 镜像。
-*   将容器的 3000 端口映射到您主机的 3000 端口。
+*   将容器的 3000 端口映射到您主机的 9002 端口。
 
-然后，您可以在浏览器中通过 `http://localhost:3000` 访问应用程序。
+然后，您可以在浏览器中通过 `http://localhost:9002` 访问应用程序。
 
 要在后台以分离模式运行容器：
 ```bash
-docker run -d -p 3000:3000 wanfeng-tv
+docker run -d -p 9002:3000 wanfeng-tv
 ```
