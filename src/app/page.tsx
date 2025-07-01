@@ -6,7 +6,7 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import type { ContentItem, SourceConfig, ApiCategory, PaginatedContentResponse } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { fetchApiContentList, getMockApiCategories, getMockPaginatedResponse } from '@/lib/content-loader';
+import { fetchApiContentList, fetchApiCategories, getMockApiCategories, getMockPaginatedResponse } from '@/lib/content-loader';
 import { ContentCard } from '@/components/content/ContentCard';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
