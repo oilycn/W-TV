@@ -2,16 +2,21 @@
 "use client";
 
 import { use, useEffect, useState, Suspense, useRef, useCallback } from 'react';
-import type { ContentItem, PlaybackSourceGroup, SourceConfig, PlaybackURL } from '@/types';
+import type { ContentItem } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, getMockContentItemById } from '@/lib/content-loader';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Star } from 'lucide-react';
 
 // Vidstack Imports
 import { type MediaProviderAdapter, AirPlayButton, isHLSProvider, MediaPlayer, MediaProvider } from '@vidstack/react';
 import { AirPlayIcon } from '@vidstack/react/icons';
 import { defaultLayoutIcons, DefaultVideoLayout } from '@vidstack/react/player/layouts/default';
 import Hls from 'hls.js';
+
+// ShadCN UI
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 
 interface ContentDetailPageParams {
   id: string;
@@ -58,20 +63,14 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     
-    const [videoTitle, setVideoTitle] = useState('');
     const [currentPlayUrl, setCurrentPlayUrl] = useState<string | null>(null);
     const [currentSourceGroupIndex, setCurrentSourceGroupIndex] = useState<number | null>(null);
     const [currentUrlIndex, setCurrentUrlIndex] = useState<number | null>(null);
-    
-    const [showEpisodePanel, setShowEpisodePanel] = useState(false);
-    const [reverseEpisodeOrder, setReverseEpisodeOrder] = useState(false);
-    
+        
     const [showShortcutHint, setShowShortcutHint] = useState(false);
     const [shortcutText, setShortcutText] = useState('');
-    const [shortcutDirection, setShortcutDirection] = useState('');
 
     const playerRef = useRef<MediaPlayer>(null);
-    const playerContainerRef = useRef<HTMLDivElement>(null);
     const shortcutHintTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isFullscreen = playerRef.current?.state.fullscreen;
     
@@ -124,8 +123,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             
             setItem(itemFound || null);
             if(itemFound) {
-              setVideoTitle(itemFound.title);
-              // Auto-play the first episode of the first source group by default
               const firstSourceGroup = itemFound.playbackSources?.[0];
               const firstUrl = firstSourceGroup?.urls?.[0];
               if (firstUrl) {
@@ -142,11 +139,8 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
 
     const handlePlayVideo = (url: string, sourceName: string, episodeName: string, sourceGroupIndex: number, urlIndex: number) => {
         setCurrentPlayUrl(url);
-        setVideoTitle(`${item?.title || '视频'} - ${episodeName}`);
         setCurrentSourceGroupIndex(sourceGroupIndex);
         setCurrentUrlIndex(urlIndex);
-        setShowEpisodePanel(false);
-        playerContainerRef.current?.focus();
     };
 
     const getNextEpisode = (): { url: string; sourceName: string; episodeName: string; sourceGroupIndex: number; urlIndex: number } | null => {
@@ -176,9 +170,8 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         }
     };
     
-    const displayShortcutHint = (text: string, direction: string) => {
+    const displayShortcutHint = (text: string) => {
         setShortcutText(text);
-        setShortcutDirection(direction);
         setShowShortcutHint(true);
         if (shortcutHintTimeoutRef.current) clearTimeout(shortcutHintTimeoutRef.current);
         shortcutHintTimeoutRef.current = setTimeout(() => setShowShortcutHint(false), 2000);
@@ -192,9 +185,9 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             const nextEp = getNextEpisode();
             if (nextEp) {
                 handleNextEpisode();
-                displayShortcutHint('下一集', 'right');
+                displayShortcutHint('下一集');
             } else {
-                displayShortcutHint('已经是最后一集了', 'error');
+                displayShortcutHint('已经是最后一集了');
             }
         }
         
@@ -204,10 +197,10 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         
         if (e.key === ' ') player.paused ? player.play() : player.pause();
         if (e.key === 'f' || e.key === 'F') isFullscreen ? player.exitFullscreen() : player.enterFullscreen();
-        if (!e.altKey && e.key === 'ArrowLeft') { player.currentTime -= 10; displayShortcutHint('快退10秒', 'left'); }
-        if (!e.altKey && e.key === 'ArrowRight') { player.currentTime += 10; displayShortcutHint('快进10秒', 'right'); }
-        if (e.key === 'ArrowUp') { player.volume = Math.min(player.volume + 0.1, 1); displayShortcutHint(`音量 ${Math.round(player.volume * 100)}`, 'up');}
-        if (e.key === 'ArrowDown') { player.volume = Math.max(player.volume - 0.1, 0); displayShortcutHint(`音量 ${Math.round(player.volume * 100)}`, 'down');}
+        if (!e.altKey && e.key === 'ArrowLeft') { player.currentTime -= 10; displayShortcutHint('快退10秒'); }
+        if (!e.altKey && e.key === 'ArrowRight') { player.currentTime += 10; displayShortcutHint('快进10秒'); }
+        if (e.key === 'ArrowUp') { player.volume = Math.min(player.volume + 0.1, 1); displayShortcutHint(`音量 ${Math.round(player.volume * 100)}`);}
+        if (e.key === 'ArrowDown') { player.volume = Math.max(player.volume - 0.1, 0); displayShortcutHint(`音量 ${Math.round(player.volume * 100)}`);}
     }, [item, currentSourceGroupIndex, currentUrlIndex, isFullscreen]);
     
     useEffect(() => {
@@ -231,7 +224,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     
     if (isLoading) {
         return (
-            <div className='min-h-screen bg-black flex items-center justify-center'>
+            <div className='min-h-screen flex items-center justify-center'>
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
             </div>
         );
@@ -239,9 +232,9 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
 
     if (error) {
         return (
-            <div className='min-h-screen bg-black flex items-center justify-center p-4'>
-                <div className='text-white text-center'>
-                    <h2 className='text-xl font-semibold mb-4 text-red-400'>加载失败</h2>
+            <div className='min-h-screen flex items-center justify-center p-4'>
+                <div className='text-center'>
+                    <h2 className='text-xl font-semibold mb-4 text-destructive'>加载失败</h2>
                     <p className='text-base mb-6'>{error}</p>
                 </div>
             </div>
@@ -250,133 +243,133 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     
     if (!item) {
         return (
-             <div className='min-h-screen bg-black flex items-center justify-center'>
-                <p className='text-white'>未找到内容。</p>
+             <div className='min-h-screen flex items-center justify-center'>
+                <p>未找到内容。</p>
             </div>
         );
     }
 
     return (
-        <div ref={playerContainerRef} tabIndex={-1} className='bg-black fixed inset-0 overflow-hidden outline-none'>
-            <MediaPlayer
-                ref={playerRef}
-                className='w-full h-full group'
-                src={currentPlayUrl || ''}
-                poster={item.posterUrl}
-                playsInline
-                autoPlay
-                volume={0.8}
-                crossOrigin='anonymous'
-                onProviderChange={onProviderChange}
-                onEnded={handleNextEpisode}
-            >
-                <MediaProvider />
-                <PlayerUITopbar
-                    videoTitle={videoTitle}
-                    isFullscreen={isFullscreen}
-                    onOpenEpisodePanel={() => {
-                        setShowEpisodePanel(true);
-                        playerContainerRef.current?.focus();
-                    }}
-                />
-                <DefaultVideoLayout
-                    icons={defaultLayoutIcons}
-                    slots={{
-                        googleCastButton: null,
-                        pipButton: null,
-                        settingsMenu: null,
-                        beforeCurrentTime: (
-                            <button className='vds-button mr-2' onClick={handleNextEpisode} aria-label='Next Episode'>
-                                <svg className='vds-icon' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'><path d='M6 24l12-8L6 8v16zM22 8v16h3V8h-3z' fill='currentColor'/></svg>
-                            </button>
-                        ),
-                        beforeFullscreenButton: (
-                            <>
-                                <AirPlayButton className='vds-button'><AirPlayIcon className='vds-icon' /></AirPlayButton>
-                            </>
-                        )
-                    }}
-                />
-            </MediaPlayer>
-
-            {/* Episode Panel */}
-            {item.playbackSources && item.playbackSources.length > 0 && (
-                <div>
-                    {showEpisodePanel && <div className='fixed inset-0 bg-black/60 z-[110]' onClick={() => setShowEpisodePanel(false)} />}
-                    <div className={`fixed top-0 right-0 h-full w-full max-w-md bg-black/50 backdrop-blur-xl z-[120] transform transition-transform duration-300 ${showEpisodePanel ? 'translate-x-0' : 'translate-x-full'}`}>
-                        <div className='p-4 h-full flex flex-col'>
-                            <div className='flex items-center justify-between mb-4'>
-                                <h3 className='text-white text-xl font-semibold'>选集列表</h3>
-                                <button onClick={() => setReverseEpisodeOrder(prev => !prev)} className={`text-sm ${reverseEpisodeOrder ? 'text-green-500' : 'text-gray-400'}`}>倒序</button>
+        <div className="container mx-auto max-w-7xl px-4 py-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Left column: Player */}
+                <div className="lg:col-span-2">
+                    <div className="relative aspect-video bg-black rounded-lg overflow-hidden shadow-2xl">
+                        {currentPlayUrl ? (
+                            <MediaPlayer
+                                ref={playerRef}
+                                className='w-full h-full'
+                                src={currentPlayUrl}
+                                poster={item.posterUrl}
+                                playsInline
+                                autoPlay
+                                volume={0.8}
+                                crossOrigin='anonymous'
+                                onProviderChange={onProviderChange}
+                                onEnded={handleNextEpisode}
+                            >
+                                <MediaProvider />
+                                <DefaultVideoLayout
+                                    icons={defaultLayoutIcons}
+                                    slots={{
+                                        googleCastButton: null,
+                                        pipButton: null,
+                                        settingsMenu: null,
+                                        beforeCurrentTime: (
+                                            <button className='vds-button mr-2' onClick={handleNextEpisode} aria-label='Next Episode'>
+                                                <svg className='vds-icon' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'><path d='M6 24l12-8L6 8v16zM22 8v16h3V8h-3z' fill='currentColor'/></svg>
+                                            </button>
+                                        ),
+                                        beforeFullscreenButton: (
+                                            <AirPlayButton className='vds-button'><AirPlayIcon className='vds-icon' /></AirPlayButton>
+                                        )
+                                    }}
+                                />
+                            </MediaPlayer>
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-black">
+                                <p className="text-muted-foreground">请选择一集开始播放</p>
                             </div>
-                             <div className="flex-1 overflow-y-auto space-y-4">
-                                {(reverseEpisodeOrder ? [...item.playbackSources].reverse() : item.playbackSources).map((sourceGroup, groupIdx) => {
-                                    const actualGroupIdx = reverseEpisodeOrder ? item.playbackSources.length - 1 - groupIdx : groupIdx;
-                                    return (
-                                        <div key={sourceGroup.sourceName}>
-                                            <h4 className="text-gray-300 font-semibold mb-2">{sourceGroup.sourceName}</h4>
-                                            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
-                                                {(reverseEpisodeOrder ? [...sourceGroup.urls].reverse() : sourceGroup.urls).map((playUrl, urlIdx) => {
-                                                    const actualUrlIdx = reverseEpisodeOrder ? sourceGroup.urls.length - 1 - urlIdx : urlIdx;
-                                                    return (
-                                                        <button 
-                                                            key={playUrl.url}
-                                                            onClick={() => handlePlayVideo(playUrl.url, sourceGroup.sourceName, playUrl.name, actualGroupIdx, actualUrlIdx)}
-                                                            className={`px-3 py-2 text-sm rounded-lg transition-colors truncate ${(actualGroupIdx === currentSourceGroupIndex && actualUrlIdx === currentUrlIndex) ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
-                                                            title={playUrl.name}
-                                                        >
-                                                            {playUrl.name}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
+                        )}
                     </div>
                 </div>
-            )}
+
+                {/* Right column: Details and Episodes */}
+                <div className="lg:col-span-1">
+                    <div className="space-y-4">
+                        <h1 className="text-3xl font-extrabold tracking-tight">{item.title}</h1>
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                            {item.releaseYear && <span>{item.releaseYear}</span>}
+                            {item.userRating && (
+                                <div className="flex items-center gap-1">
+                                    <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                                    <span>{item.userRating.toFixed(1)}</span>
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {item.genres?.map(genre => (
+                                <Badge key={genre} variant="secondary">{genre}</Badge>
+                            ))}
+                        </div>
+                        <p className="text-sm text-muted-foreground leading-relaxed">
+                            {item.description}
+                        </p>
+
+                        {/* Episode Selector */}
+                        {item.playbackSources && item.playbackSources.length > 0 ? (
+                             <Tabs defaultValue={item.playbackSources[0].sourceName} className="w-full">
+                                <TabsList className="grid w-full grid-flow-col auto-cols-fr">
+                                    {item.playbackSources.map((sourceGroup) => (
+                                        <TabsTrigger key={sourceGroup.sourceName} value={sourceGroup.sourceName}>
+                                            {sourceGroup.sourceName}
+                                        </TabsTrigger>
+                                    ))}
+                                </TabsList>
+                                {item.playbackSources.map((sourceGroup, groupIdx) => (
+                                    <TabsContent key={sourceGroup.sourceName} value={sourceGroup.sourceName}>
+                                        <ScrollArea className="h-72 w-full pr-4">
+                                            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+                                                {sourceGroup.urls.map((playUrl, urlIdx) => (
+                                                    <button
+                                                        key={`${playUrl.url}-${urlIdx}`}
+                                                        onClick={() => handlePlayVideo(playUrl.url, sourceGroup.sourceName, playUrl.name, groupIdx, urlIdx)}
+                                                        className={`px-3 py-2 text-xs rounded-md transition-colors truncate ${
+                                                            (groupIdx === currentSourceGroupIndex && urlIdx === currentUrlIndex) 
+                                                            ? 'bg-primary text-primary-foreground' 
+                                                            : 'bg-muted hover:bg-primary/80 hover:text-primary-foreground'
+                                                        }`}
+                                                        title={playUrl.name}
+                                                    >
+                                                        {playUrl.name}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </ScrollArea>
+                                    </TabsContent>
+                                ))}
+                            </Tabs>
+                        ) : (
+                            <p className="text-muted-foreground text-sm">暂无可用播放源。</p>
+                        )}
+                    </div>
+                </div>
+            </div>
             
             {/* Shortcut Hint */}
-            <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 transition-opacity duration-300 ${showShortcutHint ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-                <div className='bg-black/80 backdrop-blur-sm rounded p-4 flex items-center space-x-3 text-white'>
-                    {shortcutText}
-                </div>
+            <div className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[200] transition-opacity duration-300 ${showShortcutHint ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                 <div className='bg-black/80 backdrop-blur-sm rounded p-4 flex items-center space-x-3 text-white'>
+                     {shortcutText}
+                 </div>
             </div>
         </div>
     );
 }
-
-function PlayerUITopbar({ videoTitle, isFullscreen, onOpenEpisodePanel }: { videoTitle: string; isFullscreen: boolean | undefined; onOpenEpisodePanel: () => void; }) {
-    return (
-        <div className='absolute top-0 left-0 right-0 transition-opacity duration-300 z-10 opacity-0 pointer-events-none group-data-[controls]:opacity-100 group-data-[controls]:pointer-events-auto'>
-            <div className='bg-gradient-to-b from-black/70 to-transparent p-4 flex items-center justify-between'>
-                <div className='flex items-center gap-2'>
-                    <button onClick={() => window.history.back()} className='text-white hover:text-gray-300'>
-                         <svg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><path d='M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z' fill='currentColor'/></svg>
-                    </button>
-                    <span className='text-white font-semibold text-lg truncate max-w-xs sm:max-w-md'>{videoTitle}</span>
-                </div>
-                <button className='vds-button text-sm' onClick={onOpenEpisodePanel}>选集</button>
-            </div>
-        </div>
-    );
-}
-
 
 export default function ContentDetailPage(props: ContentDetailPageProps) {
-    useEffect(() => {
-        // Fullscreen player page, hide body scrollbar
-        document.body.style.overflow = 'hidden';
-        return () => {
-            document.body.style.overflow = '';
-        };
-    }, []);
     return (
         <Suspense fallback={
-            <div className='min-h-screen bg-black flex items-center justify-center'>
+            <div className='min-h-screen bg-background flex items-center justify-center'>
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
             </div>
         }>
