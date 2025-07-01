@@ -1,8 +1,8 @@
 
 "use client";
 
-import { use, useEffect, useState, Suspense, useCallback } from 'react';
-import type { ContentItem } from '@/types';
+import { use, useEffect, useState, Suspense, useCallback, useRef } from 'react';
+import type { ContentItem, SourceConfig } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, getMockContentItemById } from '@/lib/content-loader';
 import { Loader2, Star } from 'lucide-react';
