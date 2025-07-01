@@ -21,6 +21,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: '晚风TV',
   description: '您的个性化影院体验',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: '晚风TV',
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 const AppHeaderFallback = () => (
