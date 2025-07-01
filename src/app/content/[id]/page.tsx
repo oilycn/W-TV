@@ -1,14 +1,15 @@
 
 "use client";
 
-import { use, useEffect, useState, Suspense, useRef, useCallback } from 'react';
+import { use, useEffect, useState, Suspense, useCallback } from 'react';
 import type { ContentItem } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, getMockContentItemById } from '@/lib/content-loader';
 import { Loader2, Star } from 'lucide-react';
 
 // Vidstack Imports
-import { type MediaProviderAdapter, AirPlayButton, isHLSProvider, MediaPlayer, MediaProvider } from '@vidstack/react';
+import { type MediaProviderAdapter, AirPlayButton, isHLSProvider, type MediaPlayerElement } from '@vidstack/react';
+import { MediaPlayer, MediaProvider } from '@vidstack/react';
 import { AirPlayIcon } from '@vidstack/react/icons';
 import { defaultLayoutIcons, DefaultVideoLayout } from '@vidstack/react/player/layouts/default';
 import Hls from 'hls.js';
@@ -69,10 +70,11 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         
     const [showShortcutHint, setShowShortcutHint] = useState(false);
     const [shortcutText, setShortcutText] = useState('');
-
-    const playerRef = useRef<MediaPlayer>(null);
     const shortcutHintTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const isFullscreen = playerRef.current?.state.fullscreen;
+    
+    const [player, setPlayer] = useState<MediaPlayerElement | null>(null);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [useIframeFallback, setUseIframeFallback] = useState(false);
     
     const [blockAdEnabled] = useState<boolean>(() => {
         if (typeof window !== 'undefined') {
@@ -141,6 +143,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         setCurrentPlayUrl(url);
         setCurrentSourceGroupIndex(sourceGroupIndex);
         setCurrentUrlIndex(urlIndex);
+        setUseIframeFallback(false); // Reset fallback on new video selection
     };
 
     const getNextEpisode = (): { url: string; sourceName: string; episodeName: string; sourceGroupIndex: number; urlIndex: number } | null => {
@@ -191,8 +194,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             }
         }
         
-        if (!playerRef.current) return;
-        const player = playerRef.current;
+        if (!player) return;
         if (e.key === ' ' || e.key === 'f' || e.key === 'F' || e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') e.preventDefault();
         
         if (e.key === ' ') player.paused ? player.play() : player.pause();
@@ -201,12 +203,44 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         if (!e.altKey && e.key === 'ArrowRight') { player.currentTime += 10; displayShortcutHint('快进10秒'); }
         if (e.key === 'ArrowUp') { player.volume = Math.min(player.volume + 0.1, 1); displayShortcutHint(`音量 ${Math.round(player.volume * 100)}`);}
         if (e.key === 'ArrowDown') { player.volume = Math.max(player.volume - 0.1, 0); displayShortcutHint(`音量 ${Math.round(player.volume * 100)}`);}
-    }, [item, currentSourceGroupIndex, currentUrlIndex, isFullscreen]);
+    }, [item, currentSourceGroupIndex, currentUrlIndex, isFullscreen, player]);
     
     useEffect(() => {
         document.addEventListener('keydown', handleKeyboardShortcuts);
         return () => document.removeEventListener('keydown', handleKeyboardShortcuts);
     }, [handleKeyboardShortcuts]);
+
+    // Subscribe to player fullscreen state
+    useEffect(() => {
+        if (!player) return;
+        return player.subscribe(({ fullscreen }) => {
+            setIsFullscreen(fullscreen);
+        });
+    }, [player]);
+
+    // Player error listener for iframe fallback
+    useEffect(() => {
+        if (!player) return;
+
+        const onError = (error: any) => {
+            console.error('MediaPlayer Error:', error.detail);
+            const code = error.detail?.code;
+            const hlsError = error.detail?.hlsError;
+
+            // A heuristic to decide when to fallback. 
+            // error.detail.code === 4 is MEDIA_ERR_SRC_NOT_SUPPORTED.
+            // HLS.js errors are nested inside `hlsError`. A fatal mediaError often means the content is unplayable.
+            if (code === 4 || (hlsError && hlsError.fatal && hlsError.type === 'mediaError')) {
+                 console.warn(`Source not supported by player (code: ${code}). Falling back to iframe.`);
+                 setUseIframeFallback(true);
+            } else {
+                 console.warn('An unexpected player error occurred. Attempting iframe fallback.', error.detail);
+                 setUseIframeFallback(true);
+            }
+        };
+
+        return player.listen('error', onError);
+    }, [player]);
 
     const onProviderChange = (provider: MediaProviderAdapter | null) => {
         if (isHLSProvider(provider)) {
@@ -257,9 +291,19 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                 {/* Left column: Player and Details */}
                 <div className="lg:col-span-3 flex flex-col gap-6">
                     <div className="relative aspect-video bg-black rounded-lg overflow-hidden shadow-2xl">
-                        {currentPlayUrl ? (
+                        {currentPlayUrl && useIframeFallback ? (
+                            <iframe
+                                key={currentPlayUrl}
+                                src={currentPlayUrl}
+                                title="Playback Frame"
+                                className="w-full h-full"
+                                allow="autoplay; encrypted-media; picture-in-picture"
+                                allowFullScreen
+                                sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
+                            />
+                        ) : currentPlayUrl ? (
                             <MediaPlayer
-                                ref={playerRef}
+                                ref={setPlayer}
                                 className='w-full h-full'
                                 src={currentPlayUrl}
                                 poster={item.posterUrl}
@@ -383,5 +427,3 @@ export default function ContentDetailPage(props: ContentDetailPageProps) {
         </Suspense>
     );
 }
-
-    
