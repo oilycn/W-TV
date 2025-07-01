@@ -221,21 +221,21 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     useEffect(() => {
         if (!player) return;
 
-        const onError = (error: any) => {
-            // Vidstack's `listen` method passes the event detail directly.
-            // So the `error` object here is the `MediaError` detail itself.
-            console.error('MediaPlayer Error:', error);
-            const code = error?.code;
-            const hlsError = error?.hlsError;
+        const onError = (event: any) => {
+            // The `listen` method provides an event, and the error data is in `event.detail`.
+            const errorDetail = event.detail;
+            console.error('MediaPlayer Error:', errorDetail);
+            const code = errorDetail?.code;
+            const hlsError = errorDetail?.hlsError;
 
-            // A heuristic to decide when to fallback. 
+            // A heuristic to decide when to fallback.
             // error.code === 4 is MEDIA_ERR_SRC_NOT_SUPPORTED.
             // HLS.js errors are nested inside `hlsError`. A fatal mediaError often means the content is unplayable.
             if (code === 4 || (hlsError && hlsError.fatal && hlsError.type === 'mediaError')) {
                  console.warn(`Source not supported by player (code: ${code}). Falling back to iframe.`);
                  setUseIframeFallback(true);
             } else {
-                 console.warn('An unexpected player error occurred. Attempting iframe fallback.', error);
+                 console.warn('An unexpected player error occurred. Attempting iframe fallback.', errorDetail);
                  setUseIframeFallback(true);
             }
         };
