@@ -121,9 +121,9 @@ function SearchResults() {
 
       <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-6 mt-2 overflow-hidden">
         
-        <aside className="md:col-span-1 h-full flex flex-col bg-card border rounded-lg shadow-sm">
+        <aside className="md:col-span-1 h-full flex flex-col bg-card/80 backdrop-blur-md border rounded-lg shadow-sm">
           <div className="p-4 border-b">
-            <h2 className="text-lg font-semibold text-card-foreground">内容来源</h2>
+            <h2 className="text-lg font-semibold text-card-foreground">播放源</h2>
           </div>
           <ScrollArea className="flex-1">
             <div className="p-2">
@@ -133,7 +133,7 @@ function SearchResults() {
                   variant={selectedSourceId === group.source.id ? "secondary" : "ghost"}
                   onClick={() => setSelectedSourceId(group.source.id)}
                   className={cn(
-                    "justify-start w-full text-left h-auto py-2 px-3",
+                    "justify-start w-full text-left h-auto py-2.5 px-3 text-base",
                     selectedSourceId === group.source.id && "font-bold"
                   )}
                 >
