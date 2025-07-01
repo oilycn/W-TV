@@ -8,9 +8,10 @@ import { Star } from 'lucide-react';
 
 interface ContentCardProps {
   item: ContentItem;
+  sourceId?: string;
 }
 
-export function ContentCard({ item }: ContentCardProps) {
+export function ContentCard({ item, sourceId }: ContentCardProps) {
   const getAiHint = (currentItem: ContentItem) => {
     if (currentItem.genres && currentItem.genres.length > 0) {
       return currentItem.genres.slice(0, 2).join(" ").toLowerCase();
@@ -18,8 +19,12 @@ export function ContentCard({ item }: ContentCardProps) {
     return currentItem.title.split(" ")[0].toLowerCase() || "movie poster";
   }
 
+  const linkHref = sourceId 
+    ? `/content/${item.id}?sourceId=${sourceId}` 
+    : `/content/${item.id}`;
+
   return (
-    <Link href={`/content/${item.id}`}>
+    <Link href={linkHref}>
       <Card className="group overflow-hidden hover:shadow-xl transition-shadow duration-300 h-full flex flex-col bg-card hover:border-primary/50 border border-transparent">
         <CardHeader className="p-0 relative aspect-[2/3]">
           <Image

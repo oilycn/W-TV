@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useState, Suspense, useCallback, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import type { ContentItem, SourceConfig } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, getMockContentItemById } from '@/lib/content-loader';
@@ -53,11 +54,12 @@ class CustomHlsJsLoader extends Hls.DefaultConfig.loader {
 }
 
 function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
+    const searchParams = useSearchParams();
     const resolvedParams = use(paramsProp as any); 
 
     const [pageId, setPageId] = useState<string | null>(null);
-    const [sources] = useLocalStorage<SourceConfig[]>('cinemaViewSources', []);
-    const [activeSourceId] = useLocalStorage<string | null>('cinemaViewActiveSourceId', null);
+    const [sources, setSources] = useLocalStorage<SourceConfig[]>('cinemaViewSources', []);
+    const [activeSourceId, setActiveSourceId] = useLocalStorage<string | null>('cinemaViewActiveSourceId', null);
     
     const [item, setItem] = useState<ContentItem | null | undefined>(undefined);
     const [isLoading, setIsLoading] = useState(true);
@@ -96,6 +98,8 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     }, [resolvedParams]);
 
     useEffect(() => {
+        const sourceIdFromQuery = searchParams.get('sourceId');
+
         if (!pageId) {
             setIsLoading(false);
             setItem(null); 
@@ -106,18 +110,30 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             setIsLoading(true);
             setError(null);
             let itemFound: ContentItem | null | undefined = undefined;
-            const activeSourceConfig = sources.find(s => s.id === activeSourceId);
-
-            if (activeSourceConfig) {
-                itemFound = await fetchContentItemById(activeSourceConfig.url, pageId);
-            }
-            if (!itemFound) {
-                for (const source of sources) {
-                    if (activeSourceConfig && source.id === activeSourceConfig.id) continue; 
-                    itemFound = await fetchContentItemById(source.url, pageId);
-                    if (itemFound) break; 
+            
+            // Reorder sources to try the one from query/active one first
+            const sourceIdToTryFirst = sourceIdFromQuery || activeSourceId;
+            const sourcesToSearch = [...sources];
+            if (sourceIdToTryFirst) {
+                const idx = sourcesToSearch.findIndex(s => s.id === sourceIdToTryFirst);
+                if (idx > 0) {
+                    const primary = sourcesToSearch.splice(idx, 1)[0];
+                    sourcesToSearch.unshift(primary);
                 }
             }
+
+            for (const source of sourcesToSearch) {
+                itemFound = await fetchContentItemById(source.url, pageId);
+                if (itemFound) {
+                    // If content is found from a source that is not active,
+                    // set it as active for a better user experience (e.g., next episode).
+                    if (source.id !== activeSourceId) {
+                        setActiveSourceId(source.id);
+                    }
+                    break; 
+                }
+            }
+            
             if (!itemFound && pageId) {
                 itemFound = getMockContentItemById(pageId); 
             }
@@ -136,7 +152,8 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         }
         
         loadContentDetail();
-    }, [pageId, sources, activeSourceId]);
+    }, [pageId, sources, activeSourceId, setActiveSourceId, searchParams]);
+
 
     const handlePlayVideo = (url: string, sourceName: string, episodeName: string, sourceGroupIndex: number, urlIndex: number) => {
         setCurrentPlayUrl(url);
@@ -282,8 +299,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             </div>
         );
     }
-
-    const aiHint = item.genres?.slice(0, 2).join(" ").toLowerCase() || item.title.split(" ")[0].toLowerCase() || "movie poster";
 
     return (
         <div className="container mx-auto max-w-screen-2xl px-4 py-6">

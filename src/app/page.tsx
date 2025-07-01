@@ -320,7 +320,7 @@ function HomePageContent() {
       ) : contentItems.length > 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8 2xl:grid-cols-10 gap-4 md:gap-6">
           {contentItems.map(item => (
-            <ContentCard key={`${item.id}-${activeSourceUrl || 'mock'}-${item.title}`} item={item} />
+            <ContentCard key={`${item.id}-${activeSourceUrl || 'mock'}-${item.title}`} item={item} sourceId={activeSourceId ?? undefined} />
           ))}
         </div>
       ) : (

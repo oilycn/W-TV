@@ -55,11 +55,14 @@ function SearchResults() {
         const response = await fetchApiContentList(source.url, { searchTerm: currentQuery });
         if (response.items && response.items.length > 0) {
           setSearchResultsBySource(prevResults => {
-            if (prevResults.find(r => r.source.id === source.id)) {
-                return prevResults;
+            // Check for duplicates before adding
+            if (prevResults.some(r => r.source.id === source.id)) {
+              return prevResults;
             }
-            const newResults = [...prevResults, { source, items: response.items }];
-            if (prevResults.length === 0) {
+            const newGroup = { source, items: response.items };
+            const newResults = [...prevResults, newGroup];
+            // Select the first source that returns results
+            if (!selectedSourceId && prevResults.length === 0) {
               setSelectedSourceId(source.id);
             }
             return newResults;
@@ -74,7 +77,7 @@ function SearchResults() {
     await Promise.all(searchPromises);
     setIsLoading(false);
 
-  }, []);
+  }, [selectedSourceId]);
 
 
   useEffect(() => {
@@ -122,11 +125,11 @@ function SearchResults() {
 
       <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-6 mt-2 overflow-hidden">
         
-        <aside className="md:col-span-1 h-full flex flex-col bg-card/80 backdrop-blur-md rounded-lg shadow-sm">
+        <aside className="md:col-span-1 h-full flex flex-col backdrop-blur-md rounded-lg shadow-sm bg-card/50">
           <div className="p-4">
             <h2 className="text-lg font-semibold text-card-foreground">播放源</h2>
           </div>
-          <Separator className="mx-4 w-auto" />
+          <Separator className="mx-4 w-auto bg-border/50" />
           <ScrollArea className="flex-1">
             <div className="p-2">
               {searchResultsBySource.map(group => (
@@ -171,7 +174,7 @@ function SearchResults() {
           {activeGroup ? (
             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
               {activeGroup.items.map(item => (
-                <ContentCard key={`${item.id}-search-${activeGroup.source.id}`} item={item} />
+                <ContentCard key={`${item.id}-search-${activeGroup.source.id}`} item={item} sourceId={activeGroup.source.id} />
               ))}
             </div>
           ) : (
