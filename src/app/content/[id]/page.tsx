@@ -224,7 +224,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         const onError = (event: any) => {
             // The `listen` method provides an event, and the error data is in `event.detail`.
             const errorDetail = event.detail;
-            console.error('MediaPlayer Error:', errorDetail);
             const code = errorDetail?.code;
             const hlsError = errorDetail?.hlsError;
 
@@ -428,5 +427,3 @@ export default function ContentDetailPage(props: ContentDetailPageProps) {
         </Suspense>
     );
 }
-
-    
