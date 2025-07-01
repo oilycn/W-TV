@@ -62,7 +62,7 @@ function SearchResults() {
             const newGroup = { source, items: response.items };
             const newResults = [...prevResults, newGroup];
             // Select the first source that returns results
-            if (!selectedSourceId && prevResults.length === 0) {
+            if (prevResults.length === 0) {
               setSelectedSourceId(source.id);
             }
             return newResults;
@@ -77,7 +77,7 @@ function SearchResults() {
     await Promise.all(searchPromises);
     setIsLoading(false);
 
-  }, [selectedSourceId]);
+  }, []);
 
 
   useEffect(() => {
