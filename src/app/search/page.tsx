@@ -12,6 +12,7 @@ import { AlertCircle, Loader2, SearchIcon as SearchIconLucide } from 'lucide-rea
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
@@ -125,6 +126,7 @@ function SearchResults() {
           <div className="p-4">
             <h2 className="text-lg font-semibold text-card-foreground">播放源</h2>
           </div>
+          <Separator className="mx-4 w-auto" />
           <ScrollArea className="flex-1">
             <div className="p-2">
               {searchResultsBySource.map(group => (
