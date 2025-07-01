@@ -122,7 +122,7 @@ function SearchResults() {
       <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-6 mt-2 overflow-hidden">
         
         <aside className="md:col-span-1 h-full flex flex-col bg-card/80 backdrop-blur-md rounded-lg shadow-sm">
-          <div className="p-4 border-b">
+          <div className="p-4">
             <h2 className="text-lg font-semibold text-card-foreground">播放源</h2>
           </div>
           <ScrollArea className="flex-1">
