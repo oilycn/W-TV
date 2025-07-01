@@ -11,6 +11,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, Loader2, SearchIcon as SearchIconLucide } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 
@@ -29,7 +31,6 @@ function SearchResults() {
   const [error, setError] = useState<string | null>(null);
   const [totalResultsCount, setTotalResultsCount] = useState(0);
 
-  // New state for the selected source in the sidebar
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
 
   const loadSearchResults = useCallback(async (currentQuery: string, currentSources: SourceConfig[]) => {
@@ -48,13 +49,15 @@ function SearchResults() {
     setSelectedSourceId(null);
     setTotalResultsCount(0);
 
-    for (const source of currentSources) {
+    const searchPromises = currentSources.map(async (source) => {
       try {
         const response = await fetchApiContentList(source.url, { searchTerm: currentQuery });
         if (response.items && response.items.length > 0) {
           setSearchResultsBySource(prevResults => {
+            if (prevResults.find(r => r.source.id === source.id)) {
+                return prevResults;
+            }
             const newResults = [...prevResults, { source, items: response.items }];
-            // If this is the first group of results, select it automatically
             if (prevResults.length === 0) {
               setSelectedSourceId(source.id);
             }
@@ -65,8 +68,9 @@ function SearchResults() {
       } catch (e) {
         console.warn(`Search: Error fetching from source ${source.name} for query "${currentQuery}":`, e);
       }
-    }
-    
+    });
+
+    await Promise.all(searchPromises);
     setIsLoading(false);
 
   }, []);
@@ -105,69 +109,79 @@ function SearchResults() {
   }
 
   return (
-    <div>
-      <h1 className="text-3xl font-bold mb-2 text-foreground">
-        搜索 "<span className="text-primary">{decodeURIComponent(query)}</span>" 的结果
-      </h1>
-      <p className="text-muted-foreground mb-8">共找到 {totalResultsCount} 条相关内容。</p>
+    <div className="flex flex-col h-[calc(100vh_-_8rem)]">
+      <div className="flex-shrink-0 pb-4">
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground">
+          搜索 "<span className="text-primary">{decodeURIComponent(query)}</span>"
+        </h1>
+        <p className="text-muted-foreground mt-1">
+          {isLoading ? '正在搜索中...' : `在 ${searchResultsBySource.length} 个来源中找到 ${totalResultsCount} 条相关内容。`}
+        </p>
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-8 items-start">
-        {/* Left Column: Source List */}
-        <div className="md:col-span-1 sticky top-20">
-          <h2 className="text-lg font-semibold mb-4 text-foreground">内容来源</h2>
-          <div className="flex flex-col space-y-2">
-            {searchResultsBySource.map(group => (
-              <Button
-                key={group.source.id}
-                variant={selectedSourceId === group.source.id ? "default" : "ghost"}
-                onClick={() => setSelectedSourceId(group.source.id)}
-                className="justify-start w-full"
-              >
-                {group.source.name} ({group.items.length})
-              </Button>
-            ))}
+      <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-6 mt-2 overflow-hidden">
+        
+        <aside className="md:col-span-1 h-full flex flex-col bg-card border rounded-lg shadow-sm">
+          <div className="p-4 border-b">
+            <h2 className="text-lg font-semibold text-card-foreground">内容来源</h2>
           </div>
-          {isLoading && (
-            <div className="flex items-center justify-start py-6">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              <p className="ml-3 text-muted-foreground">搜索中...</p>
+          <ScrollArea className="flex-1">
+            <div className="p-2">
+              {searchResultsBySource.map(group => (
+                <Button
+                  key={group.source.id}
+                  variant={selectedSourceId === group.source.id ? "secondary" : "ghost"}
+                  onClick={() => setSelectedSourceId(group.source.id)}
+                  className={cn(
+                    "justify-start w-full text-left h-auto py-2 px-3",
+                    selectedSourceId === group.source.id && "font-bold"
+                  )}
+                >
+                  <span className="flex-1 truncate">{group.source.name}</span>
+                  <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                    {group.items.length}
+                  </span>
+                </Button>
+              ))}
+              {isLoading && (
+                <div className="p-4 flex items-center justify-center text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <span>搜索中...</span>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </ScrollArea>
+        </aside>
 
-        {/* Right Column: Results */}
-        <div className="md:col-span-3">
+        <main className="md:col-span-3 h-full overflow-y-auto">
           {isLoading && searchResultsBySource.length === 0 && (
-            // Initial loading skeleton for the right panel
-            <div className="space-y-4">
-              <Skeleton className="h-7 w-1/4" />
-              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <div key={index} className="space-y-2">
-                    <Skeleton className="aspect-[2/3] w-full rounded-lg" />
-                    <Skeleton className="h-5 w-3/4" />
-                    <Skeleton className="h-4 w-1/2" />
-                  </div>
-                ))}
-              </div>
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
+              {Array.from({ length: 10 }).map((_, index) => (
+                <div key={index} className="space-y-2">
+                  <Skeleton className="aspect-[2/3] w-full rounded-lg" />
+                  <Skeleton className="h-5 w-3/4" />
+                  <Skeleton className="h-4 w-1/2" />
+                </div>
+              ))}
             </div>
           )}
 
-          {activeGroup && (
-            <section className="space-y-6">
-              <h2 className="text-2xl font-semibold text-foreground">
-                来自: {activeGroup.source.name}
-              </h2>
-              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
-                {activeGroup.items.map(item => (
-                  <ContentCard key={`${item.id}-search-${activeGroup.source.id}`} item={item} />
-                ))}
+          {activeGroup ? (
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
+              {activeGroup.items.map(item => (
+                <ContentCard key={`${item.id}-search-${activeGroup.source.id}`} item={item} />
+              ))}
+            </div>
+          ) : (
+            !isLoading && totalResultsCount > 0 && (
+              <div className="text-center py-12 flex flex-col items-center justify-center h-full text-muted-foreground">
+                <p className="text-lg">请从左侧选择一个来源以查看结果。</p>
               </div>
-            </section>
+            )
           )}
 
           {!isLoading && totalResultsCount === 0 && (
-            <div className="text-center py-12 flex flex-col items-center justify-center min-h-[300px] text-muted-foreground">
+            <div className="text-center py-12 flex flex-col items-center justify-center h-full text-muted-foreground">
               <SearchIconLucide className="mx-auto h-16 w-16 mb-4" />
               <p className="text-xl">未找到与 "{decodeURIComponent(query)}" 相关的内容。</p>
               {sources.length === 0 && (
@@ -175,7 +189,7 @@ function SearchResults() {
               )}
             </div>
           )}
-        </div>
+        </main>
       </div>
     </div>
   );
