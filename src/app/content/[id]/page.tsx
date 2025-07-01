@@ -250,10 +250,10 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     }
 
     return (
-        <div className="container mx-auto max-w-7xl px-4 py-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="container mx-auto max-w-screen-2xl px-4 py-6">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                 {/* Left column: Player */}
-                <div className="lg:col-span-2">
+                <div className="lg:col-span-3">
                     <div className="relative aspect-video bg-black rounded-lg overflow-hidden shadow-2xl">
                         {currentPlayUrl ? (
                             <MediaPlayer
