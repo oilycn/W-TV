@@ -6,6 +6,7 @@ import type { ContentItem } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, getMockContentItemById } from '@/lib/content-loader';
 import { Loader2, Star } from 'lucide-react';
+import Image from 'next/image';
 
 // Vidstack Imports
 import { type MediaProviderAdapter, AirPlayButton, isHLSProvider, MediaPlayer, MediaProvider } from '@vidstack/react';
@@ -249,6 +250,8 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         );
     }
 
+    const aiHint = item.genres?.slice(0, 2).join(" ").toLowerCase() || item.title.split(" ")[0].toLowerCase() || "movie poster";
+
     return (
         <div className="container mx-auto max-w-screen-2xl px-4 py-6">
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
@@ -297,7 +300,18 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                 {/* Right column: Details and Episodes */}
                 <div className="lg:col-span-1">
                     <div className="space-y-4">
-                        <h1 className="text-3xl font-extrabold tracking-tight">{item.title}</h1>
+                        <div className="aspect-[2/3] w-full relative overflow-hidden rounded-lg shadow-lg">
+                           <Image
+                                src={item.posterUrl}
+                                alt={item.title || 'Poster'}
+                                fill
+                                className="object-cover"
+                                unoptimized
+                                data-ai-hint={aiHint}
+                           />
+                        </div>
+
+                        <h1 className="text-2xl font-bold tracking-tight">{item.title}</h1>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                             {item.releaseYear && <span>{item.releaseYear}</span>}
                             {item.userRating && (
@@ -312,9 +326,32 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                                 <Badge key={genre} variant="secondary">{genre}</Badge>
                             ))}
                         </div>
-                        <p className="text-sm text-muted-foreground leading-relaxed">
-                            {item.description}
-                        </p>
+                        
+                        <div>
+                            <h3 className="text-lg font-semibold mb-2">简介</h3>
+                            <p className="text-sm text-muted-foreground leading-relaxed">
+                                {item.description}
+                            </p>
+                        </div>
+                        
+                        {item.cast && item.cast.length > 0 && (
+                            <div>
+                                <h3 className="text-lg font-semibold mb-2">演员表</h3>
+                                <p className="text-sm text-muted-foreground leading-relaxed">
+                                    {item.cast.join(' / ')}
+                                </p>
+                            </div>
+                        )}
+
+                        {item.director && item.director.length > 0 && (
+                             <div>
+                                <h3 className="text-lg font-semibold mb-2">导演</h3>
+                                <p className="text-sm text-muted-foreground leading-relaxed">
+                                    {item.director.join(' / ')}
+                                </p>
+                            </div>
+                        )}
+
 
                         {/* Episode Selector */}
                         {item.playbackSources && item.playbackSources.length > 0 ? (
