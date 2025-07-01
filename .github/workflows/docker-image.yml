@@ -19,7 +19,21 @@ jobs:
       - name: Checkout repository # 步骤1: 检查代码
         uses: actions/checkout@v4
 
-      # 仅在 push 事件 (而不是 pull_request) 且是 master 分支时才登录和推送
+      # --- START ADDED/MODIFIED BLOCK ---
+
+      # 推荐：设置 QEMU 以支持多平台构建（如果你的镜像未来需要在不同架构CPU上运行）
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        
+      # 关键修改：设置 Docker Buildx，并指定 driver 为 docker-container
+      # 这是解决 "Cache export is not supported for the docker driver" 错误的关键
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container # <--- 这一行是解决问题的关键
+
+      # --- END ADDED/MODIFIED BLOCK ---
+
       - name: Log in to Docker Hub
         # 只有当事件是 "push" 并且目标分支是 "master" 时才执行此步骤
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
