@@ -1,0 +1,54 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ] # Pull Request 触发时通常只构建，不推送生产镜像
+
+env:
+  # 这两个是 Docker Hub 的默认值，如果你用的是其他注册表（如 ghcr.io, gcr.io 等），需要修改
+  REGISTRY: docker.io # Docker Hub 注册表地址
+  DOCKER_IMAGE_NAME: oilycn/wanfeng-tv # 完整镜像名称，请替换为你的 Docker Hub 用户名和镜像名称
+
+jobs:
+  build_and_push: # 新的 Job 名，更表达其意图
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository # 步骤1: 检查代码
+        uses: actions/checkout@v4
+
+      # 仅在 push 事件 (而不是 pull_request) 且是 master 分支时才登录和推送
+      - name: Log in to Docker Hub
+        # 只有当事件是 "push" 并且目标分支是 "master" 时才执行此步骤
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract Docker metadata # 步骤3: 获取元数据，用于生成镜像标签
+        id: meta # 给这个步骤一个ID，方便后续引用它的输出
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }} # 完整的镜像路径
+          tags: |
+            type=sha,prefix=,suffix=,format=short # 使用短 SHA 值作为标签 (always)
+            type=ref,event=branch,enable=${{ github.ref == 'refs/heads/master' }},suffix=,prefix= # 当在 master 分支时，打上分支名（'master'）
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }} # 当在 master 分支时，额外打上 'latest' 标签
+
+      - name: Build and push Docker image # 步骤4: 构建并推送镜像
+        uses: docker/build-push-action@v5
+        with:
+          context: . # Dockerfile 的上下文路径
+          file: ./Dockerfile # Dockerfile 路径
+          # push 字段依据条件来决定是否推送
+          # 如果是 push 事件到 master 分支，则 push: true
+          # 否则 (例如 pull_request 或推送到其他分支)， push: false (只构建，不推送)
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+          tags: ${{ steps.meta.outputs.tags }} # 使用上一步生成的标签
+          labels: ${{ steps.meta.outputs.labels }} # 使用上一步生成的 OCI 标签
+          cache-from: type=gha,scope=${{ github.workflow }} # 从 GitHub Actions Cache 中拉取缓存
+          cache-to: type=gha,scope=${{ github.workflow }},mode=max # 推送构建缓存到 GitHub Actions Cache
+
