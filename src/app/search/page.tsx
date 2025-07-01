@@ -8,12 +8,15 @@ import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchApiContentList } from '@/lib/content-loader';
 import { ContentCard } from '@/components/content/ContentCard';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, Loader2, SearchIcon as SearchIconLucide } from 'lucide-react';
+import { AlertCircle, Loader2, SearchIcon as SearchIconLucide, ChevronRight } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 
@@ -31,8 +34,10 @@ function SearchResults() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [totalResultsCount, setTotalResultsCount] = useState(0);
-
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  
+  const isMobile = useIsMobile();
 
   const loadSearchResults = useCallback(async (currentQuery: string, currentSources: SourceConfig[]) => {
     if (!currentQuery) {
@@ -55,17 +60,10 @@ function SearchResults() {
         const response = await fetchApiContentList(source.url, { searchTerm: currentQuery });
         if (response.items && response.items.length > 0) {
           setSearchResultsBySource(prevResults => {
-            // Check for duplicates before adding
-            if (prevResults.some(r => r.source.id === source.id)) {
-              return prevResults;
-            }
+            if (prevResults.some(r => r.source.id === source.id)) return prevResults;
             const newGroup = { source, items: response.items };
-            const newResults = [...prevResults, newGroup];
-            // Select the first source that returns results
-            if (prevResults.length === 0) {
-              setSelectedSourceId(source.id);
-            }
-            return newResults;
+            if (prevResults.length === 0) setSelectedSourceId(source.id);
+            return [...prevResults, newGroup];
           });
           setTotalResultsCount(prevCount => prevCount + response.items.length);
         }
@@ -79,7 +77,6 @@ function SearchResults() {
 
   }, []);
 
-
   useEffect(() => {
     if (sources.length > 0 || !query) {
         loadSearchResults(query, sources);
@@ -92,6 +89,44 @@ function SearchResults() {
   }, [query, sources, loadSearchResults]);
   
   const activeGroup = searchResultsBySource.find(g => g.source.id === selectedSourceId);
+
+  const SourceList = () => (
+    <>
+      <div className="p-4">
+        <h2 className="text-lg font-semibold text-card-foreground">播放源</h2>
+      </div>
+      <Separator className="mx-4 w-auto bg-border/50" />
+      <ScrollArea className="flex-1">
+        <div className="p-2">
+          {searchResultsBySource.map(group => (
+            <Button
+              key={group.source.id}
+              variant={selectedSourceId === group.source.id ? "secondary" : "ghost"}
+              onClick={() => {
+                setSelectedSourceId(group.source.id)
+                if(isMobile) setIsSheetOpen(false);
+              }}
+              className={cn(
+                "justify-start w-full text-left h-auto py-2.5 px-3 text-base",
+                selectedSourceId === group.source.id && "font-bold"
+              )}
+            >
+              <span className="flex-1 truncate">{group.source.name}</span>
+              <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                {group.items.length}
+              </span>
+            </Button>
+          ))}
+          {isLoading && (
+            <div className="p-4 flex items-center justify-center text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <span>搜索中...</span>
+            </div>
+          )}
+        </div>
+      </ScrollArea>
+    </>
+  );
 
   if (error) {
     return (
@@ -123,79 +158,90 @@ function SearchResults() {
         </p>
       </div>
 
-      <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-6 mt-2 overflow-hidden">
-        
-        <aside className="md:col-span-1 h-full flex flex-col backdrop-blur-md rounded-lg shadow-sm bg-card/50">
-          <div className="p-4">
-            <h2 className="text-lg font-semibold text-card-foreground">播放源</h2>
-          </div>
-          <Separator className="mx-4 w-auto bg-border/50" />
-          <ScrollArea className="flex-1">
-            <div className="p-2">
-              {searchResultsBySource.map(group => (
-                <Button
-                  key={group.source.id}
-                  variant={selectedSourceId === group.source.id ? "secondary" : "ghost"}
-                  onClick={() => setSelectedSourceId(group.source.id)}
-                  className={cn(
-                    "justify-start w-full text-left h-auto py-2.5 px-3 text-base",
-                    selectedSourceId === group.source.id && "font-bold"
-                  )}
-                >
-                  <span className="flex-1 truncate">{group.source.name}</span>
-                  <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                    {group.items.length}
-                  </span>
+      {isMobile ? (
+        <div className="flex flex-col flex-1 mt-2 overflow-hidden">
+          {searchResultsBySource.length > 0 && (
+            <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+              <SheetTrigger asChild>
+                <Button variant="outline" className="mb-4 flex justify-between items-center">
+                  <span>{activeGroup?.source.name || '选择播放源'}</span>
+                  <ChevronRight className="h-4 w-4" />
                 </Button>
-              ))}
-              {isLoading && (
-                <div className="p-4 flex items-center justify-center text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  <span>搜索中...</span>
-                </div>
-              )}
-            </div>
-          </ScrollArea>
-        </aside>
-
-        <main className="md:col-span-3 h-full overflow-y-auto">
-          {isLoading && searchResultsBySource.length === 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
-              {Array.from({ length: 10 }).map((_, index) => (
-                <div key={index} className="space-y-2">
-                  <Skeleton className="aspect-[2/3] w-full rounded-lg" />
-                  <Skeleton className="h-5 w-3/4" />
-                  <Skeleton className="h-4 w-1/2" />
-                </div>
-              ))}
-            </div>
+              </SheetTrigger>
+              <SheetContent side="bottom" className="h-[60%] flex flex-col">
+                 <SourceList />
+              </SheetContent>
+            </Sheet>
           )}
-
-          {activeGroup ? (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
-              {activeGroup.items.map(item => (
-                <ContentCard key={`${item.id}-search-${activeGroup.source.id}`} item={item} sourceId={activeGroup.source.id} />
-              ))}
-            </div>
-          ) : (
-            !isLoading && totalResultsCount > 0 && (
-              <div className="text-center py-12 flex flex-col items-center justify-center h-full text-muted-foreground">
-                <p className="text-lg">请从左侧选择一个来源以查看结果。</p>
+          <main className="flex-1 h-full overflow-y-auto">
+            {/* Mobile results rendering */}
+            {isLoading && searchResultsBySource.length === 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-2 gap-4 md:gap-6">
+                {Array.from({ length: 10 }).map((_, index) => (
+                  <div key={index} className="space-y-2">
+                    <Skeleton className="aspect-[2/3] w-full rounded-lg" />
+                    <Skeleton className="h-5 w-3/4" />
+                    <Skeleton className="h-4 w-1/2" />
+                  </div>
+                ))}
               </div>
-            )
+            ) : activeGroup ? (
+              <div className="grid grid-cols-2 sm:grid-cols-2 gap-4 md:gap-6">
+                {activeGroup.items.map(item => (
+                  <ContentCard key={`${item.id}-search-${activeGroup.source.id}`} item={item} sourceId={activeGroup.source.id} />
+                ))}
+              </div>
+            ) : (
+              !isLoading && totalResultsCount > 0 && (
+                <div className="text-center py-12 flex flex-col items-center justify-center h-full text-muted-foreground">
+                  <p className="text-lg">请选择一个来源以查看结果。</p>
+                </div>
+              )
+            )}
+          </main>
+        </div>
+      ) : (
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-6 mt-2 overflow-hidden">
+          <aside className="md:col-span-1 h-full flex flex-col backdrop-blur-md rounded-lg shadow-sm bg-card/50">
+            <SourceList />
+          </aside>
+          <main className="md:col-span-3 h-full overflow-y-auto">
+            {/* Desktop results rendering */}
+            {isLoading && searchResultsBySource.length === 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
+                {Array.from({ length: 10 }).map((_, index) => (
+                  <div key={index} className="space-y-2">
+                    <Skeleton className="aspect-[2/3] w-full rounded-lg" />
+                    <Skeleton className="h-5 w-3/4" />
+                    <Skeleton className="h-4 w-1/2" />
+                  </div>
+                ))}
+              </div>
+            ) : activeGroup ? (
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
+                {activeGroup.items.map(item => (
+                  <ContentCard key={`${item.id}-search-${activeGroup.source.id}`} item={item} sourceId={activeGroup.source.id} />
+                ))}
+              </div>
+            ) : (
+              !isLoading && totalResultsCount > 0 && (
+                <div className="text-center py-12 flex flex-col items-center justify-center h-full text-muted-foreground">
+                  <p className="text-lg">请从左侧选择一个来源以查看结果。</p>
+                </div>
+              )
+            )}
+          </main>
+        </div>
+      )}
+      {!isLoading && totalResultsCount === 0 && (
+        <div className="text-center py-12 flex flex-col items-center justify-center h-full text-muted-foreground">
+          <SearchIconLucide className="mx-auto h-16 w-16 mb-4" />
+          <p className="text-xl">未找到与 "{decodeURIComponent(query)}" 相关的内容。</p>
+          {sources.length === 0 && (
+              <p className="mt-2 text-sm">提示：您尚未配置任何内容源。</p>
           )}
-
-          {!isLoading && totalResultsCount === 0 && (
-            <div className="text-center py-12 flex flex-col items-center justify-center h-full text-muted-foreground">
-              <SearchIconLucide className="mx-auto h-16 w-16 mb-4" />
-              <p className="text-xl">未找到与 "{decodeURIComponent(query)}" 相关的内容。</p>
-              {sources.length === 0 && (
-                  <p className="mt-2 text-sm">提示：您尚未配置任何内容源。</p>
-              )}
-            </div>
-          )}
-        </main>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

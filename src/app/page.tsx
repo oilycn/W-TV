@@ -1,19 +1,20 @@
 
 "use client";
 
-import { useEffect, useState, useMemo, useCallback, Suspense } from 'react';
+import { useEffect, useState, useMemo, useCallback, Suspense, useRef } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
-import Link from 'next/link'; // Added import for Link
+import Link from 'next/link';
 import type { ContentItem, SourceConfig, ApiCategory, PaginatedContentResponse } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { fetchApiCategories, fetchApiContentList, getMockApiCategories, getMockPaginatedResponse } from '@/lib/content-loader';
+import { fetchApiContentList, getMockApiCategories, getMockPaginatedResponse } from '@/lib/content-loader';
 import { ContentCard } from '@/components/content/ContentCard';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, ChevronLeft, ChevronRight, Search as SearchIconTv, Tv2 } from 'lucide-react';
+import { AlertCircle, ChevronLeft, ChevronRight, Search as SearchIconTv, Tv2, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useCategories } from '@/contexts/CategoryContext';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 const LOCAL_STORAGE_KEY_ACTIVE_SOURCE = 'cinemaViewActiveSourceId';
@@ -32,6 +33,11 @@ function HomePageContent() {
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const isMobile = useIsMobile();
+  const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+
   // Memoized values from URL search parameters
   const selectedCategoryId = useMemo(() => searchParamsHook.get('category') || 'all', [searchParamsHook]);
   const currentPageQuery = useMemo(() => parseInt(searchParamsHook.get('page') || '1', 10), [searchParamsHook]);
@@ -45,7 +51,6 @@ function HomePageContent() {
   // Effect to synchronize activeSourceId from URL trigger
   useEffect(() => {
     if (activeSourceTrigger && activeSourceTrigger !== activeSourceId) {
-      console.log(`HomePageContent: (Effect: Sync activeSourceId from URL) Trigger: ${activeSourceTrigger}, Current ID: ${activeSourceId}. Updating activeSourceId.`);
       setActiveSourceId(activeSourceTrigger);
     }
   }, [activeSourceTrigger, activeSourceId, setActiveSourceId]);
@@ -55,11 +60,9 @@ function HomePageContent() {
     if (sources.length > 0) {
       const activeSourceIsValid = sources.find(s => s.id === activeSourceId);
       if (!activeSourceIsValid && sources[0]) {
-        console.log(`HomePageContent: (Effect: Validate activeSourceId) Invalid or no activeSourceId (${activeSourceId}), defaulting to first source: ${sources[0].id}.`);
         setActiveSourceId(sources[0].id);
       }
     } else if (sources.length === 0 && activeSourceId) {
-      console.log("HomePageContent: (Effect: Validate activeSourceId) No sources available, clearing activeSourceId.");
       setActiveSourceId(null);
     }
   }, [sources, activeSourceId, setActiveSourceId]);
@@ -68,152 +71,126 @@ function HomePageContent() {
   const activeSourceUrl = useMemo(() => {
     if (activeSourceId) {
       const source = sources.find(s => s.id === activeSourceId);
-      if (source) {
-        console.log(`HomePageContent: (Memo: activeSourceUrl) Derived from activeSourceId (${activeSourceId}): ${source.url}`);
-        return source.url;
-      }
+      if (source) return source.url;
     }
     if (sources.length > 0 && sources[0]) {
-      console.warn(`HomePageContent: (Memo: activeSourceUrl) Using fallback (first source: ${sources[0].url}) as activeSourceId (${activeSourceId}) is invalid or not yet synced.`);
-      return sources[0].url; // Fallback if activeSourceId is somehow invalid but sources exist
+      return sources[0].url; // Fallback
     }
-    console.log(`HomePageContent: (Memo: activeSourceUrl) is null (no sources or no valid activeSourceId).`);
     return null;
   }, [sources, activeSourceId]);
 
-
-  // Helper to update URL parameters for category and page changes
   const updateURLParamsForNav = useCallback((newParams: Record<string, string | number | undefined | null>) => {
     const currentParams = new URLSearchParams(searchParamsHook.toString());
-    let changed = false;
-
     Object.entries(newParams).forEach(([key, value]) => {
       const stringValue = value === null || value === undefined ? '' : String(value);
       if (stringValue === '' || (key === 'page' && value === 1) || (key === 'category' && value === 'all')) {
-        if (currentParams.has(key)) {
-          currentParams.delete(key);
-          changed = true;
-        }
+        currentParams.delete(key);
       } else {
-        if (currentParams.get(key) !== stringValue) {
-          currentParams.set(key, stringValue);
-          changed = true;
-        }
+        currentParams.set(key, stringValue);
       }
     });
-  
-    // Preserve activeSourceTrigger if it exists in current URL and not being explicitly changed
-    if (searchParamsHook.has('activeSourceTrigger') && !Object.prototype.hasOwnProperty.call(newParams, 'activeSourceTrigger')) {
-        if(!currentParams.has('activeSourceTrigger') && searchParamsHook.get('activeSourceTrigger')) {
-             currentParams.set('activeSourceTrigger', searchParamsHook.get('activeSourceTrigger')!);
-        }
-    }
-    // Preserve search term and searchTrigger if they exist and not being explicitly changed (category change should clear search)
-    if (Object.prototype.hasOwnProperty.call(newParams, 'category') && currentParams.has('q')) {
-        currentParams.delete('q');
-        currentParams.delete('searchTrigger');
-        changed = true;
-    } else {
-        if (searchParamsHook.has('q') && !Object.prototype.hasOwnProperty.call(newParams, 'q')) {
-            if(!currentParams.has('q') && searchParamsHook.get('q')) {
-                currentParams.set('q', searchParamsHook.get('q')!);
-            }
-        }
-        if (searchParamsHook.has('searchTrigger') && !Object.prototype.hasOwnProperty.call(newParams, 'searchTrigger')) {
-             if(!currentParams.has('searchTrigger') && searchParamsHook.get('searchTrigger')) {
-                currentParams.set('searchTrigger', searchParamsHook.get('searchTrigger')!);
-            }
-        }
-    }
-
-
-    const newQueryString = currentParams.toString();
-    const currentFullPath = pathname + (searchParamsHook.toString() ? `?${searchParamsHook.toString()}` : '');
-    const newFullPath = pathname + (newQueryString ? `?${newQueryString}` : '');
-
-    if (changed || currentFullPath !== newFullPath) {
-        console.log(`HomePageContent: updateURLParamsForNav pushing to: ${newFullPath}`);
-        router.push(newFullPath, { scroll: false });
-    }
+    router.push(`${pathname}?${currentParams.toString()}`, { scroll: false });
   }, [router, searchParamsHook, pathname]);
-
 
   // Effect for fetching categories
   useEffect(() => {
-    console.log(`HomePageContent: (Effect: Categories) activeSourceUrl: ${activeSourceUrl}, sources.length: ${sources.length}`);
     if (activeSourceUrl) {
-      console.log(`HomePageContent: (Effect: Categories) Valid activeSourceUrl: ${activeSourceUrl}. Fetching.`);
       setIsLoadingCategories(true);
       fetchApiCategories(activeSourceUrl)
-        .then(fetchedCategories => {
-          setGlobalCategories(fetchedCategories); // This now compares internally if update is needed
-          console.log(`HomePageContent: (Effect: Categories) Categories set for ${activeSourceUrl}:`, fetchedCategories.length);
-        })
+        .then(setGlobalCategories)
         .catch(e => {
-          console.error(`HomePageContent: (Effect: Categories) Failed for ${activeSourceUrl}:`, e);
           setError(prev => (prev ? `${prev} & 无法加载分类。` : "无法加载分类。"));
           setGlobalCategories(getMockApiCategories()); 
         })
-        .finally(() => {
-          setIsLoadingCategories(false);
-        });
+        .finally(() => setIsLoadingCategories(false));
     } else { 
       if (sources.length === 0) {
-        console.log("HomePageContent: (Effect: Categories) No sources configured. Using mock categories.");
         setIsLoadingCategories(true); 
         setGlobalCategories(getMockApiCategories());
         setIsLoadingCategories(false);
       } else {
-        console.log("HomePageContent: (Effect: Categories) activeSourceUrl is null, but sources exist. Setting isLoadingCategories=true, won't fetch until URL is valid.");
         setIsLoadingCategories(true); 
-        // Don't clear global categories here, wait for a valid activeSourceUrl
       }
     }
   }, [activeSourceUrl, setGlobalCategories, sources.length]);
 
-
-  // Effect for fetching content list
+  // Effect to reset content on context change
   useEffect(() => {
-    if (activeSourceUrl) {
-      console.log(`HomePageContent: (Effect: Content) Fetching for source: ${activeSourceUrl}, category: ${selectedCategoryId}, page: ${currentPageQuery}, search: "${currentSearchTermQuery}" (searchTrigger: ${searchTrigger})`);
-      setIsLoadingContent(true);
-      setContentItems([]); 
+    setContentItems([]);
+    setPage(isMobile ? 1 : currentPageQuery);
+    setIsLoadingContent(true);
+  }, [activeSourceUrl, selectedCategoryId, currentSearchTermQuery, searchTrigger, sources.length, currentPageQuery, isMobile]);
 
-      fetchApiContentList(activeSourceUrl, {
-        page: currentPageQuery,
-        categoryId: selectedCategoryId === 'all' ? undefined : selectedCategoryId,
-        searchTerm: currentSearchTermQuery || undefined,
-      })
-        .then(response => {
-          setContentItems(response.items);
+  // Effect for fetching content (initial and subsequent)
+  useEffect(() => {
+    if (!activeSourceUrl && sources.length > 0) {
+      setIsLoadingContent(true);
+      return;
+    }
+    
+    let isCancelled = false;
+    
+    const loadContent = async () => {
+      if (page > totalPages && totalPages > 1 && !isLoadingContent) return;
+
+      if(page === 1) setIsLoadingContent(true);
+      else setIsLoadingMore(true);
+
+      try {
+        const response = await fetchApiContentList(activeSourceUrl, {
+          page: page,
+          categoryId: selectedCategoryId === 'all' ? undefined : selectedCategoryId,
+          searchTerm: currentSearchTermQuery || undefined,
+        });
+
+        if (!isCancelled) {
           setTotalPages(response.pageCount || 1);
           setTotalItems(response.total);
-          console.log(`HomePageContent: (Effect: Content) Content fetched for ${activeSourceUrl}:`, response.items.length, `Total: ${response.total}`);
-        })
-        .catch(e => {
-          console.error(`HomePageContent: (Effect: Content) Failed to load content from ${activeSourceUrl}:`, e);
+          setContentItems(prev => page === 1 ? response.items : [...prev, ...response.items]);
+        }
+      } catch (e) {
+        if (!isCancelled) {
           setError(prev => (prev ? `${prev} & 无法加载内容列表。` : "无法加载内容列表。"));
-          const mockResponse = getMockPaginatedResponse(currentPageQuery, selectedCategoryId, currentSearchTermQuery);
-          setContentItems(mockResponse.items);
+          const mockResponse = getMockPaginatedResponse(page, selectedCategoryId, currentSearchTermQuery);
+          setContentItems(prev => page === 1 ? mockResponse.items : [...prev, ...mockResponse.items]);
           setTotalPages(mockResponse.pageCount || 1);
           setTotalItems(mockResponse.total);
-        })
-        .finally(() => {
+        }
+      } finally {
+        if (!isCancelled) {
           setIsLoadingContent(false);
-        });
-    } else if (sources.length === 0) { 
-      console.log("HomePageContent: (Effect: Content) No sources, using mock content.");
-      setIsLoadingContent(true);
-      const mockResponse = getMockPaginatedResponse(currentPageQuery, selectedCategoryId, currentSearchTermQuery);
-      setContentItems(mockResponse.items);
-      setTotalPages(mockResponse.pageCount || 1);
-      setTotalItems(mockResponse.total);
-      setIsLoadingContent(false);
-    } else {
-        console.log("HomePageContent: (Effect: Content) activeSourceUrl is null, but sources exist. Setting isLoadingContent=true.");
-        setIsLoadingContent(true); // Waiting for a valid source
-    }
-  }, [activeSourceUrl, currentPageQuery, selectedCategoryId, currentSearchTermQuery, searchTrigger, sources.length]);
+          setIsLoadingMore(false);
+        }
+      }
+    };
+    
+    loadContent();
+
+    return () => { isCancelled = true; };
+  }, [page, activeSourceUrl, selectedCategoryId, currentSearchTermQuery, searchTrigger, sources.length]);
+
+
+  // Infinite scroll for mobile
+  useEffect(() => {
+    if (!isMobile || !loadMoreTriggerRef.current) return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isLoadingContent && !isLoadingMore && page < totalPages) {
+          setPage(prevPage => prevPage + 1);
+        }
+      },
+      { threshold: 1.0 }
+    );
+
+    observer.observe(loadMoreTriggerRef.current);
+    
+    return () => {
+      if (loadMoreTriggerRef.current) {
+        observer.unobserve(loadMoreTriggerRef.current);
+      }
+    };
+  }, [isMobile, isLoadingContent, isLoadingMore, page, totalPages]);
 
 
   const handlePageChange = (newPage: number) => {
@@ -222,7 +199,6 @@ function HomePageContent() {
         page: newPage, 
         category: selectedCategoryId === 'all' ? null : selectedCategoryId,
         q: currentSearchTermQuery || null, 
-        // searchTrigger will be preserved by updateURLParamsForNav if q is present
       });
     }
   };
@@ -230,9 +206,9 @@ function HomePageContent() {
   const handleCategoryChange = (newCategoryId: string) => {
     updateURLParamsForNav({ 
         category: newCategoryId === 'all' ? null : newCategoryId, 
-        page: 1, // Reset page
-        q: null, // Clear search term
-        searchTrigger: null // Clear search trigger
+        page: 1,
+        q: null, 
+        searchTrigger: null
     });
   };
 
@@ -286,8 +262,7 @@ function HomePageContent() {
         </ScrollArea>
       )}
       
-
-      {(isLoadingContent || contentItems.length > 0 || totalItems > 0 || currentPageQuery > 1 || currentSearchTermQuery ) && (
+      {!isMobile && (isLoadingContent || contentItems.length > 0 || totalItems > 0 || currentPageQuery > 1 || currentSearchTermQuery ) && (
           <div className="flex items-center justify-between text-sm text-muted-foreground pt-2 p-4 bg-card rounded-lg shadow">
             <span>
                 {currentSearchTermQuery ? `搜索 "${currentSearchTermQuery}" ` : ''}
@@ -305,7 +280,6 @@ function HomePageContent() {
           </div>
         )
       }
-
 
       {isLoadingContent && contentItems.length === 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8 2xl:grid-cols-10 gap-4 md:gap-6">
@@ -336,6 +310,13 @@ function HomePageContent() {
             </div>
         )
       )}
+      
+      {isMobile && isLoadingMore && (
+        <div className="flex justify-center items-center p-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      )}
+      <div ref={loadMoreTriggerRef} />
     </div>
   );
 }
