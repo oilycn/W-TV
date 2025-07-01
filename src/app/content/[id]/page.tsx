@@ -259,7 +259,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                 <div className="lg:col-span-3 flex flex-col gap-6">
                     <div>
                         <h1 className="text-3xl font-bold tracking-tight mb-2">{item.title}</h1>
-                        <div className="flex items-center flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground mb-4">
+                        <div className="flex items-center flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
                             {item.releaseYear && <span>{item.releaseYear}</span>}
                             {item.userRating && (
                                 <div className="flex items-center gap-1">
@@ -267,9 +267,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                                     <span>{item.userRating.toFixed(1)}</span>
                                 </div>
                             )}
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            {item.genres?.map(genre => (
+                             {item.genres?.map(genre => (
                                 <Badge key={genre} variant="secondary">{genre}</Badge>
                             ))}
                         </div>
@@ -319,41 +317,28 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                         <p className="text-sm text-muted-foreground leading-relaxed">
                             {item.description}
                         </p>
-                    </div>
-                </div>
-
-                {/* Right column: Poster and Episodes */}
-                <div className="lg:col-span-1">
-                    <div className="space-y-4">
-                        <div className="aspect-[2/3] w-full relative overflow-hidden rounded-lg shadow-lg">
-                           <Image
-                                src={item.posterUrl}
-                                alt={item.title || 'Poster'}
-                                fill
-                                className="object-cover"
-                                unoptimized
-                                data-ai-hint={aiHint}
-                           />
-                        </div>
-
                         {item.cast && item.cast.length > 0 && (
-                            <div>
+                            <div className="mt-4">
                                 <h3 className="text-lg font-semibold mb-2">演员表</h3>
                                 <p className="text-sm text-muted-foreground leading-relaxed">
                                     {item.cast.join(' / ')}
                                 </p>
                             </div>
                         )}
-
                         {item.director && item.director.length > 0 && (
-                             <div>
+                             <div className="mt-4">
                                 <h3 className="text-lg font-semibold mb-2">导演</h3>
                                 <p className="text-sm text-muted-foreground leading-relaxed">
                                     {item.director.join(' / ')}
                                 </p>
                             </div>
                         )}
+                    </div>
+                </div>
 
+                {/* Right column: Episodes */}
+                <div className="lg:col-span-1">
+                    <div className="space-y-4">
                         {/* Episode Selector */}
                         {item.playbackSources && item.playbackSources.length > 0 ? (
                              <Tabs defaultValue={item.playbackSources[0].sourceName} className="w-full">
@@ -366,7 +351,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                                 </TabsList>
                                 {item.playbackSources.map((sourceGroup, groupIdx) => (
                                     <TabsContent key={sourceGroup.sourceName} value={sourceGroup.sourceName}>
-                                        <ScrollArea className="h-72 w-full pr-4">
+                                        <ScrollArea className="h-[500px] w-full pr-4">
                                             <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-2">
                                                 {sourceGroup.urls.map((playUrl, urlIdx) => (
                                                     <button
