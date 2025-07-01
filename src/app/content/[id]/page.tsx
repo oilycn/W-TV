@@ -13,11 +13,6 @@ import { AirPlayIcon } from '@vidstack/react/icons';
 import { defaultLayoutIcons, DefaultVideoLayout } from '@vidstack/react/player/layouts/default';
 import Hls from 'hls.js';
 
-// Vidstack CSS
-import 'vidstack/styles/defaults.css';
-import '@vidstack/react/player/styles/default/theme.css';
-import '@vidstack/react/player/styles/default/layouts/video.css';
-
 interface ContentDetailPageParams {
   id: string;
 }
