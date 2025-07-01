@@ -255,8 +255,26 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     return (
         <div className="container mx-auto max-w-screen-2xl px-4 py-6">
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                {/* Left column: Player */}
-                <div className="lg:col-span-3">
+                {/* Left column: Player and Details */}
+                <div className="lg:col-span-3 flex flex-col gap-6">
+                    <div>
+                        <h1 className="text-3xl font-bold tracking-tight mb-2">{item.title}</h1>
+                        <div className="flex items-center flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground mb-4">
+                            {item.releaseYear && <span>{item.releaseYear}</span>}
+                            {item.userRating && (
+                                <div className="flex items-center gap-1">
+                                    <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                                    <span>{item.userRating.toFixed(1)}</span>
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {item.genres?.map(genre => (
+                                <Badge key={genre} variant="secondary">{genre}</Badge>
+                            ))}
+                        </div>
+                    </div>
+
                     <div className="relative aspect-video bg-black rounded-lg overflow-hidden shadow-2xl">
                         {currentPlayUrl ? (
                             <MediaPlayer
@@ -295,9 +313,16 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                             </div>
                         )}
                     </div>
+                    
+                    <div>
+                        <h3 className="text-xl font-semibold mb-3">简介</h3>
+                        <p className="text-sm text-muted-foreground leading-relaxed">
+                            {item.description}
+                        </p>
+                    </div>
                 </div>
 
-                {/* Right column: Details and Episodes */}
+                {/* Right column: Poster and Episodes */}
                 <div className="lg:col-span-1">
                     <div className="space-y-4">
                         <div className="aspect-[2/3] w-full relative overflow-hidden rounded-lg shadow-lg">
@@ -311,29 +336,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                            />
                         </div>
 
-                        <h1 className="text-2xl font-bold tracking-tight">{item.title}</h1>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            {item.releaseYear && <span>{item.releaseYear}</span>}
-                            {item.userRating && (
-                                <div className="flex items-center gap-1">
-                                    <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
-                                    <span>{item.userRating.toFixed(1)}</span>
-                                </div>
-                            )}
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            {item.genres?.map(genre => (
-                                <Badge key={genre} variant="secondary">{genre}</Badge>
-                            ))}
-                        </div>
-                        
-                        <div>
-                            <h3 className="text-lg font-semibold mb-2">简介</h3>
-                            <p className="text-sm text-muted-foreground leading-relaxed">
-                                {item.description}
-                            </p>
-                        </div>
-                        
                         {item.cast && item.cast.length > 0 && (
                             <div>
                                 <h3 className="text-lg font-semibold mb-2">演员表</h3>
@@ -351,7 +353,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                                 </p>
                             </div>
                         )}
-
 
                         {/* Episode Selector */}
                         {item.playbackSources && item.playbackSources.length > 0 ? (
