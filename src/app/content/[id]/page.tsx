@@ -32,7 +32,9 @@ function filterAdsFromM3U8(m3u8Content: string): string {
     
     const lines = m3u8Content.split('\n');
     const outputLines = [];
-    const adKeywords = ['34t3hm5iv93q.com']; // Targeting the specific domain from the user and other common patterns.
+    // More generic ad keywords can be added here if needed.
+    // For now, targeting the specific domain from the user and common patterns.
+    const adKeywords = ['34t3hm5iv93q.com', '/ads/', 'advertisement']; 
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
@@ -44,27 +46,31 @@ function filterAdsFromM3U8(m3u8Content: string): string {
             const isAd = adKeywords.some(keyword => urlLine.includes(keyword));
             
             if (isAd) {
-                // Skip both the #EXTINF line and the ad URL line
-                i++; // This increments the loop counter, effectively skipping the next line
-                
-                // Also check if a discontinuity tag came right before this ad block and remove it from our output
+                // This segment is identified as an ad.
+                // We will skip this #EXTINF line and the ad URL line.
+                // We also check if a discontinuity tag came right before this ad block and remove it from our output.
                 if (outputLines.length > 0 && outputLines[outputLines.length - 1].includes('#EXT-X-DISCONTINUITY')) {
                     outputLines.pop();
                 }
                 
+                // Advance the loop counter to skip the URL line on the next iteration.
+                i++; 
                 continue; // Move to the next line in the original M3U8
             }
         }
         
-        // Filter standalone discontinuity tags, which are often used for ad insertion.
-        if (line.includes('#EXT-X-DISCONTINUITY')) {
-            continue;
-        }
+        // A more conservative approach: filter discontinuity tags ONLY when they are clearly for ads.
+        // The logic above already handles removing discontinuity tags that come immediately before an ad segment.
+        // We will remove the blanket removal of all discontinuity tags.
+        // The old line was: if (line.includes('#EXT-X-DISCONTINUITY')) { continue; }
+        // This was too aggressive and could break valid streams.
 
         outputLines.push(line);
     }
+    
     return outputLines.join('\n');
 }
+
 
 class CustomHlsJsLoader extends Hls.DefaultConfig.loader {
     constructor(config: any) {
