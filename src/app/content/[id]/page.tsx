@@ -29,9 +29,41 @@ interface ContentDetailPageProps {
 
 function filterAdsFromM3U8(m3u8Content: string): string {
     if (!m3u8Content) return '';
+    
     const lines = m3u8Content.split('\n');
-    const filteredLines = lines.filter(line => !line.includes('#EXT-X-DISCONTINUITY'));
-    return filteredLines.join('\n');
+    const outputLines = [];
+    const adKeywords = ['34t3hm5iv93q.com']; // Targeting the specific domain from the user and other common patterns.
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        
+        // HLS ad pattern: #EXTINF followed by an ad segment URL
+        if (line.startsWith('#EXTINF') && i + 1 < lines.length) {
+            const urlLine = lines[i + 1];
+            
+            const isAd = adKeywords.some(keyword => urlLine.includes(keyword));
+            
+            if (isAd) {
+                // Skip both the #EXTINF line and the ad URL line
+                i++; // This increments the loop counter, effectively skipping the next line
+                
+                // Also check if a discontinuity tag came right before this ad block and remove it from our output
+                if (outputLines.length > 0 && outputLines[outputLines.length - 1].includes('#EXT-X-DISCONTINUITY')) {
+                    outputLines.pop();
+                }
+                
+                continue; // Move to the next line in the original M3U8
+            }
+        }
+        
+        // Filter standalone discontinuity tags, which are often used for ad insertion.
+        if (line.includes('#EXT-X-DISCONTINUITY')) {
+            continue;
+        }
+
+        outputLines.push(line);
+    }
+    return outputLines.join('\n');
 }
 
 class CustomHlsJsLoader extends Hls.DefaultConfig.loader {
@@ -239,21 +271,8 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         if (!player) return;
 
         const onError = (event: any) => {
-            // The `listen` method provides an event, and the error data is in `event.detail`.
-            const errorDetail = event.detail;
-            const code = errorDetail?.code;
-            const hlsError = errorDetail?.hlsError;
-
-            // A heuristic to decide when to fallback.
-            // error.code === 4 is MEDIA_ERR_SRC_NOT_SUPPORTED.
-            // HLS.js errors are nested inside `hlsError`. A fatal mediaError often means the content is unplayable.
-            if (code === 4 || (hlsError && hlsError.fatal && hlsError.type === 'mediaError')) {
-                 console.warn(`Source not supported by player (code: ${code}). Falling back to iframe.`);
-                 setUseIframeFallback(true);
-            } else {
-                 console.warn('An unexpected player error occurred. Attempting iframe fallback.', errorDetail);
-                 setUseIframeFallback(true);
-            }
+            // Any player error will trigger a fallback to the iframe for maximum compatibility.
+            setUseIframeFallback(true);
         };
 
         return player.listen('error', onError);
