@@ -176,7 +176,7 @@ function SearchResults() {
           <main className="flex-1 h-full overflow-y-auto">
             {/* Mobile results rendering */}
             {isLoading && searchResultsBySource.length === 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
+              <div className="grid grid-cols-2 gap-4">
                 {Array.from({ length: 10 }).map((_, index) => (
                   <div key={index} className="space-y-2">
                     <Skeleton className="aspect-video w-full rounded-lg" />
@@ -186,7 +186,7 @@ function SearchResults() {
                 ))}
               </div>
             ) : activeGroup ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
+              <div className="grid grid-cols-2 gap-4">
                 {activeGroup.items.map(item => (
                   <ContentCard key={`${item.id}-search-${activeGroup.source.id}`} item={item} sourceId={activeGroup.source.id} />
                 ))}
