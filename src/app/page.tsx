@@ -282,17 +282,17 @@ function HomePageContent() {
       }
 
       {isLoadingContent && contentItems.length === 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8 2xl:grid-cols-10 gap-4 md:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
           {Array.from({ length: 12 }).map((_, index) => (
             <div key={index} className="space-y-2">
-              <Skeleton className="aspect-[2/3] w-full rounded-lg" />
+              <Skeleton className="aspect-video w-full rounded-lg" />
               <Skeleton className="h-5 w-3/4" />
               <Skeleton className="h-4 w-1/2" />
             </div>
           ))}
         </div>
       ) : contentItems.length > 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8 2xl:grid-cols-10 gap-4 md:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
           {contentItems.map((item, index) => (
             <ContentCard key={`${item.id}-${activeSourceUrl || 'mock'}-${item.title}-${index}`} item={item} sourceId={activeSourceId ?? undefined} />
           ))}
@@ -345,10 +345,10 @@ function HomePageSkeleton() {
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8 2xl:grid-cols-10 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
         {Array.from({ length: 12 }).map((_, index) => (
           <div key={index} className="space-y-2">
-            <Skeleton className="aspect-[2/3] w-full rounded-lg" />
+            <Skeleton className="aspect-video w-full rounded-lg" />
             <Skeleton className="h-5 w-3/4" />
             <Skeleton className="h-4 w-1/2" />
           </div>
@@ -357,5 +357,7 @@ function HomePageSkeleton() {
     </div>
   )
 }
+
+    
 
     

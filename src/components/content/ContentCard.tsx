@@ -26,7 +26,7 @@ export function ContentCard({ item, sourceId }: ContentCardProps) {
   return (
     <Link href={linkHref}>
       <Card className="group overflow-hidden hover:shadow-xl transition-shadow duration-300 h-full flex flex-col bg-card hover:border-primary/50 border border-transparent">
-        <CardHeader className="p-0 relative aspect-[2/3]">
+        <CardHeader className="p-0 relative aspect-video">
           <Image
             src={item.posterUrl}
             alt={item.title || 'Content Poster'}
@@ -64,3 +64,5 @@ export function ContentCard({ item, sourceId }: ContentCardProps) {
     </Link>
   );
 }
+
+    

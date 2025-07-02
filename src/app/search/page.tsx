@@ -176,17 +176,17 @@ function SearchResults() {
           <main className="flex-1 h-full overflow-y-auto">
             {/* Mobile results rendering */}
             {isLoading && searchResultsBySource.length === 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-2 gap-4 md:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
                 {Array.from({ length: 10 }).map((_, index) => (
                   <div key={index} className="space-y-2">
-                    <Skeleton className="aspect-[2/3] w-full rounded-lg" />
+                    <Skeleton className="aspect-video w-full rounded-lg" />
                     <Skeleton className="h-5 w-3/4" />
                     <Skeleton className="h-4 w-1/2" />
                   </div>
                 ))}
               </div>
             ) : activeGroup ? (
-              <div className="grid grid-cols-2 sm:grid-cols-2 gap-4 md:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
                 {activeGroup.items.map(item => (
                   <ContentCard key={`${item.id}-search-${activeGroup.source.id}`} item={item} sourceId={activeGroup.source.id} />
                 ))}
@@ -208,17 +208,17 @@ function SearchResults() {
           <main className="md:col-span-3 h-full overflow-y-auto">
             {/* Desktop results rendering */}
             {isLoading && searchResultsBySource.length === 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
                 {Array.from({ length: 10 }).map((_, index) => (
                   <div key={index} className="space-y-2">
-                    <Skeleton className="aspect-[2/3] w-full rounded-lg" />
+                    <Skeleton className="aspect-video w-full rounded-lg" />
                     <Skeleton className="h-5 w-3/4" />
                     <Skeleton className="h-4 w-1/2" />
                   </div>
                 ))}
               </div>
             ) : activeGroup ? (
-              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
                 {activeGroup.items.map(item => (
                   <ContentCard key={`${item.id}-search-${activeGroup.source.id}`} item={item} sourceId={activeGroup.source.id} />
                 ))}
@@ -260,10 +260,10 @@ function SearchPageSkeleton() {
         </div>
         <div className="md:col-span-3 space-y-6">
             <Skeleton className="h-7 w-1/4" />
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
             {Array.from({ length: 5 }).map((_, index) => (
                 <div key={index} className="space-y-2">
-                <Skeleton className="aspect-[2/3] w-full rounded-lg" />
+                <Skeleton className="aspect-video w-full rounded-lg" />
                 <Skeleton className="h-5 w-3/4" />
                 <Skeleton className="h-4 w-1/2" />
                 </div>
@@ -282,3 +282,5 @@ export default function SearchPage() {
     </Suspense>
   );
 }
+
+    
