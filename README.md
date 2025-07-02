@@ -20,6 +20,7 @@
     - 内置广告过滤：可尝试过滤 HLS 流中的广告片段。
     - 强大的快捷键支持：支持快进/快退、音量调节、播放/暂停、全屏切换以及“上一集”/“下一集”等键盘操作。
 - **主题切换**: 支持浅色和深色主题切换，并根据中国时区 (UTC+8，早上6点到下午6点为浅色) 自动设置初始主题。用户选择会保存在本地。
+- **PWA 支持**: 支持“添加到主屏幕”，在移动设备上提供接近原生的全屏应用体验。
 - **响应式设计**: 界面适配不同屏幕尺寸。
 
 ## 开始
@@ -48,7 +49,7 @@ services:
       - 9002:3000
     container_name: wanfeng-tv-app
     restart: always
-    image: oilycn/wanfeng-tv:1.0.0
+    image: oilycn/wanfeng-tv:latest
 networks: {}
 ```
 
@@ -86,4 +87,19 @@ docker run -p 9002:3000 wanfeng-tv
 要在后台以分离模式运行容器：
 ```bash
 docker run -d -p 9002:3000 wanfeng-tv
+```
+
+#### **关于 PWA 与 HTTPS 的重要说明**
+
+您可能会发现，通过 Docker 本地运行时，某些 PWA 功能（如添加到主屏幕后隐藏地址栏）可能无法生效，但在 Vercel 上部署时却可以。
+
+这是因为 **PWA 的核心功能（如 Service Worker）强制要求网站必须通过 HTTPS 提供服务**。
+
+-   **Vercel**: 自动为所有部署提供免费的 HTTPS，所以 PWA 功能开箱即用。
+-   **Docker**: Docker 容器本身只运行应用服务（默认是 HTTP）。要在生产环境中使用 PWA，您需要在 Docker 容器**前面**部署一个**反向代理**（如 Nginx、Caddy 或 Traefik）。
+
+典型的生产部署架构如下：
+`用户 -> HTTPS -> 反向代理 (处理 SSL) -> HTTP -> Docker 容器 (运行 Next.js 应用)`
+
+因此，如果您将此 Docker 镜像部署到自己的服务器上，请务必配置反向代理和 SSL 证书，以确保 PWA 功能正常工作。
 ```
