@@ -32,7 +32,7 @@ function filterAdsFromM3U8(m3u8Content: string): string {
     
     const lines = m3u8Content.split('\n');
     const outputLines = [];
-    const adKeywords = ['34t3hm5iv93q.com', '438pnr4dyywt.com', '/ads/', 'advertisement']; 
+    const adKeywords = ['34t3hm5iv93q.com', '/ads/', 'advertisement']; 
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
@@ -102,14 +102,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [useIframeFallback, setUseIframeFallback] = useState(false);
     
-    const [blockAdEnabled] = useState<boolean>(() => {
-        if (typeof window !== 'undefined') {
-            const v = localStorage.getItem('enable_blockad');
-            if (v !== null) return v === 'true';
-        }
-        return true; 
-    });
-
     useEffect(() => {
         if (resolvedParams && resolvedParams.id) {
             setPageId(resolvedParams.id);
@@ -280,7 +272,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                 lowLatencyMode: true,
                 maxBufferLength: 60,
                 backBufferLength: 30,
-                loader: blockAdEnabled ? CustomHlsJsLoader : Hls.DefaultConfig.loader,
+                loader: CustomHlsJsLoader,
             };
         }
     };
