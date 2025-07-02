@@ -1,43 +1,57 @@
+# Dockerfile for Next.js with standalone output
 
-# Stage 1: Builder
+# 1. Builder stage
+# This stage installs dependencies and builds the Next.js application.
 FROM node:20-alpine AS builder
+
+# Set working directory
 WORKDIR /app
 
 # Install dependencies
-# Copy package.json and package-lock.json (if available)
-COPY package.json ./
-# Prefer package-lock.json if it exists, for reproducible builds
-COPY package-lock.json* ./
+# Copy package.json and lock file (if available) for better caching
+COPY package.json package-lock.json* ./
+# Use npm install to get all dependencies needed for building
+RUN npm install
 
-# Install dependencies using npm ci for cleaner installs if package-lock.json exists
-# Otherwise, fall back to npm install
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
-
-# Copy the rest of the application code
+# Copy the rest of the application source code
 COPY . .
 
-# Build the Next.js application
+# Disable Next.js telemetry during the build
+ENV NEXT_TELEMETRY_DISABLED 1
+
+# Build the application
+# The `next build` command will automatically leverage `output: 'standalone'`
+# from your next.config.ts, preparing the app for the final stage.
 RUN npm run build
 
-# Stage 2: Runner
+# 2. Production stage
+# This stage creates the final, lean production image.
 FROM node:20-alpine AS runner
 WORKDIR /app
 
+# Set environment variables for production
 ENV NODE_ENV production
-# Optional: Disable Next.js telemetry
-# ENV NEXT_TELEMETRY_DISABLED 1
+ENV NEXT_TELEMETRY_DISABLED 1
+# The default port for Next.js is 3000
+ENV PORT 3000
 
-# Create a non-root user for security
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-USER nextjs
+# Create a non-root user and group for better security
+RUN addgroup -S nodejs
+RUN adduser -S nextjs -G nodejs
 
-# Copy standalone output from builder stage
+# Copy the standalone output from the builder stage.
+# This directory contains the server, public assets, static assets,
+# and minimal required node_modules.
+# We also set the ownership to the non-root user.
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Expose port 3000 (Next.js default port for production)
+# Switch to the non-root user
+USER nextjs
+
+# Expose the port the app runs on
 EXPOSE 3000
 
-# Command to run the application using the server.js from standalone output
+# The command to start the Next.js server in standalone mode
 CMD ["node", "server.js"]
