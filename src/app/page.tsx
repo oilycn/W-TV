@@ -199,6 +199,12 @@ function HomePageContent() {
     });
   };
 
+  const formatCount = (count: number): string => {
+    if (count < 1000) return String(count);
+    if (count < 100000) return `${(count / 1000).toFixed(1)}k`.replace('.0', '');
+    return '99k+';
+  };
+
   if (sources.length === 0 && !activeSourceUrl && !isLoadingCategories && !isLoadingContent ) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-10rem)] text-center p-4">
@@ -238,33 +244,20 @@ function HomePageContent() {
                 key={`${activeSourceUrl || 'mock'}-${category.id}`}
                 variant={selectedCategoryId === category.id ? "default" : "outline"}
                 onClick={() => handleCategoryChange(category.id)}
-                className="whitespace-nowrap text-sm h-9 px-4"
+                className="relative whitespace-nowrap text-sm h-9 px-4"
                 size="sm"
               >
                 {category.name}
+                 {selectedCategoryId === category.id && totalItems > 0 && !isLoadingContent && (
+                  <span className="absolute -top-2 -right-2 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-accent px-1.5 text-xs font-bold text-accent-foreground shadow-md">
+                    {formatCount(totalItems)}
+                  </span>
+                )}
               </Button>
             ))}
           </div>
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
-      )}
-      
-      {(!isLoadingContent && (contentItems.length > 0 || currentSearchTermQuery)) && (
-        <div className="flex items-center gap-4 rounded-lg border bg-card p-3 text-sm shadow-sm">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-             <Tv2 className="h-5 w-5" />
-          </div>
-          <div>
-              <p className="font-medium text-foreground">
-                  {currentSearchTermQuery 
-                      ? `"${currentSearchTermQuery}" 的搜索结果` 
-                      : `${globalCategories.find(c => c.id === selectedCategoryId)?.name || '当前'}分类`}
-              </p>
-              <p className="text-muted-foreground">
-                  {totalItems > 0 ? `共找到 ${totalItems} 条内容` : '未找到相关结果'}
-              </p>
-          </div>
-        </div>
       )}
 
       {isLoadingContent && contentItems.length === 0 ? (
@@ -317,9 +310,6 @@ function HomePageSkeleton() {
     <div className="space-y-6">
       <div className="bg-card p-3 rounded-md shadow-sm mb-6">
         <Skeleton className="h-9 w-full" />
-      </div>
-      <div className="space-y-4 p-4 bg-card rounded-lg shadow">
-         <Skeleton className="h-5 w-48" />
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
         {Array.from({ length: 12 }).map((_, index) => (
