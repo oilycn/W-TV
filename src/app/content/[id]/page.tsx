@@ -31,41 +31,20 @@ function filterAdsFromM3U8(m3u8Content: string): string {
     if (!m3u8Content) return '';
     const lines = m3u8Content.split('\n');
     let outputLines = [];
-    const adKeywords = ['34t3hm5iv93q.com', '/ads/', 'advertisement'];
+    // Only use very generic and safe keywords.
+    const adKeywords = ['/ads/', 'advertisement'];
 
-    let i = 0;
-    while (i < lines.length) {
+    for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-
         if (line.startsWith('#EXTINF') && i + 1 < lines.length) {
             const urlLine = lines[i + 1];
-            const isAd = adKeywords.some(keyword => urlLine.includes(keyword));
-
-            if (isAd) {
-                // Smartly remove surrounding discontinuity tags only if they are likely related to the ad
-                let adStartIndex = outputLines.length;
-                // Look behind for a discontinuity tag
-                if (outputLines.length > 0 && outputLines[outputLines.length - 1].includes('#EXT-X-DISCONTINUITY')) {
-                    adStartIndex = outputLines.length - 1;
-                }
-
-                // Look ahead for a discontinuity tag
-                let adEndIndex = i + 2;
-                if (i + 2 < lines.length && lines[i + 2].includes('#EXT-X-DISCONTINUITY')) {
-                   adEndIndex = i + 3;
-                }
-                
-                // Heuristic: If there is no discontinuity tag between this ad and what would be the previous/next content,
-                // it might be safe to just remove the ad segment. But if there are tags, they are likely framing the ad.
-                // The issue with the previous logic was removing *all* discontinuity tags, which can break valid streams.
-                // This improved logic is more conservative. We will just remove the ad segment for now.
-                i += 2; // Skip EXTINF and URL line
+            // If the URL line contains an ad keyword, skip both the #EXTINF line and the URL line.
+            if (adKeywords.some(keyword => urlLine.includes(keyword))) {
+                i++; // Increment i to skip the URL line on the next iteration.
                 continue;
             }
         }
-        
         outputLines.push(line);
-        i++;
     }
     
     return outputLines.join('\n');
@@ -255,33 +234,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         return () => document.removeEventListener('keydown', handleKeyboardShortcuts);
     }, [handleKeyboardShortcuts]);
 
-    // More robust fullscreen and orientation handling
-    useEffect(() => {
-        const handleFullscreenChange = async () => {
-            if (document.fullscreenElement) {
-                try {
-                    // Lock orientation to landscape when entering fullscreen
-                    await screen.orientation.lock('landscape');
-                } catch (error) {
-                    console.warn('Could not lock screen to landscape:', error);
-                }
-            } else {
-                try {
-                    // Unlock orientation when exiting fullscreen
-                    screen.orientation.unlock();
-                } catch (error) {
-                    console.warn('Could not unlock screen orientation:', error);
-                }
-            }
-        };
-
-        document.addEventListener('fullscreenchange', handleFullscreenChange);
-
-        return () => {
-            document.removeEventListener('fullscreenchange', handleFullscreenChange);
-        };
-    }, []);
-
     // Player error listener for iframe fallback
     useEffect(() => {
         if (!player) return;
@@ -363,6 +315,20 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                                 crossOrigin='anonymous'
                                 onProviderChange={onProviderChange}
                                 onEnded={handleNextEpisode}
+                                onEnterFullscreen={async () => {
+                                    try {
+                                        await screen.orientation.lock('landscape');
+                                    } catch (e) {
+                                        // Orientation lock can fail on some devices/browsers.
+                                    }
+                                }}
+                                onExitFullscreen={() => {
+                                    try {
+                                        screen.orientation.unlock();
+                                    } catch (e) {
+                                       // It might not be possible to unlock, which is fine.
+                                    }
+                                }}
                             >
                                 <MediaProvider />
                                 <DefaultVideoLayout
