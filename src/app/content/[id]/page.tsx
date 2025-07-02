@@ -332,6 +332,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                                 crossOrigin='anonymous'
                                 onProviderChange={onProviderChange}
                                 onEnded={handleNextEpisode}
+                                screenOrientation="landscape"
                             >
                                 <MediaProvider />
                                 <DefaultVideoLayout
