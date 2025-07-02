@@ -250,17 +250,25 @@ function HomePageContent() {
       )}
       
       {(!isLoadingContent && (contentItems.length > 0 || currentSearchTermQuery)) && (
-          <div className="flex items-center justify-start text-sm text-muted-foreground pt-2 p-4 bg-card rounded-lg shadow">
-            <span>
-                {currentSearchTermQuery ? `为 "${currentSearchTermQuery}" 找到 ` : ''}
-                {totalItems > 0 ? `总共 ${totalItems} 条结果` : '未找到结果'}
-            </span>
+        <div className="flex items-center gap-4 rounded-lg border bg-card p-3 text-sm shadow-sm">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+             <Tv2 className="h-5 w-5" />
           </div>
-        )
-      }
+          <div>
+              <p className="font-medium text-foreground">
+                  {currentSearchTermQuery 
+                      ? `"${currentSearchTermQuery}" 的搜索结果` 
+                      : `${globalCategories.find(c => c.id === selectedCategoryId)?.name || '当前'}分类`}
+              </p>
+              <p className="text-muted-foreground">
+                  {totalItems > 0 ? `共找到 ${totalItems} 条内容` : '未找到相关结果'}
+              </p>
+          </div>
+        </div>
+      )}
 
       {isLoadingContent && contentItems.length === 0 ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
           {Array.from({ length: 12 }).map((_, index) => (
             <div key={index} className="space-y-2">
               <Skeleton className="aspect-video w-full rounded-lg" />
@@ -270,7 +278,7 @@ function HomePageContent() {
           ))}
         </div>
       ) : contentItems.length > 0 ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
           {contentItems.map((item, index) => (
             <ContentCard key={`${item.id}-${activeSourceUrl || 'mock'}-${item.title}-${index}`} item={item} sourceId={activeSourceId ?? undefined} />
           ))}
@@ -289,12 +297,9 @@ function HomePageContent() {
         )
       )}
       
-      {isLoadingMore && (
-        <div className="flex justify-center items-center p-4">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      )}
-      <div ref={loadMoreTriggerRef} />
+      <div ref={loadMoreTriggerRef} className="flex justify-center items-center p-4">
+        {isLoadingMore && <Loader2 className="h-8 w-8 animate-spin text-primary" />}
+      </div>
     </div>
   );
 }
