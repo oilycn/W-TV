@@ -1,0 +1,11 @@
+{
+  "name": "晚风TV",
+  "short_name": "晚风TV",
+  "description": "您的个性化影院体验",
+  "icons": [],
+  "theme_color": "#1a1f26",
+  "background_color": "#1a1f26",
+  "display": "standalone",
+  "scope": "/",
+  "start_url": "/"
+}
