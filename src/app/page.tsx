@@ -10,11 +10,10 @@ import { fetchApiContentList, fetchApiCategories, getMockApiCategories, getMockP
 import { ContentCard } from '@/components/content/ContentCard';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, ChevronLeft, ChevronRight, Search as SearchIconTv, Tv2, Loader2 } from 'lucide-react';
+import { AlertCircle, Search as SearchIconTv, Tv2, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useCategories } from '@/contexts/CategoryContext';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { useIsMobile } from '@/hooks/use-mobile';
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 const LOCAL_STORAGE_KEY_ACTIVE_SOURCE = 'cinemaViewActiveSourceId';
@@ -33,14 +32,12 @@ function HomePageContent() {
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const isMobile = useIsMobile();
   const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
 
   // Memoized values from URL search parameters
   const selectedCategoryId = useMemo(() => searchParamsHook.get('category') || 'all', [searchParamsHook]);
-  const currentPageQuery = useMemo(() => parseInt(searchParamsHook.get('page') || '1', 10), [searchParamsHook]);
   const activeSourceTrigger = useMemo(() => searchParamsHook.get('activeSourceTrigger'), [searchParamsHook]);
   const currentSearchTermQuery = useMemo(() => searchParamsHook.get('q') || '', [searchParamsHook]);
   const searchTrigger = useMemo(() => searchParamsHook.get('searchTrigger'), [searchParamsHook]);
@@ -117,9 +114,9 @@ function HomePageContent() {
   // Effect to reset content on context change
   useEffect(() => {
     setContentItems([]);
-    setPage(isMobile ? 1 : currentPageQuery);
+    setPage(1);
     setIsLoadingContent(true);
-  }, [activeSourceUrl, selectedCategoryId, currentSearchTermQuery, searchTrigger, sources.length, currentPageQuery, isMobile]);
+  }, [activeSourceUrl, selectedCategoryId, currentSearchTermQuery, searchTrigger, sources.length]);
 
   // Effect for fetching content (initial and subsequent)
   useEffect(() => {
@@ -170,9 +167,9 @@ function HomePageContent() {
   }, [page, activeSourceUrl, selectedCategoryId, currentSearchTermQuery, searchTrigger, sources.length]);
 
 
-  // Infinite scroll for mobile
+  // Infinite scroll
   useEffect(() => {
-    if (!isMobile || !loadMoreTriggerRef.current) return;
+    if (!loadMoreTriggerRef.current) return;
     
     const observer = new IntersectionObserver(
       (entries) => {
@@ -190,18 +187,8 @@ function HomePageContent() {
         observer.unobserve(loadMoreTriggerRef.current);
       }
     };
-  }, [isMobile, isLoadingContent, isLoadingMore, page, totalPages]);
+  }, [isLoadingContent, isLoadingMore, page, totalPages]);
 
-
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      updateURLParamsForNav({ 
-        page: newPage, 
-        category: selectedCategoryId === 'all' ? null : selectedCategoryId,
-        q: currentSearchTermQuery || null, 
-      });
-    }
-  };
 
   const handleCategoryChange = (newCategoryId: string) => {
     updateURLParamsForNav({ 
@@ -262,27 +249,18 @@ function HomePageContent() {
         </ScrollArea>
       )}
       
-      {!isMobile && (isLoadingContent || contentItems.length > 0 || totalItems > 0 || currentPageQuery > 1 || currentSearchTermQuery ) && (
-          <div className="flex items-center justify-between text-sm text-muted-foreground pt-2 p-4 bg-card rounded-lg shadow">
+      {(!isLoadingContent && (contentItems.length > 0 || currentSearchTermQuery)) && (
+          <div className="flex items-center justify-start text-sm text-muted-foreground pt-2 p-4 bg-card rounded-lg shadow">
             <span>
-                {currentSearchTermQuery ? `搜索 "${currentSearchTermQuery}" ` : ''}
-                总共 {totalItems} 条结果
+                {currentSearchTermQuery ? `为 "${currentSearchTermQuery}" 找到 ` : ''}
+                {totalItems > 0 ? `总共 ${totalItems} 条结果` : '未找到结果'}
             </span>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPageQuery - 1)} disabled={currentPageQuery <= 1 || isLoadingContent}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span>第 {currentPageQuery} 页 / 共 {totalPages} 页</span>
-              <Button variant="outline" size="icon" onClick={() => handlePageChange(currentPageQuery + 1)} disabled={currentPageQuery >= totalPages || isLoadingContent}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
           </div>
         )
       }
 
       {isLoadingContent && contentItems.length === 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
           {Array.from({ length: 12 }).map((_, index) => (
             <div key={index} className="space-y-2">
               <Skeleton className="aspect-video w-full rounded-lg" />
@@ -292,7 +270,7 @@ function HomePageContent() {
           ))}
         </div>
       ) : contentItems.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
           {contentItems.map((item, index) => (
             <ContentCard key={`${item.id}-${activeSourceUrl || 'mock'}-${item.title}-${index}`} item={item} sourceId={activeSourceId ?? undefined} />
           ))}
@@ -311,7 +289,7 @@ function HomePageContent() {
         )
       )}
       
-      {isMobile && isLoadingMore && (
+      {isLoadingMore && (
         <div className="flex justify-center items-center p-4">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
@@ -336,16 +314,9 @@ function HomePageSkeleton() {
         <Skeleton className="h-9 w-full" />
       </div>
       <div className="space-y-4 p-4 bg-card rounded-lg shadow">
-        <div className="flex items-center justify-between pt-2">
-          <Skeleton className="h-5 w-24" />
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-10 w-10" />
-            <Skeleton className="h-5 w-20" />
-            <Skeleton className="h-10 w-10" />
-          </div>
-        </div>
+         <Skeleton className="h-5 w-48" />
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
         {Array.from({ length: 12 }).map((_, index) => (
           <div key={index} className="space-y-2">
             <Skeleton className="aspect-video w-full rounded-lg" />
@@ -357,7 +328,3 @@ function HomePageSkeleton() {
     </div>
   )
 }
-
-    
-
-    
