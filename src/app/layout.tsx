@@ -1,6 +1,6 @@
 
 import type { Metadata, Viewport } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Inter, Roboto_Mono } from 'next/font/google';
 import './globals.css';
 import { AppHeader } from '@/components/common/AppHeader';
 import { Toaster } from "@/components/ui/toaster";
@@ -8,12 +8,12 @@ import { CategoryProvider } from '@/contexts/CategoryContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { Suspense } from 'react';
 
-const geistSans = Geist({
+const inter = Inter({
   variable: '--font-geist-sans',
   subsets: ['latin'],
 });
 
-const geistMono = Geist_Mono({
+const robotoMono = Roboto_Mono({
   variable: '--font-geist-mono',
   subsets: ['latin'],
 });
@@ -70,7 +70,7 @@ export default function RootLayout({
         <link rel="stylesheet" href="https://fastly.jsdelivr.net/npm/@vidstack/react@1.11.24/player/styles/default/theme.css" />
         <link rel="stylesheet" href="https://fastly.jsdelivr.net/npm/@vidstack/react@1.11.24/player/styles/default/layouts/video.css" />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body className={`${inter.variable} ${robotoMono.variable} antialiased`}>
         <ThemeProvider> 
           <CategoryProvider>
             <div className="flex flex-col min-h-screen">
