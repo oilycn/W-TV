@@ -29,30 +29,36 @@ interface ContentDetailPageProps {
 
 function filterAdsFromM3U8(m3u8Content: string): string {
     if (!m3u8Content) return '';
-    
     const lines = m3u8Content.split('\n');
-    const outputLines = [];
-    const adKeywords = ['34t3hm5iv93q.com', '/ads/', 'advertisement']; 
+    let outputLines = [];
+    const adKeywords = ['34t3hm5iv93q.com', '/ads/', 'advertisement', '438pnr4dyywt.com'];
 
-    for (let i = 0; i < lines.length; i++) {
+    let i = 0;
+    while (i < lines.length) {
         const line = lines[i];
-        
+
         if (line.startsWith('#EXTINF') && i + 1 < lines.length) {
             const urlLine = lines[i + 1];
-            
             const isAd = adKeywords.some(keyword => urlLine.includes(keyword));
-            
+
             if (isAd) {
+                // If the ad segment is preceded by a discontinuity tag, remove that tag as well.
                 if (outputLines.length > 0 && outputLines[outputLines.length - 1].includes('#EXT-X-DISCONTINUITY')) {
                     outputLines.pop();
                 }
                 
-                i++; 
+                // Check if the ad segment is followed by a discontinuity tag, and skip that too.
+                if (i + 2 < lines.length && lines[i + 2].includes('#EXT-X-DISCONTINUITY')) {
+                    i += 3; // Skip line, urlLine, and the following discontinuity tag.
+                } else {
+                    i += 2; // Skip line and urlLine.
+                }
                 continue; 
             }
         }
         
         outputLines.push(line);
+        i++;
     }
     
     return outputLines.join('\n');
@@ -243,11 +249,27 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         return () => document.removeEventListener('keydown', handleKeyboardShortcuts);
     }, [handleKeyboardShortcuts]);
 
-    // Subscribe to player fullscreen state
+    // Subscribe to player fullscreen state and handle orientation lock
     useEffect(() => {
         if (!player) return;
+        
+        const onFullscreenChange = async (isFullscreen: boolean) => {
+            setIsFullscreen(isFullscreen);
+            if (typeof window !== 'undefined' && screen.orientation) {
+                try {
+                    if (isFullscreen) {
+                        await screen.orientation.lock('landscape');
+                    } else {
+                        screen.orientation.unlock();
+                    }
+                } catch (error) {
+                    console.warn('Screen orientation lock failed:', error);
+                }
+            }
+        };
+        
         return player.subscribe(({ fullscreen }) => {
-            setIsFullscreen(fullscreen);
+            onFullscreenChange(fullscreen);
         });
     }, [player]);
 
@@ -332,7 +354,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                                 crossOrigin='anonymous'
                                 onProviderChange={onProviderChange}
                                 onEnded={handleNextEpisode}
-                                screenOrientation="landscape"
                             >
                                 <MediaProvider />
                                 <DefaultVideoLayout

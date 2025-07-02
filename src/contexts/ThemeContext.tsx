@@ -26,22 +26,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
     // Calculate time in China (UTC+8)
     const now = new Date();
-    // Get current UTC hour
     const utcHours = now.getUTCHours();
-    // Calculate China Standard Time hour (UTC+8)
-    // The calculation (utcHours + 8) can result in values >= 24 or negative if we were subtracting.
-    // A simple way to handle this correctly for a 24-hour cycle is:
     let chinaHour = (utcHours + 8);
     if (chinaHour >= 24) {
       chinaHour = chinaHour - 24;
-    } else if (chinaHour < 0) { // Should not happen with +8 but good for general timezone math
-      chinaHour = chinaHour + 24;
     }
-    // Alternative using toLocaleString which is more robust for timezones, but might be slightly heavier.
-    // For simplicity and direct hour check, manual offset is fine if DST is not a concern for UTC+8.
-    // const chinaTimeStr = now.toLocaleString("en-US", { timeZone: "Asia/Shanghai", hour12: false, hour: 'numeric' });
-    // const chinaHour = parseInt(chinaTimeStr, 10);
-
 
     if (chinaHour >= 6 && chinaHour < 18) {
       return "light";
@@ -52,14 +41,25 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const root = window.document.documentElement;
-    if (theme === "light") {
-      root.classList.remove("dark");
-      root.classList.add("light");
-    } else {
-      root.classList.remove("light");
-      root.classList.add("dark");
-    }
+    const body = window.document.body;
+
+    root.classList.remove('light', 'dark');
+    root.classList.add(theme);
+
     localStorage.setItem(LOCAL_STORAGE_KEY_THEME, theme);
+
+    // After applying the theme class, get the computed background color
+    const computedBackgroundColor = getComputedStyle(body).backgroundColor;
+
+    // Update the theme-color meta tag
+    let metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (!metaThemeColor) {
+      metaThemeColor = document.createElement('meta');
+      metaThemeColor.setAttribute('name', 'theme-color');
+      document.head.appendChild(metaThemeColor);
+    }
+    metaThemeColor.setAttribute('content', computedBackgroundColor);
+
   }, [theme]);
 
   const toggleTheme = () => {

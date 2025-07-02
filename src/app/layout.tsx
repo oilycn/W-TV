@@ -37,10 +37,6 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false,
   },
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f5f7fa' },
-    { media: '(prefers-color-scheme: dark)', color: '#1a1f26' },
-  ],
 };
 
 const AppHeaderFallback = () => (
