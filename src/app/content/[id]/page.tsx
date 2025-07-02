@@ -1,3 +1,4 @@
+
 "use client";
 
 import { use, useEffect, useState, Suspense, useCallback, useRef } from 'react';
@@ -49,7 +50,6 @@ function filterAdsFromM3U8(m3u8Content: string): string {
     
     return outputLines.join('\n');
 }
-
 
 class CustomHlsJsLoader extends Hls.DefaultConfig.loader {
     constructor(config: any) {
