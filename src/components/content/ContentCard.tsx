@@ -39,26 +39,27 @@ export function ContentCard({ item, sourceId }: ContentCardProps) {
           <CardTitle className="text-base font-semibold leading-tight truncate text-card-foreground" title={item.title}>
             {item.title || "未知标题"}
           </CardTitle>
-          <div className="flex items-center text-xs text-muted-foreground mt-auto pt-2">
-            {item.releaseYear && (
-              <span>{item.releaseYear}</span>
-            )}
-            
+          <div className="flex justify-between items-center text-xs text-muted-foreground mt-auto pt-2">
+            {/* Left side: Year & Genre */}
+            <div className="flex items-center gap-1.5 truncate">
+              {item.releaseYear && (
+                <span>{item.releaseYear}</span>
+              )}
+              
+              {item.genres && item.genres.length > 0 && (
+                <>
+                  {item.releaseYear && <span>&bull;</span>}
+                  <span className="truncate">{item.genres[0]}</span>
+                </>
+              )}
+            </div>
+
+            {/* Right side: Rating */}
             {item.userRating && (
-               <>
-                 {item.releaseYear && <span className="mx-1.5">&bull;</span>}
-                 <div className="flex items-center gap-1 text-amber-400">
-                   <Star className="w-3.5 h-3.5 fill-current" />
-                   <span className="font-medium">{item.userRating.toFixed(1)}</span>
-                 </div>
-               </>
-            )}
-            
-            {item.genres && item.genres.length > 0 && (
-              <>
-                {(item.releaseYear || item.userRating) && <span className="mx-1.5">&bull;</span>}
-                <span className="truncate">{item.genres[0]}</span>
-              </>
+              <div className="flex items-center gap-1 text-amber-400 shrink-0 ml-2">
+                <Star className="w-3.5 h-3.5 fill-current" />
+                <span className="font-medium">{item.userRating.toFixed(1)}</span>
+              </div>
             )}
           </div>
         </CardContent>
