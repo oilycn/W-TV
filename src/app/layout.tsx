@@ -21,14 +21,25 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: '晚风TV',
   description: '您的个性化影院体验',
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+    viewportFit: 'cover',
+  },
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'default',
+    statusBarStyle: 'black-translucent',
     title: '晚风TV',
   },
   formatDetection: {
     telephone: false,
   },
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f5f7fa' },
+    { media: '(prefers-color-scheme: dark)', color: '#1a1f26' },
+  ],
 };
 
 const AppHeaderFallback = () => (
