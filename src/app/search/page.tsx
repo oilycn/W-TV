@@ -1,8 +1,7 @@
-
 "use client";
 
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useState, Suspense, useCallback } from 'react';
+import { useEffect, useState, Suspense, useCallback, useRef } from 'react';
 import type { ContentItem, SourceConfig } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchApiContentList } from '@/lib/content-loader';
@@ -36,6 +35,7 @@ function SearchResults() {
   const [totalResultsCount, setTotalResultsCount] = useState(0);
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const resultsContainerRef = useRef<HTMLElement>(null);
   
   const isMobile = useIsMobile();
 
@@ -89,6 +89,14 @@ function SearchResults() {
   }, [query, sources, loadSearchResults]);
   
   const activeGroup = searchResultsBySource.find(g => g.source.id === selectedSourceId);
+  
+  const handleSourceSelect = useCallback((sourceId: string) => {
+    setSelectedSourceId(sourceId);
+    if (isMobile) {
+      setIsSheetOpen(false);
+    }
+    resultsContainerRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+  }, [isMobile]);
 
   const SourceList = () => (
     <>
@@ -102,10 +110,7 @@ function SearchResults() {
             <Button
               key={group.source.id}
               variant={selectedSourceId === group.source.id ? "secondary" : "ghost"}
-              onClick={() => {
-                setSelectedSourceId(group.source.id)
-                if(isMobile) setIsSheetOpen(false);
-              }}
+              onClick={() => handleSourceSelect(group.source.id)}
               className={cn(
                 "justify-start w-full text-left h-auto py-2.5 px-3 text-base",
                 selectedSourceId === group.source.id && "font-bold"
@@ -173,7 +178,7 @@ function SearchResults() {
               </SheetContent>
             </Sheet>
           )}
-          <main className="flex-1 h-full overflow-y-auto">
+          <main ref={resultsContainerRef} className="flex-1 h-full overflow-y-auto">
             {/* Mobile results rendering */}
             {isLoading && searchResultsBySource.length === 0 ? (
               <div className="grid grid-cols-2 gap-4">
@@ -205,7 +210,7 @@ function SearchResults() {
           <aside className="md:col-span-1 h-full flex flex-col backdrop-blur-md rounded-lg shadow-sm bg-card/50">
             <SourceList />
           </aside>
-          <main className="md:col-span-3 h-full overflow-y-auto">
+          <main ref={resultsContainerRef} className="md:col-span-3 h-full overflow-y-auto">
             {/* Desktop results rendering */}
             {isLoading && searchResultsBySource.length === 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
@@ -282,5 +287,3 @@ export default function SearchPage() {
     </Suspense>
   );
 }
-
-    

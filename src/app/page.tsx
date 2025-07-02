@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useMemo, useCallback, Suspense, useRef } from 'react';
@@ -113,6 +112,9 @@ function HomePageContent() {
 
   // Effect to reset content on context change
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      document.querySelector('main')?.scrollTo({ top: 0, behavior: 'auto' });
+    }
     setContentItems([]);
     setPage(1);
     setIsLoadingContent(true);
