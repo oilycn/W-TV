@@ -31,7 +31,7 @@ function filterAdsFromM3U8(m3u8Content: string): string {
     if (!m3u8Content) return '';
     const lines = m3u8Content.split('\n');
     let outputLines = [];
-    const adKeywords = ['34t3hm5iv93q.com', '/ads/', 'advertisement', '438pnr4dyywt.com'];
+    const adKeywords = ['34t3hm5iv93q.com', '/ads/', 'advertisement'];
 
     let i = 0;
     while (i < lines.length) {
@@ -42,18 +42,25 @@ function filterAdsFromM3U8(m3u8Content: string): string {
             const isAd = adKeywords.some(keyword => urlLine.includes(keyword));
 
             if (isAd) {
-                // If the ad segment is preceded by a discontinuity tag, remove that tag as well.
+                // Smartly remove surrounding discontinuity tags only if they are likely related to the ad
+                let adStartIndex = outputLines.length;
+                // Look behind for a discontinuity tag
                 if (outputLines.length > 0 && outputLines[outputLines.length - 1].includes('#EXT-X-DISCONTINUITY')) {
-                    outputLines.pop();
+                    adStartIndex = outputLines.length - 1;
+                }
+
+                // Look ahead for a discontinuity tag
+                let adEndIndex = i + 2;
+                if (i + 2 < lines.length && lines[i + 2].includes('#EXT-X-DISCONTINUITY')) {
+                   adEndIndex = i + 3;
                 }
                 
-                // Check if the ad segment is followed by a discontinuity tag, and skip that too.
-                if (i + 2 < lines.length && lines[i + 2].includes('#EXT-X-DISCONTINUITY')) {
-                    i += 3; // Skip line, urlLine, and the following discontinuity tag.
-                } else {
-                    i += 2; // Skip line and urlLine.
-                }
-                continue; 
+                // Heuristic: If there is no discontinuity tag between this ad and what would be the previous/next content,
+                // it might be safe to just remove the ad segment. But if there are tags, they are likely framing the ad.
+                // The issue with the previous logic was removing *all* discontinuity tags, which can break valid streams.
+                // This improved logic is more conservative. We will just remove the ad segment for now.
+                i += 2; // Skip EXTINF and URL line
+                continue;
             }
         }
         
@@ -105,7 +112,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     const shortcutHintTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     
     const [player, setPlayer] = useState<MediaPlayerElement | null>(null);
-    const [isFullscreen, setIsFullscreen] = useState(false);
     const [useIframeFallback, setUseIframeFallback] = useState(false);
     
     useEffect(() => {
@@ -237,41 +243,44 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         if (e.key === ' ' || e.key === 'f' || e.key === 'F' || e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') e.preventDefault();
         
         if (e.key === ' ') player.paused ? player.play() : player.pause();
-        if (e.key === 'f' || e.key === 'F') isFullscreen ? player.exitFullscreen() : player.enterFullscreen();
+        if (e.key === 'f' || e.key === 'F') document.fullscreenElement ? player.exitFullscreen() : player.enterFullscreen();
         if (!e.altKey && e.key === 'ArrowLeft') { player.currentTime -= 10; displayShortcutHint('快退10秒'); }
         if (!e.altKey && e.key === 'ArrowRight') { player.currentTime += 10; displayShortcutHint('快进10秒'); }
         if (e.key === 'ArrowUp') { player.volume = Math.min(player.volume + 0.1, 1); displayShortcutHint(`音量 ${Math.round(player.volume * 100)}`);}
         if (e.key === 'ArrowDown') { player.volume = Math.max(player.volume - 0.1, 0); displayShortcutHint(`音量 ${Math.round(player.volume * 100)}`);}
-    }, [item, currentSourceGroupIndex, currentUrlIndex, isFullscreen, player]);
+    }, [item, currentSourceGroupIndex, currentUrlIndex, player]);
     
     useEffect(() => {
         document.addEventListener('keydown', handleKeyboardShortcuts);
         return () => document.removeEventListener('keydown', handleKeyboardShortcuts);
     }, [handleKeyboardShortcuts]);
 
-    // Subscribe to player fullscreen state and handle orientation lock
+    // More robust fullscreen and orientation handling
     useEffect(() => {
-        if (!player) return;
-        
-        const onFullscreenChange = async (isFullscreen: boolean) => {
-            setIsFullscreen(isFullscreen);
-            if (typeof window !== 'undefined' && screen.orientation) {
+        const handleFullscreenChange = async () => {
+            if (document.fullscreenElement) {
                 try {
-                    if (isFullscreen) {
-                        await screen.orientation.lock('landscape');
-                    } else {
-                        screen.orientation.unlock();
-                    }
+                    // Lock orientation to landscape when entering fullscreen
+                    await screen.orientation.lock('landscape');
                 } catch (error) {
-                    console.warn('Screen orientation lock failed:', error);
+                    console.warn('Could not lock screen to landscape:', error);
+                }
+            } else {
+                try {
+                    // Unlock orientation when exiting fullscreen
+                    screen.orientation.unlock();
+                } catch (error) {
+                    console.warn('Could not unlock screen orientation:', error);
                 }
             }
         };
-        
-        return player.subscribe(({ fullscreen }) => {
-            onFullscreenChange(fullscreen);
-        });
-    }, [player]);
+
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+        return () => {
+            document.removeEventListener('fullscreenchange', handleFullscreenChange);
+        };
+    }, []);
 
     // Player error listener for iframe fallback
     useEffect(() => {
