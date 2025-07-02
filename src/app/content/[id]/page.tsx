@@ -32,39 +32,26 @@ function filterAdsFromM3U8(m3u8Content: string): string {
     
     const lines = m3u8Content.split('\n');
     const outputLines = [];
-    // More generic ad keywords can be added here if needed.
-    // For now, targeting the specific domain from the user and common patterns.
-    const adKeywords = ['34t3hm5iv93q.com', '/ads/', 'advertisement']; 
+    const adKeywords = ['34t3hm5iv93q.com', '438pnr4dyywt.com', '/ads/', 'advertisement']; 
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         
-        // HLS ad pattern: #EXTINF followed by an ad segment URL
         if (line.startsWith('#EXTINF') && i + 1 < lines.length) {
             const urlLine = lines[i + 1];
             
             const isAd = adKeywords.some(keyword => urlLine.includes(keyword));
             
             if (isAd) {
-                // This segment is identified as an ad.
-                // We will skip this #EXTINF line and the ad URL line.
-                // We also check if a discontinuity tag came right before this ad block and remove it from our output.
                 if (outputLines.length > 0 && outputLines[outputLines.length - 1].includes('#EXT-X-DISCONTINUITY')) {
                     outputLines.pop();
                 }
                 
-                // Advance the loop counter to skip the URL line on the next iteration.
                 i++; 
-                continue; // Move to the next line in the original M3U8
+                continue; 
             }
         }
         
-        // A more conservative approach: filter discontinuity tags ONLY when they are clearly for ads.
-        // The logic above already handles removing discontinuity tags that come immediately before an ad segment.
-        // We will remove the blanket removal of all discontinuity tags.
-        // The old line was: if (line.includes('#EXT-X-DISCONTINUITY')) { continue; }
-        // This was too aggressive and could break valid streams.
-
         outputLines.push(line);
     }
     

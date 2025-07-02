@@ -11,17 +11,20 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Trash2, PlusCircle, DownloadCloud, XCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 const LOCAL_STORAGE_KEY_SUBSCRIPTION_URL = 'cinemaViewSubscriptionUrl';
 const DEFAULT_SOURCE_PROCESSED_FLAG_KEY = 'cinemaViewDefaultSourceProcessed';
 const LOCAL_STORAGE_KEY_ACTIVE_SOURCE = 'cinemaViewActiveSourceId';
+const LOCAL_STORAGE_KEY_AD_BLOCK = 'enable_blockad';
 
 
 export default function SettingsPage() {
   const [sources, setSources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
   const [activeSourceId, setActiveSourceId] = useLocalStorage<string | null>(LOCAL_STORAGE_KEY_ACTIVE_SOURCE, null);
   const [subscriptionUrl, setSubscriptionUrl] = useLocalStorage<string>(LOCAL_STORAGE_KEY_SUBSCRIPTION_URL, '');
+  const [blockAdEnabled, setBlockAdEnabled] = useLocalStorage<boolean>(LOCAL_STORAGE_KEY_AD_BLOCK, true);
   
   const [newSourceName, setNewSourceName] = useState('');
   const [newSourceUrl, setNewSourceUrl] = useState('');
@@ -384,6 +387,29 @@ export default function SettingsPage() {
           )}
         </CardFooter>
       </Card>
+      
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle>播放设置</CardTitle>
+          <CardDescription>调整播放器相关行为。</CardDescription>
+        </CardHeader>
+        <CardContent>
+            <div className="flex items-center justify-between space-x-2 rounded-lg border p-4">
+                <Label htmlFor="ad-block-switch" className="flex flex-col space-y-1 cursor-pointer">
+                    <span>过滤视频广告</span>
+                    <span className="font-normal leading-snug text-muted-foreground">
+                        尝试移除 HLS (m3u8) 视频流中的广告片段。可能会影响部分视频的播放。
+                    </span>
+                </Label>
+                <Switch
+                    id="ad-block-switch"
+                    checked={blockAdEnabled}
+                    onCheckedChange={setBlockAdEnabled}
+                    aria-label="Toggle Ad Filtering"
+                />
+            </div>
+        </CardContent>
+      </Card>
 
       <Card className="shadow-lg">
         <CardHeader>
@@ -426,4 +452,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
