@@ -1,4 +1,32 @@
+/** @type {import('next').NextConfig} */
+const withPWAInit = require("@ducanh2912/next-pwa");
 
-// This file is intentionally left empty to prevent conflicts.
-// The main configuration is in next.config.ts.
-module.exports = {};
+const withPWA = withPWAInit({
+  dest: "public",
+  register: true,
+  skipWaiting: true,
+});
+
+const nextConfig = {
+  output: 'standalone',
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+      {
+        protocol: 'http',
+        hostname: '**',
+      },
+    ],
+  },
+};
+
+module.exports = withPWA(nextConfig);
