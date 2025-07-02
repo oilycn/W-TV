@@ -32,9 +32,9 @@ const mockContentItems: ContentItem[] = [
         ]
       },
       {
-        sourceName: '备用线路 (mp4)',
+        sourceName: '备用线路 (m3u8)',
         urls: [
-          { name: '高清版', url: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4' },
+          { name: '高清版', url: 'https://stream.mux.com/b_354uRz01PBzC2pG44M01ab026r2kBCrM00.m3u8' },
         ]
       }
     ]
@@ -53,10 +53,10 @@ const mockContentItems: ContentItem[] = [
     availableQualities: ['1080p', '720p'],
     playbackSources: [
       {
-        sourceName: '高清源 (mp4)',
+        sourceName: '高清源 (m3u8)',
         urls: [
-          { name: 'S01E01', url: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4' },
-          { name: 'S01E02', url: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4' },
+          { name: 'S01E01', url: 'https://stream.mux.com/T32wTkE4Ld2e022b7201201fxqIVa4cW29jI.m3u8' },
+          { name: 'S01E02', url: 'https://test-streams.mux.dev/v609ms/v609ms.m3u8' },
         ]
       }
     ]

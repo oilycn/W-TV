@@ -56,9 +56,9 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         {/* Vidstack Player CSS from CDN */}
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vidstack@1.11.24/player/styles/base.css" />
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@vidstack/react@1.11.24/player/styles/default/theme.css" />
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@vidstack/react@1.11.24/player/styles/default/layouts/video.css" />
+        <link rel="stylesheet" href="https://fastly.jsdelivr.net/npm/vidstack@1.11.24/player/styles/base.css" />
+        <link rel="stylesheet" href="https://fastly.jsdelivr.net/npm/@vidstack/react@1.11.24/player/styles/default/theme.css" />
+        <link rel="stylesheet" href="https://fastly.jsdelivr.net/npm/@vidstack/react@1.11.24/player/styles/default/layouts/video.css" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <ThemeProvider> 
