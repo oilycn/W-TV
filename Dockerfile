@@ -44,7 +44,6 @@ RUN adduser -S nextjs -G nodejs
 # and minimal required node_modules.
 # We also set the ownership to the non-root user.
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Switch to the non-root user

@@ -2,9 +2,9 @@ name: Docker Image CI
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "duoduo" ]
   pull_request:
-    branches: [ "master" ] # Pull Request 触发时通常只构建，不推送生产镜像
+    branches: [ "duoduo" ] # Pull Request 触发时通常只构建，不推送生产镜像
 
 env:
   # 这两个是 Docker Hub 的默认值，如果你用的是其他注册表（如 ghcr.io, gcr.io 等），需要修改
@@ -36,7 +36,7 @@ jobs:
 
       - name: Log in to Docker Hub
         # 只有当事件是 "push" 并且目标分支是 "master" 时才执行此步骤
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/duoduo'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
@@ -49,8 +49,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }} # 完整的镜像路径
           tags: |
             type=sha,prefix=,suffix=,format=short # 使用短 SHA 值作为标签 (always)
-            type=ref,event=branch,enable=${{ github.ref == 'refs/heads/master' }},suffix=,prefix= # 当在 master 分支时，打上分支名（'master'）
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }} # 当在 master 分支时，额外打上 'latest' 标签
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/duoduo' }} # 当在 master 分支时，额外打上 'latest' 标签
 
       - name: Build and push Docker image # 步骤4: 构建并推送镜像
         uses: docker/build-push-action@v5
@@ -60,7 +59,7 @@ jobs:
           # push 字段依据条件来决定是否推送
           # 如果是 push 事件到 master 分支，则 push: true
           # 否则 (例如 pull_request 或推送到其他分支)， push: false (只构建，不推送)
-          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/duoduo' }}
           tags: ${{ steps.meta.outputs.tags }} # 使用上一步生成的标签
           labels: ${{ steps.meta.outputs.labels }} # 使用上一步生成的 OCI 标签
           cache-from: type=gha,scope=${{ github.workflow }} # 从 GitHub Actions Cache 中拉取缓存
