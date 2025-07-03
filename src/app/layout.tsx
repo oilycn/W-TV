@@ -24,6 +24,7 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false,
   },
+  manifest: '/manifest.json',
 };
 
 export const viewport: Viewport = {
@@ -32,6 +33,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover',
+  themeColor: '#181d2a',
 };
 
 const AppHeaderFallback = () => (
