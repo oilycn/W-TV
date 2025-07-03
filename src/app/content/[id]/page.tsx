@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import type { ContentItem, SourceConfig, HistoryEntry } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, getMockContentItemById } from '@/lib/content-loader';
-import { Loader2, Star } from 'lucide-react';
+import { Loader2, ScreenMaximize, Star } from 'lucide-react';
 import { useCategories } from '@/contexts/CategoryContext';
 
 // Vidstack Imports
@@ -305,6 +305,16 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         }
     };
     
+    const handleEnterLandscapeFullscreen = async () => {
+        if (!player) return;
+        try {
+            await player.enterFullscreen();
+            // The existing 'enter-fullscreen' event listener handles the orientation lock.
+        } catch (error) {
+            console.error("Error attempting to enter landscape fullscreen:", error);
+        }
+    };
+
     if (isLoading) {
         return (
             <div className='min-h-screen flex items-center justify-center'>
@@ -373,7 +383,12 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                                             </button>
                                         ),
                                         beforeFullscreenButton: (
-                                            <AirPlayButton className='vds-button'><AirPlayIcon className='vds-icon' /></AirPlayButton>
+                                            <>
+                                                <button onClick={handleEnterLandscapeFullscreen} className="vds-button" aria-label="横向全屏">
+                                                    <ScreenMaximize className="vds-icon" />
+                                                </button>
+                                                <AirPlayButton className='vds-button'><AirPlayIcon className='vds-icon' /></AirPlayButton>
+                                            </>
                                         )
                                     }}
                                 />
@@ -470,3 +485,5 @@ export default function ContentDetailPage(props: ContentDetailPageProps) {
         </Suspense>
     );
 }
+
+    
