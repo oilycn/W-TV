@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import type { ContentItem, SourceConfig, HistoryEntry } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, getMockContentItemById } from '@/lib/content-loader';
-import { Loader2, ScreenMaximize, Star } from 'lucide-react';
+import { Loader2, Maximize, Star } from 'lucide-react';
 import { useCategories } from '@/contexts/CategoryContext';
 
 // Vidstack Imports
@@ -385,7 +385,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                                         beforeFullscreenButton: (
                                             <>
                                                 <button onClick={handleEnterLandscapeFullscreen} className="vds-button" aria-label="横向全屏">
-                                                    <ScreenMaximize className="vds-icon" />
+                                                    <Maximize className="vds-icon" />
                                                 </button>
                                                 <AirPlayButton className='vds-button'><AirPlayIcon className='vds-icon' /></AirPlayButton>
                                             </>
