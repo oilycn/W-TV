@@ -115,7 +115,7 @@ export function AppHeader() {
                     <SearchIcon className="h-5 w-5" />
                 </Button>
             </SheetTrigger>
-            <SheetContent side="top" className="p-4 pt-6">
+            <SheetContent side="top" className="p-4 pt-[calc(env(safe-area-inset-top)+1rem)]">
                 <SearchBar onSearchSubmit={() => setIsSearchOpen(false)} />
             </SheetContent>
           </Sheet>
