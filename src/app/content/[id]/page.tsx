@@ -250,11 +250,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         if (isHLSProvider(provider)) {
             provider.library = Hls;
             provider.config = {
-                debug: false,
-                enableWorker: true,
-                lowLatencyMode: true,
-                maxBufferLength: 60,
-                backBufferLength: 30,
                 loader: CustomHlsJsLoader,
             };
         }
