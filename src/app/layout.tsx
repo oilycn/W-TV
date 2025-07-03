@@ -50,12 +50,11 @@ const AppHeaderFallback = () => (
   <div style={{
     position: 'sticky',
     top: 0,
-    zIndex: 10,
-    borderBottom: '1px solid hsl(var(--border))',
+    zIndex: 20,
     backgroundColor: 'hsl(var(--background))', 
     paddingTop: 'env(safe-area-inset-top)',
   }}>
-    <div style={{ height: '64px' }} />
+    <div style={{ height: '56px', borderBottom: '1px solid hsl(var(--border))' }} />
   </div>
 );
 
@@ -79,7 +78,7 @@ export default function RootLayout({
               <Suspense fallback={<AppHeaderFallback />}>
                 <AppHeader />
               </Suspense>
-              <main className="flex-1 p-4 md:p-6 overflow-auto pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-6">
+              <main className="flex-1 p-4 md:p-6 overflow-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-6">
                 {children}
               </main>
               <BottomNavBar />

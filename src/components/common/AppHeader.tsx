@@ -45,10 +45,9 @@ export function AppHeader() {
   }, []);
   
   if (!isClient) {
-    // Simple static header for SSR/initial render
     return (
-      <header className="sticky top-0 z-20 border-b bg-background/95 pt-[env(safe-area-inset-top)]">
-        <div className="flex h-16 items-center px-4 md:px-6">
+      <header className="sticky top-0 z-20 bg-background/95 pt-[env(safe-area-inset-top)]">
+        <div className="flex h-14 items-center border-b px-4 md:px-6">
             <Link href="/" className="mr-4">
               <AppLogo />
             </Link>
@@ -73,8 +72,8 @@ export function AppHeader() {
   );
 
   return (
-    <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
-      <div className="flex h-16 items-center px-4 md:px-6">
+    <header className="sticky top-0 z-20 bg-background/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
+      <div className="flex h-14 items-center border-b px-4 md:px-6">
         {/* --- Desktop View --- */}
         <div className="hidden w-full items-center gap-4 md:flex">
           <Link href="/" className="mr-4 flex items-center gap-4">

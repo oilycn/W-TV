@@ -135,7 +135,7 @@ function SearchResults() {
   );
 
   return (
-    <div className="flex flex-col h-full md:h-[calc(100vh_-_8rem)]">
+    <div className="flex flex-col h-full">
       <div className="flex-shrink-0 pb-4">
         <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-4">
           搜索
