@@ -3,7 +3,7 @@
 
 import { use, useEffect, useState, Suspense, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import type { ContentItem, SourceConfig } from '@/types';
+import type { ContentItem, SourceConfig, HistoryEntry } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, getMockContentItemById } from '@/lib/content-loader';
 import { Loader2, Star } from 'lucide-react';
@@ -92,6 +92,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     
     const [player, setPlayer] = useState<MediaPlayerElement | null>(null);
     const [useIframeFallback, setUseIframeFallback] = useState(false);
+    const [history, setHistory] = useLocalStorage<HistoryEntry[]>('cinemaViewHistory', []);
     
     useEffect(() => {
         if (resolvedParams && resolvedParams.id) {
@@ -168,6 +169,18 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         setCurrentSourceGroupIndex(sourceGroupIndex);
         setCurrentUrlIndex(urlIndex);
         setUseIframeFallback(false); // Reset fallback on new video selection
+
+        if (item && activeSourceId) {
+            setHistory(prevHistory => {
+                const otherHistory = prevHistory.filter(entry => entry.item.id !== item.id);
+                const newEntry: HistoryEntry = {
+                    item: item,
+                    watchedAt: Date.now(),
+                    sourceId: activeSourceId,
+                };
+                return [newEntry, ...otherHistory];
+            });
+        }
     };
 
     const getNextEpisode = (): { url: string; sourceName: string; episodeName: string; sourceGroupIndex: number; urlIndex: number } | null => {

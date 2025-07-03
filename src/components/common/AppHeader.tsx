@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Settings, Sun, Moon, Search as SearchIcon } from "lucide-react";
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCategories } from '@/contexts/CategoryContext';
-import { Separator } from '@/components/ui/separator';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import type { SourceConfig } from '@/types';
 import {
@@ -78,11 +77,8 @@ export function AppHeader() {
         <Link href="/" className="mr-4 flex items-center gap-4">
           <AppLogo />
         </Link>
-        <div className='flex items-center gap-4'>
-            <SourceSwitcher />
-            {pageTitle && <Separator orientation="vertical" className="h-6" />}
-            <span className='text-sm text-muted-foreground truncate max-w-md'>{pageTitle}</span>
-        </div>
+        
+        <SourceSwitcher />
         
         <div className="ml-auto flex items-center gap-4">
           <div className="w-full max-w-xs">

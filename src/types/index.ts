@@ -54,3 +54,9 @@ export interface RawSubscriptionSourceItem {
   quickSearch?: number; // 0 or 1
   changeable?: number; // 0 or 1
 }
+
+export interface HistoryEntry {
+  item: ContentItem;
+  watchedAt: number; // timestamp
+  sourceId: string;
+}
