@@ -347,70 +347,80 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                         isWebFullscreen && isMobile && "w-[100svh] h-[100svw] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rotate-90",
                         !isWebFullscreen && "aspect-video"
                      )}>
-                        {currentPlayUrl && useIframeFallback ? (
-                            <iframe
-                                key={currentPlayUrl}
-                                src={currentPlayUrl}
-                                title="Playback Frame"
-                                className="w-full h-full"
-                                allow="autoplay; encrypted-media; picture-in-picture"
-                                allowFullScreen
-                                sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
-                            />
-                        ) : currentPlayUrl ? (
-                            <MediaPlayer
-                                ref={setPlayer}
-                                className={cn('w-full h-full bg-black')}
-                                src={currentPlayUrl}
-                                poster={item.posterUrl}
-                                playsInline
-                                autoPlay
-                                volume={0.8}
-                                crossOrigin='anonymous'
-                                onProviderChange={onProviderChange}
-                                onEnded={handleNextEpisode}
-                            >
-                                <MediaProvider />
-                                <DefaultVideoLayout
-                                    icons={defaultLayoutIcons}
-                                    slots={{
-                                        googleCastButton: null,
-                                        pipButton: null,
-                                        settingsMenu: null,
-                                        beforeCurrentTime: (
-                                            <button className='vds-button mr-2' onClick={handleNextEpisode} aria-label='Next Episode'>
-                                                <svg className='vds-icon' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'><path d='M6 24l12-8L6 8v16zM22 8v16h3V8h-3z' fill='currentColor'/></svg>
-                                            </button>
-                                        ),
-                                        beforeFullscreenButton: (
-                                            <>
-                                                <button onClick={handleEnterWebFullscreen} className="vds-button" aria-label="网页全屏">
-                                                    <svg
-                                                        xmlns="http://www.w3.org/2000/svg"
-                                                        viewBox="0 0 24 24"
-                                                        fill="none"
-                                                        stroke="currentColor"
-                                                        strokeWidth="2"
-                                                        strokeLinecap="round"
-                                                        strokeLinejoin="round"
-                                                        className="vds-icon"
-                                                    >
-                                                        <title>网页全屏</title>
-                                                        <rect x="3" y="7" width="6" height="10" rx="1"></rect>
-                                                        <rect x="11" y="4" width="10" height="6" rx="1"></rect>
-                                                    </svg>
-                                                </button>
-                                                <AirPlayButton className='vds-button'><AirPlayIcon className='vds-icon' /></AirPlayButton>
-                                            </>
-                                        )
-                                    }}
+                        <div
+                            className="w-full h-full"
+                            style={isWebFullscreen && isMobile ? {
+                                paddingTop: 'env(safe-area-inset-right)',
+                                paddingBottom: 'env(safe-area-inset-left)',
+                                paddingLeft: 'env(safe-area-inset-top)',
+                                paddingRight: 'env(safe-area-inset-bottom)',
+                            } : {}}
+                        >
+                            {currentPlayUrl && useIframeFallback ? (
+                                <iframe
+                                    key={currentPlayUrl}
+                                    src={currentPlayUrl}
+                                    title="Playback Frame"
+                                    className="w-full h-full"
+                                    allow="autoplay; encrypted-media; picture-in-picture"
+                                    allowFullScreen
+                                    sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
                                 />
-                            </MediaPlayer>
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-black">
-                                <p className="text-muted-foreground">请选择一集开始播放</p>
-                            </div>
-                        )}
+                            ) : currentPlayUrl ? (
+                                <MediaPlayer
+                                    ref={setPlayer}
+                                    className={cn('w-full h-full bg-black')}
+                                    src={currentPlayUrl}
+                                    poster={item.posterUrl}
+                                    playsInline
+                                    autoPlay
+                                    volume={0.8}
+                                    crossOrigin='anonymous'
+                                    onProviderChange={onProviderChange}
+                                    onEnded={handleNextEpisode}
+                                >
+                                    <MediaProvider />
+                                    <DefaultVideoLayout
+                                        icons={defaultLayoutIcons}
+                                        slots={{
+                                            googleCastButton: null,
+                                            pipButton: null,
+                                            settingsMenu: null,
+                                            beforeCurrentTime: (
+                                                <button className='vds-button mr-2' onClick={handleNextEpisode} aria-label='Next Episode'>
+                                                    <svg className='vds-icon' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'><path d='M6 24l12-8L6 8v16zM22 8v16h3V8h-3z' fill='currentColor'/></svg>
+                                                </button>
+                                            ),
+                                            beforeFullscreenButton: (
+                                                <>
+                                                    <button onClick={handleEnterWebFullscreen} className="vds-button" aria-label="网页全屏">
+                                                        <svg
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                            viewBox="0 0 24 24"
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            strokeWidth="2"
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            className="vds-icon"
+                                                        >
+                                                            <title>网页全屏</title>
+                                                            <rect x="3" y="7" width="6" height="10" rx="1"></rect>
+                                                            <rect x="11" y="4" width="10" height="6" rx="1"></rect>
+                                                        </svg>
+                                                    </button>
+                                                    <AirPlayButton className='vds-button'><AirPlayIcon className='vds-icon' /></AirPlayButton>
+                                                </>
+                                            )
+                                        }}
+                                    />
+                                </MediaPlayer>
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-black">
+                                    <p className="text-muted-foreground">请选择一集开始播放</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                     
                     <div className={cn({ "hidden": isWebFullscreen })}>

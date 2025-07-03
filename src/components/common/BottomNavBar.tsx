@@ -43,7 +43,8 @@ export function BottomNavBar() {
             homeClickRef.current = now;
         }
     }
-    // If not on home page, the link will navigate normally without this handler's intervention.
+    // If not on home page, the link will navigate normally.
+    // Preserving state across navigations requires a larger architectural change (e.g., global state management).
   };
 
   return (
