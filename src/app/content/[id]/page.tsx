@@ -107,6 +107,29 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         }
     }, [resolvedParams]);
 
+    const handlePlayVideo = useCallback((url: string, sourceName: string, episodeName: string, sourceGroupIndex: number, urlIndex: number, overrideSourceId?: string) => {
+        setCurrentPlayUrl(url);
+        setCurrentSourceGroupIndex(sourceGroupIndex);
+        setCurrentUrlIndex(urlIndex);
+        setUseIframeFallback(false);
+
+        const sourceIdToUse = overrideSourceId || activeSourceId;
+        if (item && sourceIdToUse) {
+            setHistory(prevHistory => {
+                const otherHistory = prevHistory.filter(entry => entry.item.id !== item.id);
+                const newEntry: HistoryEntry = {
+                    item: item,
+                    watchedAt: Date.now(),
+                    sourceId: sourceIdToUse,
+                    episodeName: episodeName,
+                    sourceName: sourceName,
+                    episodeUrl: url,
+                };
+                return [newEntry, ...otherHistory];
+            });
+        }
+    }, [item, activeSourceId, setHistory]);
+
     useEffect(() => {
         const sourceIdFromQuery = searchParams.get('sourceId');
 
@@ -120,8 +143,8 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             setIsLoading(true);
             setError(null);
             let itemFound: ContentItem | null | undefined = undefined;
+            let sourceUsedToFind: SourceConfig | null = null;
             
-            // Reorder sources to try the one from query/active one first
             const sourceIdToTryFirst = sourceIdFromQuery || activeSourceId;
             const sourcesToSearch = [...sources];
             if (sourceIdToTryFirst) {
@@ -135,8 +158,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             for (const source of sourcesToSearch) {
                 itemFound = await fetchContentItemById(source.url, pageId);
                 if (itemFound) {
-                    // If content is found from a source that is not active,
-                    // set it as active for a better user experience (e.g., next episode).
+                    sourceUsedToFind = source;
                     if (source.id !== activeSourceId) {
                         setActiveSourceId(source.id);
                     }
@@ -149,43 +171,22 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             }
             
             setItem(itemFound || null);
-            if(itemFound) {
+            
+            if(itemFound && sourceUsedToFind) {
               const firstSourceGroup = itemFound.playbackSources?.[0];
               const firstUrl = firstSourceGroup?.urls?.[0];
               if (firstUrl) {
-                handlePlayVideo(firstUrl.url, firstSourceGroup.sourceName, firstUrl.name, 0, 0);
+                handlePlayVideo(firstUrl.url, firstSourceGroup.sourceName, firstUrl.name, 0, 0, sourceUsedToFind.id);
               }
-            } else {
+            } else if (!itemFound) {
               setError(`抱歉，我们找不到您请求的内容 (ID: ${pageId || "无效的ID"})。`);
             }
             setIsLoading(false);
         }
         
         loadContentDetail();
-    }, [pageId, sources, activeSourceId, setActiveSourceId, searchParams]);
+    }, [pageId, sources, activeSourceId, setActiveSourceId, searchParams, handlePlayVideo]);
 
-
-    const handlePlayVideo = (url: string, sourceName: string, episodeName: string, sourceGroupIndex: number, urlIndex: number) => {
-        setCurrentPlayUrl(url);
-        setCurrentSourceGroupIndex(sourceGroupIndex);
-        setCurrentUrlIndex(urlIndex);
-        setUseIframeFallback(false); // Reset fallback on new video selection
-
-        if (item && activeSourceId) {
-            setHistory(prevHistory => {
-                const otherHistory = prevHistory.filter(entry => entry.item.id !== item.id);
-                const newEntry: HistoryEntry = {
-                    item: item,
-                    watchedAt: Date.now(),
-                    sourceId: activeSourceId,
-                    episodeName: episodeName,
-                    sourceName: sourceName,
-                    episodeUrl: url,
-                };
-                return [newEntry, ...otherHistory];
-            });
-        }
-    };
 
     const getNextEpisode = (): { url: string; sourceName: string; episodeName: string; sourceGroupIndex: number; urlIndex: number } | null => {
         if (!item?.playbackSources || currentSourceGroupIndex === null || currentUrlIndex === null) return null;
@@ -244,7 +245,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         if (!e.altKey && e.key === 'ArrowRight') { player.currentTime += 10; displayShortcutHint('快进10秒'); }
         if (e.key === 'ArrowUp') { player.volume = Math.min(player.volume + 0.1, 1); displayShortcutHint(`音量 ${Math.round(player.volume * 100)}`);}
         if (e.key === 'ArrowDown') { player.volume = Math.max(player.volume - 0.1, 0); displayShortcutHint(`音量 ${Math.round(player.volume * 100)}`);}
-    }, [item, currentSourceGroupIndex, currentUrlIndex, player]);
+    }, [item, currentSourceGroupIndex, currentUrlIndex, player, getNextEpisode, handleNextEpisode]);
     
     useEffect(() => {
         document.addEventListener('keydown', handleKeyboardShortcuts);
@@ -256,7 +257,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         if (!player) return;
 
         const onError = (event: any) => {
-            // Any player error will trigger a fallback to the iframe for maximum compatibility.
             setUseIframeFallback(true);
         };
 
@@ -264,7 +264,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         return () => unsubscribe();
     }, [player]);
 
-    // Fullscreen event listeners
     useEffect(() => {
         if (!player) return;
 
@@ -273,9 +272,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                 if (screen.orientation && typeof screen.orientation.lock === 'function') {
                     await screen.orientation.lock('landscape');
                 }
-            } catch (e) {
-                // Orientation lock can fail on some devices/browsers.
-            }
+            } catch (e) {}
         };
 
         const onExitFullscreen = () => {
@@ -283,9 +280,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                 if (screen.orientation && typeof screen.orientation.unlock === 'function') {
                     screen.orientation.unlock();
                 }
-            } catch (e) {
-               // It might not be possible to unlock, which is fine.
-            }
+            } catch (e) {}
         };
 
         const unsubEnter = player.listen('enter-fullscreen', onEnterFullscreen);
@@ -336,7 +331,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     return (
         <div className="container mx-auto max-w-screen-2xl px-4 py-6">
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                {/* Left column: Player and Details */}
                 <div className="lg:col-span-3 flex flex-col gap-6">
                     <div className="relative aspect-video bg-black rounded-lg overflow-hidden shadow-2xl">
                         {currentPlayUrl && useIframeFallback ? (
@@ -395,7 +389,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                     </div>
                 </div>
 
-                {/* Right column: Episodes */}
                 <div className="lg:col-span-1">
                     <div className="space-y-4">
                         <div>
@@ -414,7 +407,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                             </div>
                         </div>
 
-                        {/* Episode Selector */}
                         {item.playbackSources && item.playbackSources.length > 0 ? (
                              <Tabs defaultValue={item.playbackSources[0].sourceName} className="w-full">
                                 <TabsList className="grid w-full grid-flow-col auto-cols-fr">
@@ -454,7 +446,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                 </div>
             </div>
             
-            {/* Shortcut Hint */}
             <div className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[200] transition-opacity duration-300 ${showShortcutHint ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                  <div className='bg-black/80 backdrop-blur-sm rounded p-4 flex items-center space-x-3 text-white'>
                      {shortcutText}

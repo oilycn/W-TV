@@ -77,7 +77,7 @@ export default function HistoryPage() {
                 {new Date(watchedAt).toLocaleString()}
               </p>
               {episodeName && (
-                <p className="mt-1 text-xs text-foreground font-medium text-center truncate" title={episodeName}>
+                <p className="mt-1.5 text-sm text-primary font-semibold text-center truncate" title={episodeName}>
                   看到: {episodeName}
                 </p>
               )}

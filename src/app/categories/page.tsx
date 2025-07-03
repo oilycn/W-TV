@@ -23,16 +23,14 @@ function CategoriesPageContent() {
     const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
     const router = useRouter();
 
-    // Remove 'all' category for the display grid, as this page is for choosing a specific one.
     const displayCategories = categories.filter(c => c.id !== 'all');
 
     const handleSourceChange = (newSourceId: string) => {
         setActiveSourceId(newSourceId);
-        // Refresh the page to trigger the CategoryProvider to refetch categories
         router.refresh(); 
     };
 
-    if (categories.length <= 1 && sources.length === 0) { // Only 'all' or empty, and no sources
+    if (categories.length <= 1 && sources.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center text-center p-4">
                  <p className="text-muted-foreground">请先到“设置”页面添加内容源。</p>
@@ -64,17 +62,22 @@ function CategoriesPageContent() {
             <div>
                 <h2 className="text-lg font-semibold mb-2">分类</h2>
                 {displayCategories.length > 0 ? (
-                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 md:grid-cols-5 lg:grid-cols-6">
+                    <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
                         {displayCategories.map(category => (
-                            <Button key={category.id} variant="outline" asChild className="h-10 text-sm justify-center">
+                             <Button
+                                key={category.id}
+                                variant="secondary"
+                                asChild
+                                className="h-auto justify-center rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-primary hover:text-primary-foreground"
+                            >
                                 <Link href={`/?category=${category.id}`} className="truncate">{category.name}</Link>
                             </Button>
                         ))}
                     </div>
                 ) : (
-                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 md:grid-cols-5 lg:grid-cols-6">
+                    <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
                         {Array.from({ length: 12 }).map((_, index) => (
-                            <Skeleton key={index} className="h-10 w-full" />
+                            <Skeleton key={index} className="h-12 w-full rounded-lg" />
                         ))}
                     </div>
                 )}
@@ -98,9 +101,9 @@ export default function CategoriesPage() {
                     </div>
                     <div>
                         <h2 className="text-lg font-semibold mb-2">分类</h2>
-                        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 md:grid-cols-5 lg:grid-cols-6">
+                        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
                             {Array.from({ length: 12 }).map((_, index) => (
-                                <Skeleton key={index} className="h-10 w-full" />
+                                <Skeleton key={index} className="h-12 w-full rounded-lg" />
                             ))}
                         </div>
                     </div>
