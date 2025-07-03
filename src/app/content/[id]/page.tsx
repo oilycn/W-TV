@@ -243,7 +243,41 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             setUseIframeFallback(true);
         };
 
-        return player.listen('error', onError);
+        const unsubscribe = player.listen('error', onError);
+        return () => unsubscribe();
+    }, [player]);
+
+    // Fullscreen event listeners
+    useEffect(() => {
+        if (!player) return;
+
+        const onEnterFullscreen = async () => {
+            try {
+                if (screen.orientation && typeof screen.orientation.lock === 'function') {
+                    await screen.orientation.lock('landscape');
+                }
+            } catch (e) {
+                // Orientation lock can fail on some devices/browsers.
+            }
+        };
+
+        const onExitFullscreen = () => {
+            try {
+                if (screen.orientation && typeof screen.orientation.unlock === 'function') {
+                    screen.orientation.unlock();
+                }
+            } catch (e) {
+               // It might not be possible to unlock, which is fine.
+            }
+        };
+
+        const unsubEnter = player.listen('enter-fullscreen', onEnterFullscreen);
+        const unsubExit = player.listen('exit-fullscreen', onExitFullscreen);
+
+        return () => {
+            unsubEnter();
+            unsubExit();
+        };
     }, [player]);
 
     const onProviderChange = (provider: MediaProviderAdapter | null) => {
@@ -310,20 +344,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                                 crossOrigin='anonymous'
                                 onProviderChange={onProviderChange}
                                 onEnded={handleNextEpisode}
-                                onEnterFullscreen={async () => {
-                                    try {
-                                        await screen.orientation.lock('landscape');
-                                    } catch (e) {
-                                        // Orientation lock can fail on some devices/browsers.
-                                    }
-                                }}
-                                onExitFullscreen={() => {
-                                    try {
-                                        screen.orientation.unlock();
-                                    } catch (e) {
-                                       // It might not be possible to unlock, which is fine.
-                                    }
-                                }}
                             >
                                 <MediaProvider />
                                 <DefaultVideoLayout
