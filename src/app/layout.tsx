@@ -64,6 +64,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/* PWA Icon Links for better compatibility */}
+        <link rel="icon" href="/icons/icon-192x192.png" type="image/png" sizes="192x192" />
+        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+
         {/* Vidstack Player CSS from CDN */}
         <link rel="stylesheet" href="https://fastly.jsdelivr.net/npm/vidstack@1.11.24/player/styles/base.css" />
         <link rel="stylesheet" href="https://fastly.jsdelivr.net/npm/@vidstack/react@1.11.24/player/styles/default/theme.css" />
