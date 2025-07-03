@@ -5,25 +5,25 @@
 @layer base {
   :root {
     /* Default to dark theme variables */
-    --background: 0 0% 0%; /* Pure Black */
-    --foreground: 220 10% 88%; /* Light Grayish Blue */
-    --card: 0 0% 8%; /* Dark Gray */
-    --card-foreground: 220 10% 88%;
-    --popover: 0 0% 5%; /* Very Dark Gray */
-    --popover-foreground: 220 10% 88%;
-    --primary: 200 80% 55%; /* Bright Cerulean Blue */
+    --background: 222 47% 11%;
+    --foreground: 210 40% 96%;
+    --card: 222 47% 14%;
+    --card-foreground: 210 40% 96%;
+    --popover: 222 47% 9%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 217 91% 60%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 0 0% 15%; /* Gray */
+    --secondary: 217 33% 20%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 0 0% 12%; /* Dark Gray */
-    --muted-foreground: 220 10% 60%;
-    --accent: 330 80% 60%; /* Bright Pink/Magenta */
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 70% 50%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 18%; /* Gray Border */
-    --input: 0 0% 12%; /* Dark Gray Input */
-    --ring: 200 80% 55%; /* Primary color for rings */
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 28% 65%;
+    --accent: 217 91% 60%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 33% 22%;
+    --input: 217 33% 18%;
+    --ring: 217 91% 60%;
     --chart-1: 190 70% 50%;
     --chart-2: 170 60% 45%;
     --chart-3: 40 80% 55%;
@@ -31,14 +31,14 @@
     --chart-5: 340 75% 55%;
     --radius: 0.5rem;
 
-    --sidebar-background: 220 20% 10%;
-    --sidebar-foreground: 220 10% 80%;
-    --sidebar-primary: 330 80% 60%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 220 20% 18%;
-    --sidebar-accent-foreground: 220 10% 95%;
-    --sidebar-border: 220 20% 20%;
-    --sidebar-ring: 330 80% 60%;
+    --sidebar-background: 222 47% 9%;
+    --sidebar-foreground: 210 40% 90%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 217 33% 15%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 18%;
+    --sidebar-ring: 217 91% 60%;
   }
 
   .light {
