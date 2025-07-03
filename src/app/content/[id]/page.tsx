@@ -80,6 +80,9 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     const { activeSourceId, setActiveSourceId } = useCategories();
     
     const [item, setItem] = useState<ContentItem | null | undefined>(undefined);
+    const itemRef = useRef<ContentItem | null>();
+    itemRef.current = item;
+
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     
@@ -114,11 +117,12 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         setUseIframeFallback(false);
 
         const sourceIdToUse = overrideSourceId || activeSourceId;
-        if (item && sourceIdToUse) {
+        const currentItem = itemRef.current;
+        if (currentItem && sourceIdToUse) {
             setHistory(prevHistory => {
-                const otherHistory = prevHistory.filter(entry => entry.item.id !== item.id);
+                const otherHistory = prevHistory.filter(entry => entry.item.id !== currentItem.id);
                 const newEntry: HistoryEntry = {
-                    item: item,
+                    item: currentItem,
                     watchedAt: Date.now(),
                     sourceId: sourceIdToUse,
                     episodeName: episodeName,
@@ -128,7 +132,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                 return [newEntry, ...otherHistory];
             });
         }
-    }, [item, activeSourceId, setHistory]);
+    }, [activeSourceId, setHistory]);
 
     useEffect(() => {
         const sourceIdFromQuery = searchParams.get('sourceId');
@@ -185,7 +189,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         }
         
         loadContentDetail();
-    }, [pageId, sources, activeSourceId, setActiveSourceId, searchParams, handlePlayVideo]);
+    }, [pageId, sources, searchParams, setActiveSourceId, handlePlayVideo]);
 
 
     const getNextEpisode = (): { url: string; sourceName: string; episodeName: string; sourceGroupIndex: number; urlIndex: number } | null => {
