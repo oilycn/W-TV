@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import type { ContentItem, SourceConfig, HistoryEntry } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, getMockContentItemById } from '@/lib/content-loader';
-import { Loader2, Star, Maximize } from 'lucide-react';
+import { Loader2, Star } from 'lucide-react';
 import { useCategories } from '@/contexts/CategoryContext';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -102,7 +102,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
 
     const isMobile = useIsMobile();
     
-    const handleEnterLandscapeFullscreen = () => {
+    const handleEnterLandscapeFullscreen = useCallback(() => {
         if (player) {
             if (player.fullscreen.active) {
                 player.exitFullscreen();
@@ -110,7 +110,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                 player.enterFullscreen();
             }
         }
-    };
+    }, [player]);
     
     useEffect(() => {
         if (resolvedParams && resolvedParams.id) {
@@ -174,8 +174,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             }
 
             for (const source of sourcesToSearch) {
-                // Using a ref to the handlePlayVideo function to avoid it being a dependency.
-                const handlePlayVideoRef = { current: handlePlayVideo };
                 try {
                     itemFound = await fetchContentItemById(source.url, pageId);
                     if (itemFound) {
@@ -268,7 +266,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         if (!e.altKey && e.key === 'ArrowRight') { player.currentTime += 10; displayShortcutHint('快进10秒'); }
         if (e.key === 'ArrowUp') { player.volume = Math.min(player.volume + 0.1, 1); displayShortcutHint(`音量 ${Math.round(player.volume * 100)}`);}
         if (e.key === 'ArrowDown') { player.volume = Math.max(player.volume - 0.1, 0); displayShortcutHint(`音量 ${Math.round(player.volume * 100)}`);}
-    }, [item, currentSourceGroupIndex, currentUrlIndex, player, getNextEpisode, handleNextEpisode]);
+    }, [player, handleNextEpisode, getNextEpisode]);
     
     useEffect(() => {
         document.addEventListener('keydown', handleKeyboardShortcuts);
@@ -286,38 +284,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         const unsubscribe = player.listen('error', onError);
         return () => unsubscribe();
     }, [player]);
-
-    useEffect(() => {
-        if (!player) return;
-
-        const onEnterFullscreen = async () => {
-            try {
-                if (isMobile && screen.orientation && typeof screen.orientation.lock === 'function') {
-                    await screen.orientation.lock('landscape');
-                }
-            } catch (e) {
-                console.warn('Could not lock screen orientation:', e);
-            }
-        };
-
-        const onExitFullscreen = () => {
-            try {
-                if (isMobile && screen.orientation && typeof screen.orientation.unlock === 'function') {
-                    screen.orientation.unlock();
-                }
-            } catch (e) {
-                 console.warn('Could not unlock screen orientation:', e);
-            }
-        };
-
-        const unsubEnter = player.listen('enter-fullscreen', onEnterFullscreen);
-        const unsubExit = player.listen('exit-fullscreen', onExitFullscreen);
-
-        return () => {
-            unsubEnter();
-            unsubExit();
-        };
-    }, [player, isMobile]);
 
     const onProviderChange = (provider: MediaProviderAdapter | null) => {
         if (isHLSProvider(provider)) {
@@ -513,5 +479,3 @@ export default function ContentDetailPage(props: ContentDetailPageProps) {
         </Suspense>
     );
 }
-
-    
