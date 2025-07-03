@@ -300,6 +300,10 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         if (isHLSProvider(provider)) {
             provider.library = Hls;
             provider.config = {
+                autoStartLoad: true,
+                maxBufferLength: 60,
+                maxBufferSize: 120 * 1024 * 1024,
+                maxMaxBufferLength: 180,
                 loader: CustomHlsJsLoader,
             };
         }
@@ -343,7 +347,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                 )}>
                      <div className={cn(
                         'relative bg-black rounded-lg overflow-hidden',
-                        isWebFullscreen && !isMobile && "w-full h-full rounded-none shadow-none",
+                        isWebFullscreen && !isMobile && "w-full h-full rounded-none",
                         isWebFullscreen && isMobile && "w-[100svh] h-[100svw] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rotate-90",
                         !isWebFullscreen && "aspect-video"
                      )}>
