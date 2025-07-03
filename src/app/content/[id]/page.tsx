@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import type { ContentItem, SourceConfig, HistoryEntry } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, getMockContentItemById } from '@/lib/content-loader';
-import { Loader2, Star } from 'lucide-react';
+import { Loader2, Star, Maximize } from 'lucide-react';
 import { useCategories } from '@/contexts/CategoryContext';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -218,7 +218,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         }
         
         loadContentDetail();
-    }, [pageId, sources, searchParams, setActiveSourceId, handlePlayVideo]);
+    }, [pageId, sources, searchParams, setActiveSourceId, activeSourceId, handlePlayVideo]);
 
 
     const getNextEpisode = (): { url: string; sourceName: string; episodeName: string; sourceGroupIndex: number; urlIndex: number } | null => {
@@ -342,10 +342,10 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                     }
                 )}>
                      <div className={cn(
-                        'relative aspect-video bg-black rounded-lg overflow-hidden shadow-2xl',
-                        {
-                            "w-full h-full rounded-none shadow-none": isWebFullscreen
-                        }
+                        'relative bg-black rounded-lg overflow-hidden shadow-2xl',
+                        isWebFullscreen && !isMobile && "w-full h-full rounded-none shadow-none",
+                        isWebFullscreen && isMobile && "w-[100svh] h-[100svw] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rotate-90",
+                        !isWebFullscreen && "aspect-video"
                      )}>
                         {currentPlayUrl && useIframeFallback ? (
                             <iframe
@@ -360,9 +360,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                         ) : currentPlayUrl ? (
                             <MediaPlayer
                                 ref={setPlayer}
-                                className={cn('w-full h-full', {
-                                    'pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]': isWebFullscreen && isMobile
-                                })}
+                                className={cn('w-full h-full bg-black')}
                                 src={currentPlayUrl}
                                 poster={item.posterUrl}
                                 playsInline

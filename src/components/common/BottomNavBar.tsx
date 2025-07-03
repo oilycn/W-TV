@@ -1,8 +1,8 @@
 
 "use client";
 
-import React from 'react';
-import { usePathname } from 'next/navigation';
+import React, { useRef } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Home, LayoutGrid, History, Settings } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -18,6 +18,8 @@ const navItems = [
 export function BottomNavBar() {
   const pathname = usePathname();
   const isMobile = useIsMobile();
+  const router = useRouter();
+  const homeClickRef = useRef(0);
 
   if (!isMobile) {
     return null;
@@ -30,12 +32,19 @@ export function BottomNavBar() {
     return pathname.startsWith(href);
   };
 
-  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
-    // Prevent the home link from causing a re-render if we are already on the home page.
-    if (href === '/' && pathname === '/') {
-      e.preventDefault();
+  const handleHomeClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (pathname === '/') {
+        e.preventDefault();
+        const now = Date.now();
+        if (now - homeClickRef.current < 300) { // 300ms threshold for double click
+            router.refresh();
+            homeClickRef.current = 0; // Reset after refresh to prevent triple click issues
+        } else {
+            homeClickRef.current = now;
+        }
     }
-  }
+    // If not on home page, the link will navigate normally without this handler's intervention.
+  };
 
   return (
     <div className="fixed bottom-0 left-0 z-20 w-full border-t bg-background/95 backdrop-blur-sm md:hidden">
@@ -47,7 +56,11 @@ export function BottomNavBar() {
             <Link 
               key={item.href} 
               href={item.href}
-              onClick={(e) => handleClick(e, item.href)}
+              onClick={(e) => {
+                  if (item.href === '/') {
+                    handleHomeClick(e);
+                  }
+              }}
               className={cn(
                 "flex flex-col items-center justify-center gap-1 flex-1 text-muted-foreground transition-colors",
                 isActive ? "text-primary" : "hover:text-foreground"
