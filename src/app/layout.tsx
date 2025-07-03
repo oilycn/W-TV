@@ -58,6 +58,7 @@ const AppHeaderFallback = () => (
     backgroundColor: 'hsl(var(--background))', 
     paddingLeft: '1rem',
     paddingRight: '1rem',
+    paddingTop: 'env(safe-area-inset-top)',
   }} />
 );
 
