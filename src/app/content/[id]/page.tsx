@@ -6,8 +6,9 @@ import { useSearchParams } from 'next/navigation';
 import type { ContentItem, SourceConfig, HistoryEntry } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, getMockContentItemById } from '@/lib/content-loader';
-import { Loader2, Maximize, Star } from 'lucide-react';
+import { Loader2, Expand, Star } from 'lucide-react';
 import { useCategories } from '@/contexts/CategoryContext';
+import { cn } from '@/lib/utils';
 
 // Vidstack Imports
 import { type MediaProviderAdapter, AirPlayButton, isHLSProvider, type MediaPlayerElement } from '@vidstack/react';
@@ -97,6 +98,24 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     const [player, setPlayer] = useState<MediaPlayerElement | null>(null);
     const [useIframeFallback, setUseIframeFallback] = useState(false);
     const [history, setHistory] = useLocalStorage<HistoryEntry[]>('cinemaViewHistory', []);
+
+    const [isWebFullscreen, setIsWebFullscreen] = useState(false);
+    
+    const handleToggleWebFullscreen = () => {
+        setIsWebFullscreen(prev => !prev);
+    };
+
+    useEffect(() => {
+        if (isWebFullscreen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+
+        return () => {
+            document.body.style.overflow = ''; // Cleanup on unmount
+        };
+    }, [isWebFullscreen]);
     
     useEffect(() => {
         if (resolvedParams && resolvedParams.id) {
@@ -305,16 +324,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         }
     };
     
-    const handleEnterLandscapeFullscreen = async () => {
-        if (!player) return;
-        try {
-            await player.enterFullscreen();
-            // The existing 'enter-fullscreen' event listener handles the orientation lock.
-        } catch (error) {
-            console.error("Error attempting to enter landscape fullscreen:", error);
-        }
-    };
-
     if (isLoading) {
         return (
             <div className='min-h-screen flex items-center justify-center'>
@@ -346,7 +355,10 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         <div className="container mx-auto max-w-screen-2xl px-4 py-6">
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                 <div className="lg:col-span-3 flex flex-col gap-6">
-                    <div className="relative aspect-video bg-black rounded-lg overflow-hidden shadow-2xl">
+                    <div className={cn(
+                        "relative aspect-video bg-black rounded-lg overflow-hidden shadow-2xl transition-[width,height]",
+                        isWebFullscreen && "fixed inset-0 z-50 w-screen h-screen rounded-none"
+                    )}>
                         {currentPlayUrl && useIframeFallback ? (
                             <iframe
                                 key={currentPlayUrl}
@@ -384,8 +396,8 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                                         ),
                                         beforeFullscreenButton: (
                                             <>
-                                                <button onClick={handleEnterLandscapeFullscreen} className="vds-button" aria-label="横向全屏">
-                                                    <Maximize className="vds-icon" />
+                                                <button onClick={handleToggleWebFullscreen} className="vds-button" aria-label="网页全屏">
+                                                    <Expand className="vds-icon" />
                                                 </button>
                                                 <AirPlayButton className='vds-button'><AirPlayIcon className='vds-icon' /></AirPlayButton>
                                             </>
