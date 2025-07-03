@@ -25,6 +25,11 @@ export const metadata: Metadata = {
     telephone: false,
   },
   manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: '晚风TV',
+  },
 };
 
 export const viewport: Viewport = {
@@ -33,7 +38,6 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover',
-  themeColor: '#181d2a',
 };
 
 const AppHeaderFallback = () => (

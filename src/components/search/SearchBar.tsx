@@ -7,7 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search } from 'lucide-react';
 
-export function SearchBar() {
+interface SearchBarProps {
+  onSearchSubmit?: () => void;
+}
+
+export function SearchBar({ onSearchSubmit }: SearchBarProps) {
   const router = useRouter();
   const currentSearchParams = useSearchParams();
   const [query, setQuery] = useState('');
@@ -21,18 +25,19 @@ export function SearchBar() {
     e.preventDefault();
     const trimmedQuery = query.trim();
     
+    if (onSearchSubmit) {
+      onSearchSubmit();
+    }
+    
     if (trimmedQuery) {
-      // Navigate to the dedicated search page with the query
       router.push(`/search?q=${encodeURIComponent(trimmedQuery)}`, { scroll: false });
     } else {
-      // If query is empty, navigate to search page without query, or handle as desired
-      // For now, navigating to /search which might show a prompt to enter a search term
       router.push(`/search`, { scroll: false });
     }
   };
 
   return (
-    <form onSubmit={handleSearch} className="relative w-full max-w-md">
+    <form onSubmit={handleSearch} className="relative w-full">
       <Input
         type="search"
         placeholder="搜索电影、电视剧..."
