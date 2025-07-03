@@ -2,14 +2,13 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Home, LayoutGrid, Search, History, Settings } from 'lucide-react';
+import { Home, LayoutGrid, History, Settings } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/', label: '首页', icon: Home },
   { href: '/categories', label: '分类', icon: LayoutGrid },
-  { href: '/search', label: '搜索', icon: Search },
   { href: '/history', label: '历史', icon: History },
   { href: '/settings', label: '设置', icon: Settings },
 ];
