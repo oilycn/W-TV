@@ -234,12 +234,12 @@ function HomePageContent() {
       )}
 
       {isLoadingCategories && (
-        <div className="bg-card p-3 rounded-md shadow-sm mb-6">
+        <div className="bg-card p-3 rounded-md shadow-sm mb-6 hidden md:block">
           <Skeleton className="h-9 w-full" />
         </div>
       )}
       {(!isLoadingCategories && globalCategories.length > 0) && (
-        <ScrollArea className="w-full whitespace-nowrap rounded-md border shadow-sm mb-6 bg-card">
+        <ScrollArea className="w-full whitespace-nowrap rounded-md border shadow-sm mb-6 bg-card hidden md:block">
           <div className="flex space-x-2 p-3">
             {globalCategories.map(category => (
               <Button
@@ -310,7 +310,7 @@ export default function HomePage() {
 function HomePageSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="bg-card p-3 rounded-md shadow-sm mb-6">
+      <div className="bg-card p-3 rounded-md shadow-sm mb-6 hidden md:block">
         <Skeleton className="h-9 w-full" />
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">

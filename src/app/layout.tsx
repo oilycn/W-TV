@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { CategoryProvider } from '@/contexts/CategoryContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { Suspense } from 'react';
+import { BottomNavBar } from '@/components/common/BottomNavBar';
 
 const inter = Inter({
   variable: '--font-geist-sans',
@@ -80,9 +81,10 @@ export default function RootLayout({
               <Suspense fallback={<AppHeaderFallback />}>
                 <AppHeader />
               </Suspense>
-              <main className="flex-1 p-4 md:p-6 overflow-auto">
+              <main className="flex-1 p-4 md:p-6 overflow-auto pb-20 md:pb-6">
                 {children}
               </main>
+              <BottomNavBar />
             </div>
           </CategoryProvider>
         </ThemeProvider>

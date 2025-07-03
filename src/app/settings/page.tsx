@@ -9,8 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, PlusCircle, DownloadCloud, XCircle } from 'lucide-react';
+import { Trash2, PlusCircle, DownloadCloud, XCircle, Sun, Moon } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useTheme } from '@/contexts/ThemeContext';
+import { Switch } from '@/components/ui/switch';
+
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 const LOCAL_STORAGE_KEY_SUBSCRIPTION_URL = 'cinemaViewSubscriptionUrl';
@@ -30,6 +33,8 @@ export default function SettingsPage() {
 
   const { toast } = useToast();
   const [isClient, setIsClient] = useState(false);
+  const { theme, toggleTheme } = useTheme();
+
 
   useEffect(() => {
     setIsClient(true);
@@ -339,11 +344,38 @@ export default function SettingsPage() {
   return (
     <div className="container mx-auto py-8 space-y-8">
       <div>
-        <h1 className="text-3xl font-bold mb-2 text-foreground">内容源设置</h1>
+        <h1 className="text-3xl font-bold mb-2 text-foreground">设置</h1>
         <p className="text-muted-foreground">
-          管理您的内容源。您可以手动添加视频 API 接口，或通过订阅链接批量加载。
+          管理您的内容源、主题和其他应用设置。
         </p>
       </div>
+
+       <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle>外观设置</CardTitle>
+          <CardDescription>自定义应用的外观和主题。</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div className="space-y-0.5">
+              <Label htmlFor="theme-switch">主题模式</Label>
+              <p className="text-xs text-muted-foreground">
+                切换亮色或暗色主题。
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Sun className="h-5 w-5" />
+              <Switch
+                id="theme-switch"
+                checked={theme === 'dark'}
+                onCheckedChange={toggleTheme}
+                aria-label="切换主题"
+              />
+              <Moon className="h-5 w-5" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="shadow-lg">
         <CardHeader>
