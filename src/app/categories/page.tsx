@@ -4,7 +4,7 @@ import { useCategories } from '@/contexts/CategoryContext';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Suspense, useEffect } from 'react';
+import { Suspense } from 'react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import type { SourceConfig } from '@/types';
 import {
@@ -20,7 +20,7 @@ const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 const LOCAL_STORAGE_KEY_ACTIVE_SOURCE = 'cinemaViewActiveSourceId';
 
 function CategoriesPageContent() {
-    const { categories, setCategories } = useCategories();
+    const { categories } = useCategories();
     const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
     const [activeSourceId, setActiveSourceId] = useLocalStorage<string | null>(LOCAL_STORAGE_KEY_ACTIVE_SOURCE, null);
     const router = useRouter();
@@ -66,17 +66,17 @@ function CategoriesPageContent() {
             <div>
                 <h2 className="text-lg font-semibold mb-2">分类</h2>
                 {displayCategories.length > 0 ? (
-                    <div className="flex flex-wrap gap-3">
+                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 md:grid-cols-5 lg:grid-cols-6">
                         {displayCategories.map(category => (
-                            <Button key={category.id} variant="outline" size="sm" asChild className="h-auto py-2 px-4 text-sm">
-                                <Link href={`/?category=${category.id}`}>{category.name}</Link>
+                            <Button key={category.id} variant="outline" asChild className="h-10 text-sm justify-center">
+                                <Link href={`/?category=${category.id}`} className="truncate">{category.name}</Link>
                             </Button>
                         ))}
                     </div>
                 ) : (
-                    <div className="flex flex-wrap gap-3">
+                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 md:grid-cols-5 lg:grid-cols-6">
                         {Array.from({ length: 12 }).map((_, index) => (
-                            <Skeleton key={index} className="h-9 w-24" />
+                            <Skeleton key={index} className="h-10 w-full" />
                         ))}
                     </div>
                 )}
@@ -100,9 +100,9 @@ export default function CategoriesPage() {
                     </div>
                     <div>
                         <h2 className="text-lg font-semibold mb-2">分类</h2>
-                        <div className="flex flex-wrap gap-3">
+                        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 md:grid-cols-5 lg:grid-cols-6">
                             {Array.from({ length: 12 }).map((_, index) => (
-                                <Skeleton key={index} className="h-9 w-24" />
+                                <Skeleton key={index} className="h-10 w-full" />
                             ))}
                         </div>
                     </div>

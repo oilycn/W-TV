@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useCallback, Suspense, useRef } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import type { ContentItem, SourceConfig, ApiCategory, PaginatedContentResponse } from '@/types';
+import type { ContentItem, SourceConfig } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchApiContentList, getMockPaginatedResponse } from '@/lib/content-loader';
 import { ContentCard } from '@/components/content/ContentCard';
@@ -43,6 +43,10 @@ function HomePageContent() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const mainContentRef = useRef<HTMLDivElement>(null);
+
+  const sourceName = useMemo(() => sources.find(s => s.id === activeSourceId)?.name || '未知源', [sources, activeSourceId]);
+  const categoryName = useMemo(() => globalCategories.find(c => c.id === selectedCategoryId)?.name || (selectedCategoryId === 'all' ? '全部' : '未知分类'), [globalCategories, selectedCategoryId]);
+
 
   // Effect to synchronize activeSourceId from URL trigger
   useEffect(() => {
@@ -179,12 +183,6 @@ function HomePageContent() {
     });
   };
 
-  const formatCount = (count: number): string => {
-    if (count < 1000) return String(count);
-    if (count < 100000) return `${(count / 1000).toFixed(1)}k`.replace('.0', '');
-    return '99k+';
-  };
-
   if (sources.length === 0 && !activeSourceUrl && !isLoadingContent ) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-10rem)] text-center p-4">
@@ -204,22 +202,38 @@ function HomePageContent() {
   const isLoadingCategories = globalCategories.length <= 1;
 
   return (
-    <div className="space-y-6" ref={mainContentRef}>
+    <div className="space-y-4" ref={mainContentRef}>
       {error && (
-         <Alert variant="destructive" className="mb-6">
+         <Alert variant="destructive" className="mb-4">
            <AlertCircle className="h-4 w-4" />
            <AlertTitle>加载错误</AlertTitle>
            <AlertDescription>{error} 部分数据可能来自模拟源。</AlertDescription>
          </Alert>
       )}
+      
+      {/* Page Header */}
+      {!isLoadingContent && sources.length > 0 && contentItems.length > 0 && (
+        <div className="mb-4">
+          <div className="p-4 rounded-lg bg-card border shadow-sm">
+            <h1 className="text-lg font-bold text-foreground truncate" title={sourceName}>{sourceName}</h1>
+            <p className="text-sm text-muted-foreground truncate">{categoryName} · {totalItems > 0 ? `${totalItems} 部影片` : '加载中...'}</p>
+          </div>
+        </div>
+      )}
+      {isLoadingContent && sources.length > 0 && (
+        <div className="mb-4">
+            <Skeleton className="h-[76px] w-full" />
+        </div>
+      )}
+
 
       {isLoadingCategories && (
-        <div className="bg-card p-3 rounded-md shadow-sm mb-6 hidden md:block">
+        <div className="bg-card p-3 rounded-md shadow-sm hidden md:block">
           <Skeleton className="h-9 w-full" />
         </div>
       )}
       {(!isLoadingCategories && globalCategories.length > 0) && (
-        <ScrollArea className="w-full whitespace-nowrap rounded-md border shadow-sm mb-6 bg-card hidden md:block">
+        <ScrollArea className="w-full whitespace-nowrap rounded-md border shadow-sm bg-card hidden md:block">
           <div className="flex space-x-2 p-3">
             {globalCategories.map(category => (
               <Button
@@ -230,11 +244,6 @@ function HomePageContent() {
                 size="sm"
               >
                 {category.name}
-                 {selectedCategoryId === category.id && totalItems > 0 && !isLoadingContent && (
-                  <span className="absolute -top-2 -right-2 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-accent px-1.5 text-xs font-bold text-accent-foreground shadow-md">
-                    {formatCount(totalItems)}
-                  </span>
-                )}
               </Button>
             ))}
           </div>
@@ -290,7 +299,10 @@ export default function HomePage() {
 function HomePageSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="bg-card p-3 rounded-md shadow-sm mb-6 hidden md:block">
+      <div className="mb-4">
+        <Skeleton className="h-[76px] w-full" />
+      </div>
+      <div className="bg-card p-3 rounded-md shadow-sm hidden md:block">
         <Skeleton className="h-9 w-full" />
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
