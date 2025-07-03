@@ -47,10 +47,12 @@ export function AppHeader() {
   if (!isClient) {
     // Simple static header for SSR/initial render
     return (
-      <header className="sticky top-0 z-20 flex h-16 items-center border-b bg-background/95 px-4 backdrop-blur-md md:px-6 pt-[env(safe-area-inset-top)]">
-        <Link href="/" className="mr-4">
-          <AppLogo />
-        </Link>
+      <header className="sticky top-0 z-20 border-b bg-background/95 pt-[env(safe-area-inset-top)]">
+        <div className="flex h-16 items-center px-4 md:px-6">
+            <Link href="/" className="mr-4">
+              <AppLogo />
+            </Link>
+        </div>
       </header>
     );
   }
@@ -71,52 +73,54 @@ export function AppHeader() {
   );
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center border-b bg-background/95 px-4 backdrop-blur-md pt-[env(safe-area-inset-top)] md:px-6">
-      {/* --- Desktop View --- */}
-      <div className="hidden w-full items-center gap-4 md:flex">
-        <Link href="/" className="mr-4 flex items-center gap-4">
-          <AppLogo />
-        </Link>
-        
-        <SourceSwitcher />
-        
-        <div className="ml-auto flex items-center gap-4">
-          <div className="w-full max-w-xs">
-             <SearchBar onSearchSubmit={() => {}} />
+    <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
+      <div className="flex h-16 items-center px-4 md:px-6">
+        {/* --- Desktop View --- */}
+        <div className="hidden w-full items-center gap-4 md:flex">
+          <Link href="/" className="mr-4 flex items-center gap-4">
+            <AppLogo />
+          </Link>
+          
+          <SourceSwitcher />
+          
+          <div className="ml-auto flex items-center gap-4">
+            <div className="w-full max-w-xs">
+              <SearchBar onSearchSubmit={() => {}} />
+            </div>
+            <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="切换主题">
+              {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+            </Button>
+            <Button variant="ghost" size="icon" asChild aria-label="设置">
+              <Link href="/settings">
+                <Settings className="h-5 w-5" />
+              </Link>
+            </Button>
           </div>
-          <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="切换主题">
-            {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-          </Button>
-          <Button variant="ghost" size="icon" asChild aria-label="设置">
-            <Link href="/settings">
-              <Settings className="h-5 w-5" />
-            </Link>
-          </Button>
-        </div>
-      </div>
-
-      {/* --- Mobile View --- */}
-      <div className="relative flex w-full items-center justify-between md:hidden">
-        <Link href="/" className="flex items-center gap-2">
-          <AppLogo />
-        </Link>
-
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-            <span className="text-sm font-medium text-foreground truncate max-w-[calc(100vw-120px)]">
-                {pageTitle}
-            </span>
         </div>
 
-        <Sheet open={isSearchOpen} onOpenChange={setIsSearchOpen}>
-          <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="打开搜索">
-                  <SearchIcon className="h-5 w-5" />
-              </Button>
-          </SheetTrigger>
-          <SheetContent side="top" className="p-4 pt-6">
-              <SearchBar onSearchSubmit={() => setIsSearchOpen(false)} />
-          </SheetContent>
-        </Sheet>
+        {/* --- Mobile View --- */}
+        <div className="relative flex w-full items-center justify-between md:hidden">
+          <Link href="/" className="flex items-center gap-2">
+            <AppLogo />
+          </Link>
+
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+              <span className="text-sm font-medium text-foreground truncate max-w-[calc(100vw-120px)]">
+                  {pageTitle}
+              </span>
+          </div>
+
+          <Sheet open={isSearchOpen} onOpenChange={setIsSearchOpen}>
+            <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label="打开搜索">
+                    <SearchIcon className="h-5 w-5" />
+                </Button>
+            </SheetTrigger>
+            <SheetContent side="top" className="p-4 pt-6">
+                <SearchBar onSearchSubmit={() => setIsSearchOpen(false)} />
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
     </header>
   );

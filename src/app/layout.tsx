@@ -51,15 +51,12 @@ const AppHeaderFallback = () => (
     position: 'sticky',
     top: 0,
     zIndex: 10,
-    display: 'flex',
-    height: '64px', /* Corresponds to h-16 */
-    alignItems: 'center',
     borderBottom: '1px solid hsl(var(--border))',
     backgroundColor: 'hsl(var(--background))', 
-    paddingLeft: '1rem',
-    paddingRight: '1rem',
     paddingTop: 'env(safe-area-inset-top)',
-  }} />
+  }}>
+    <div style={{ height: '64px' }} />
+  </div>
 );
 
 
