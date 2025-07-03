@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import type { ContentItem, SourceConfig, HistoryEntry } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, getMockContentItemById } from '@/lib/content-loader';
-import { Loader2, Star } from 'lucide-react';
+import { Loader2, Star, Maximize } from 'lucide-react';
 import { useCategories } from '@/contexts/CategoryContext';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -93,7 +93,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     const [currentSourceGroupIndex, setCurrentSourceGroupIndex] = useState<number | null>(null);
     const [currentUrlIndex, setCurrentUrlIndex] = useState<number | null>(null);
         
-    const [showShortcutHint, setShowShortcutHint] = useState(false);
     const [shortcutText, setShortcutText] = useState('');
     const shortcutHintTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     
@@ -101,24 +100,17 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     const [useIframeFallback, setUseIframeFallback] = useState(false);
     const [history, setHistory] = useLocalStorage<HistoryEntry[]>('cinemaViewHistory', []);
 
-    const [isWebFullscreen, setIsWebFullscreen] = useState(false);
     const isMobile = useIsMobile();
     
-    const handleToggleWebFullscreen = () => {
-        setIsWebFullscreen(prev => !prev);
-    };
-
-    useEffect(() => {
-        if (isWebFullscreen) {
-            document.body.style.overflow = 'hidden';
-        } else {
-            document.body.style.overflow = '';
+    const handleEnterLandscapeFullscreen = () => {
+        if (player) {
+            if (player.fullscreen.active) {
+                player.exitFullscreen();
+            } else {
+                player.enterFullscreen();
+            }
         }
-
-        return () => {
-            document.body.style.overflow = ''; // Cleanup on unmount
-        };
-    }, [isWebFullscreen]);
+    };
     
     useEffect(() => {
         if (resolvedParams && resolvedParams.id) {
@@ -165,7 +157,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             return;
         }
 
-        async function loadContentDetail() {
+        const loadContentDetail = async () => {
             setIsLoading(true);
             setError(null);
             let itemFound: ContentItem | null | undefined = undefined;
@@ -182,13 +174,19 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             }
 
             for (const source of sourcesToSearch) {
-                itemFound = await fetchContentItemById(source.url, pageId);
-                if (itemFound) {
-                    sourceUsedToFind = source;
-                    if (source.id !== activeSourceId) {
-                        setActiveSourceId(source.id);
+                // Using a ref to the handlePlayVideo function to avoid it being a dependency.
+                const handlePlayVideoRef = { current: handlePlayVideo };
+                try {
+                    itemFound = await fetchContentItemById(source.url, pageId);
+                    if (itemFound) {
+                        sourceUsedToFind = source;
+                        if (source.id !== activeSourceId) {
+                           setActiveSourceId(source.id);
+                        }
+                        break;
                     }
-                    break; 
+                } catch (e) {
+                    // silently fail and try next source
                 }
             }
             
@@ -243,9 +241,8 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     
     const displayShortcutHint = (text: string) => {
         setShortcutText(text);
-        setShowShortcutHint(true);
         if (shortcutHintTimeoutRef.current) clearTimeout(shortcutHintTimeoutRef.current);
-        shortcutHintTimeoutRef.current = setTimeout(() => setShowShortcutHint(false), 2000);
+        shortcutHintTimeoutRef.current = setTimeout(() => setShortcutText(''), 2000);
     };
 
     const handleKeyboardShortcuts = useCallback((e: KeyboardEvent) => {
@@ -295,18 +292,22 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
 
         const onEnterFullscreen = async () => {
             try {
-                if (screen.orientation && typeof screen.orientation.lock === 'function') {
+                if (isMobile && screen.orientation && typeof screen.orientation.lock === 'function') {
                     await screen.orientation.lock('landscape');
                 }
-            } catch (e) {}
+            } catch (e) {
+                console.warn('Could not lock screen orientation:', e);
+            }
         };
 
         const onExitFullscreen = () => {
             try {
-                if (screen.orientation && typeof screen.orientation.unlock === 'function') {
+                if (isMobile && screen.orientation && typeof screen.orientation.unlock === 'function') {
                     screen.orientation.unlock();
                 }
-            } catch (e) {}
+            } catch (e) {
+                 console.warn('Could not unlock screen orientation:', e);
+            }
         };
 
         const unsubEnter = player.listen('enter-fullscreen', onEnterFullscreen);
@@ -316,7 +317,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             unsubEnter();
             unsubExit();
         };
-    }, [player]);
+    }, [player, isMobile]);
 
     const onProviderChange = (provider: MediaProviderAdapter | null) => {
         if (isHLSProvider(provider)) {
@@ -358,15 +359,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         <div className="container mx-auto max-w-screen-2xl px-4 py-6">
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                 <div className="lg:col-span-3 flex flex-col gap-6">
-                     <div className={cn(
-                        "relative aspect-video bg-black rounded-lg overflow-hidden shadow-2xl transition-all duration-300",
-                        isWebFullscreen ?
-                            (isMobile ?
-                                "fixed top-1/2 left-1/2 z-50 w-[100vh] h-[100vw] -translate-x-1/2 -translate-y-1/2 rotate-90 rounded-none"
-                                :
-                                "fixed inset-0 z-50 w-screen h-screen rounded-none")
-                            : ""
-                    )}>
+                     <div className="relative aspect-video bg-black rounded-lg overflow-hidden shadow-2xl">
                         {currentPlayUrl && useIframeFallback ? (
                             <iframe
                                 key={currentPlayUrl}
@@ -404,22 +397,24 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                                         ),
                                         beforeFullscreenButton: (
                                             <>
-                                                <button onClick={handleToggleWebFullscreen} className="vds-button" aria-label="网页横向全屏">
-                                                     <svg
-                                                        xmlns="http://www.w3.org/2000/svg"
-                                                        viewBox="0 0 24 24"
-                                                        fill="none"
-                                                        stroke="currentColor"
-                                                        strokeWidth="2"
-                                                        strokeLinecap="round"
-                                                        strokeLinejoin="round"
-                                                        className="vds-icon"
-                                                    >
-                                                        <title>网页横向全屏</title>
-                                                        <rect x="3" y="7" width="6" height="10" rx="1"></rect>
-                                                        <rect x="11" y="4" width="10" height="6" rx="1"></rect>
-                                                    </svg>
-                                                </button>
+                                                {isMobile && (
+                                                    <button onClick={handleEnterLandscapeFullscreen} className="vds-button" aria-label="横向全屏">
+                                                        <svg
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                            viewBox="0 0 24 24"
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            strokeWidth="2"
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            className="vds-icon"
+                                                        >
+                                                            <title>横向全屏</title>
+                                                            <rect x="3" y="7" width="6" height="10" rx="1"></rect>
+                                                            <rect x="11" y="4" width="10" height="6" rx="1"></rect>
+                                                        </svg>
+                                                    </button>
+                                                )}
                                                 <AirPlayButton className='vds-button'><AirPlayIcon className='vds-icon' /></AirPlayButton>
                                             </>
                                         )
@@ -498,7 +493,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                 </div>
             </div>
             
-            <div className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[200] transition-opacity duration-300 ${showShortcutHint ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+            <div className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[200] transition-opacity duration-300 ${shortcutText ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                  <div className='bg-black/80 backdrop-blur-sm rounded p-4 flex items-center space-x-3 text-white'>
                      {shortcutText}
                  </div>
