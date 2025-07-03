@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { ApiCategory, SourceConfig } from '@/types';
@@ -8,6 +9,8 @@ import { fetchApiCategories, getMockApiCategories } from '@/lib/content-loader';
 interface CategoryContextType {
   categories: ApiCategory[];
   setCategories: (categories: ApiCategory[]) => void;
+  pageTitle: string;
+  setPageTitle: (title: string) => void;
 }
 
 const CategoryContext = createContext<CategoryContextType | undefined>(undefined);
@@ -28,6 +31,7 @@ function arraysEqual(arr1: ApiCategory[], arr2: ApiCategory[]): boolean {
 
 export function CategoryProvider({ children }: { children: ReactNode }) {
   const [categories, setCategoriesState] = useState<ApiCategory[]>([]);
+  const [pageTitle, setPageTitle] = useState('');
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
   const [activeSourceId] = useLocalStorage<string | null>(LOCAL_STORAGE_KEY_ACTIVE_SOURCE, null);
 
@@ -79,7 +83,7 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
   }, [activeSourceUrl, setCategories]);
   
   return (
-    <CategoryContext.Provider value={{ categories, setCategories }}>
+    <CategoryContext.Provider value={{ categories, setCategories, pageTitle, setPageTitle }}>
       {children}
     </CategoryContext.Provider>
   );

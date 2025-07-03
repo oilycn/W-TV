@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useMemo, useCallback, Suspense, useRef } from 'react';
@@ -21,7 +22,7 @@ function HomePageContent() {
   const searchParamsHook = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const { categories: globalCategories } = useCategories();
+  const { categories: globalCategories, setPageTitle } = useCategories();
 
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
   const [activeSourceId, setActiveSourceId] = useLocalStorage<string | null>(LOCAL_STORAGE_KEY_ACTIVE_SOURCE, null);
@@ -33,6 +34,7 @@ function HomePageContent() {
   const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
+  const mainContentRef = useRef<HTMLDivElement>(null);
 
   // Memoized values from URL search parameters
   const selectedCategoryId = useMemo(() => searchParamsHook.get('category') || 'all', [searchParamsHook]);
@@ -42,10 +44,23 @@ function HomePageContent() {
   
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const mainContentRef = useRef<HTMLDivElement>(null);
 
-  const sourceName = useMemo(() => sources.find(s => s.id === activeSourceId)?.name || '未知源', [sources, activeSourceId]);
   const categoryName = useMemo(() => globalCategories.find(c => c.id === selectedCategoryId)?.name || (selectedCategoryId === 'all' ? '全部' : '未知分类'), [globalCategories, selectedCategoryId]);
+
+  // Update page title in the header
+  useEffect(() => {
+    if (isLoadingContent) {
+      setPageTitle('正在加载...');
+    } else if (sources.length === 0) {
+      setPageTitle('请先设置内容源');
+    } else if (totalItems > 0) {
+      setPageTitle(`${categoryName} · 共 ${totalItems} 部影片`);
+    } else {
+        setPageTitle(categoryName);
+    }
+    // Cleanup on unmount
+    return () => setPageTitle('');
+  }, [isLoadingContent, sources.length, categoryName, totalItems, setPageTitle]);
 
 
   // Effect to synchronize activeSourceId from URL trigger
@@ -211,22 +226,6 @@ function HomePageContent() {
          </Alert>
       )}
       
-      {/* Page Header */}
-      {!isLoadingContent && sources.length > 0 && contentItems.length > 0 && (
-        <div className="mb-4">
-          <div className="p-4 rounded-lg bg-card border shadow-sm">
-            <h1 className="text-lg font-bold text-foreground truncate" title={sourceName}>{sourceName}</h1>
-            <p className="text-sm text-muted-foreground truncate">{categoryName} · {totalItems > 0 ? `${totalItems} 部影片` : '加载中...'}</p>
-          </div>
-        </div>
-      )}
-      {isLoadingContent && sources.length > 0 && (
-        <div className="mb-4">
-            <Skeleton className="h-[76px] w-full" />
-        </div>
-      )}
-
-
       {isLoadingCategories && (
         <div className="bg-card p-3 rounded-md shadow-sm hidden md:block">
           <Skeleton className="h-9 w-full" />
@@ -299,9 +298,6 @@ export default function HomePage() {
 function HomePageSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="mb-4">
-        <Skeleton className="h-[76px] w-full" />
-      </div>
       <div className="bg-card p-3 rounded-md shadow-sm hidden md:block">
         <Skeleton className="h-9 w-full" />
       </div>
