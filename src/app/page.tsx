@@ -5,7 +5,7 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import type { ContentItem, SourceConfig, ApiCategory, PaginatedContentResponse } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { fetchApiContentList, fetchApiCategories, getMockApiCategories, getMockPaginatedResponse } from '@/lib/content-loader';
+import { fetchApiContentList, getMockPaginatedResponse } from '@/lib/content-loader';
 import { ContentCard } from '@/components/content/ContentCard';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -21,14 +21,13 @@ function HomePageContent() {
   const searchParamsHook = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const { categories: globalCategories, setCategories: setGlobalCategories } = useCategories();
+  const { categories: globalCategories } = useCategories();
 
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
   const [activeSourceId, setActiveSourceId] = useLocalStorage<string | null>(LOCAL_STORAGE_KEY_ACTIVE_SOURCE, null);
   
   const [contentItems, setContentItems] = useState<ContentItem[]>([]);
   const [isLoadingContent, setIsLoadingContent] = useState(true);
-  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
@@ -43,6 +42,7 @@ function HomePageContent() {
   
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+  const mainContentRef = useRef<HTMLDivElement>(null);
 
   // Effect to synchronize activeSourceId from URL trigger
   useEffect(() => {
@@ -88,32 +88,10 @@ function HomePageContent() {
     router.push(`${pathname}?${currentParams.toString()}`, { scroll: false });
   }, [router, searchParamsHook, pathname]);
 
-  // Effect for fetching categories
-  useEffect(() => {
-    if (activeSourceUrl) {
-      setIsLoadingCategories(true);
-      fetchApiCategories(activeSourceUrl)
-        .then(setGlobalCategories)
-        .catch(e => {
-          setError(prev => (prev ? `${prev} & 无法加载分类。` : "无法加载分类。"));
-          setGlobalCategories(getMockApiCategories()); 
-        })
-        .finally(() => setIsLoadingCategories(false));
-    } else { 
-      if (sources.length === 0) {
-        setIsLoadingCategories(true); 
-        setGlobalCategories(getMockApiCategories());
-        setIsLoadingCategories(false);
-      } else {
-        setIsLoadingCategories(true); 
-      }
-    }
-  }, [activeSourceUrl, setGlobalCategories, sources.length]);
-
   // Effect to reset content on context change
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      document.querySelector('main')?.scrollTo({ top: 0, behavior: 'auto' });
+    if (mainContentRef.current) {
+        mainContentRef.current.scrollTo({ top: 0, behavior: 'auto' });
     }
     setContentItems([]);
     setPage(1);
@@ -207,7 +185,7 @@ function HomePageContent() {
     return '99k+';
   };
 
-  if (sources.length === 0 && !activeSourceUrl && !isLoadingCategories && !isLoadingContent ) {
+  if (sources.length === 0 && !activeSourceUrl && !isLoadingContent ) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-10rem)] text-center p-4">
         <Tv2 className="w-24 h-24 mb-6 text-muted-foreground" />
@@ -223,8 +201,10 @@ function HomePageContent() {
     );
   }
 
+  const isLoadingCategories = globalCategories.length <= 1;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" ref={mainContentRef}>
       {error && (
          <Alert variant="destructive" className="mb-6">
            <AlertCircle className="h-4 w-4" />

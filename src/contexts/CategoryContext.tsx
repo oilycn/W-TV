@@ -1,8 +1,9 @@
-
 "use client";
 
-import type { ApiCategory } from '@/types';
-import { createContext, useContext, useState, ReactNode, useCallback } from 'react';
+import type { ApiCategory, SourceConfig } from '@/types';
+import { createContext, useContext, useState, ReactNode, useCallback, useEffect, useMemo } from 'react';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { fetchApiCategories, getMockApiCategories } from '@/lib/content-loader';
 
 interface CategoryContextType {
   categories: ApiCategory[];
@@ -10,6 +11,10 @@ interface CategoryContextType {
 }
 
 const CategoryContext = createContext<CategoryContextType | undefined>(undefined);
+
+const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
+const LOCAL_STORAGE_KEY_ACTIVE_SOURCE = 'cinemaViewActiveSourceId';
+
 
 function arraysEqual(arr1: ApiCategory[], arr2: ApiCategory[]): boolean {
   if (arr1.length !== arr2.length) return false;
@@ -23,6 +28,20 @@ function arraysEqual(arr1: ApiCategory[], arr2: ApiCategory[]): boolean {
 
 export function CategoryProvider({ children }: { children: ReactNode }) {
   const [categories, setCategoriesState] = useState<ApiCategory[]>([]);
+  const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
+  const [activeSourceId] = useLocalStorage<string | null>(LOCAL_STORAGE_KEY_ACTIVE_SOURCE, null);
+
+  const activeSourceUrl = useMemo(() => {
+    if (activeSourceId) {
+      const source = sources.find(s => s.id === activeSourceId);
+      if (source) return source.url;
+    }
+    if (sources.length > 0 && sources[0]) {
+      return sources[0].url;
+    }
+    return null;
+  }, [sources, activeSourceId]);
+
 
   const setCategories = useCallback((newCategories: ApiCategory[]) => {
     setCategoriesState(prevCategories => {
@@ -31,7 +50,33 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
       }
       return newCategories; // Update state only if categories have actually changed
     });
-  }, []); // Empty dependency array means setCategories function itself is stable
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadCategories = async () => {
+      if (activeSourceUrl) {
+        try {
+          const fetchedCategories = await fetchApiCategories(activeSourceUrl);
+          if (isMounted) {
+            setCategories(fetchedCategories);
+          }
+        } catch (e) {
+          console.error("Failed to load categories in provider", e);
+          if (isMounted) {
+            setCategories(getMockApiCategories());
+          }
+        }
+      } else {
+        if (isMounted) {
+          // If no source is active (e.g., user cleared all), show mock categories as placeholder
+          setCategories(getMockApiCategories());
+        }
+      }
+    };
+    loadCategories();
+    return () => { isMounted = false; }
+  }, [activeSourceUrl, setCategories]);
   
   return (
     <CategoryContext.Provider value={{ categories, setCategories }}>

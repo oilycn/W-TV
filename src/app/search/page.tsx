@@ -15,6 +15,7 @@ import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { SearchBar } from '@/components/search/SearchBar';
 
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
@@ -30,7 +31,7 @@ function SearchResults() {
   
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
   const [searchResultsBySource, setSearchResultsBySource] = useState<SearchResultGroup[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [totalResultsCount, setTotalResultsCount] = useState(0);
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
@@ -133,119 +134,121 @@ function SearchResults() {
     </>
   );
 
-  if (error) {
-    return (
-      <Alert variant="destructive" className="mb-6">
-        <AlertCircle className="h-4 w-4" />
-        <AlertTitle>搜索提示</AlertTitle>
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
-    );
-  }
-
-  if (!query) {
-    return (
-      <div className="text-center py-12 flex flex-col items-center justify-center min-h-[300px] text-muted-foreground">
-        <SearchIconLucide className="mx-auto h-16 w-16 mb-4" />
-        <p className="text-xl">请输入搜索词以查找内容。</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-col h-[calc(100vh_-_8rem)]">
+    <div className="flex flex-col h-full md:h-[calc(100vh_-_8rem)]">
       <div className="flex-shrink-0 pb-4">
-        <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-          搜索 "<span className="text-primary">{decodeURIComponent(query)}</span>"
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-4">
+          搜索
         </h1>
-        <p className="text-muted-foreground mt-1">
-          {isLoading ? '正在搜索中...' : `在 ${searchResultsBySource.length} 个来源中找到 ${totalResultsCount} 条相关内容。`}
-        </p>
+        <div className='max-w-xl'>
+          <SearchBar />
+        </div>
       </div>
 
-      {isMobile ? (
-        <div className="flex flex-col flex-1 mt-2 overflow-hidden">
-          {searchResultsBySource.length > 0 && (
-            <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-              <SheetTrigger asChild>
-                <Button variant="outline" className="mb-4 flex justify-between items-center">
-                  <span>{activeGroup?.source.name || '选择播放源'}</span>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="bottom" className="h-[60%] flex flex-col">
-                 <SourceList />
-              </SheetContent>
-            </Sheet>
-          )}
-          <main ref={resultsContainerRef} className="flex-1 h-full overflow-y-auto">
-            {/* Mobile results rendering */}
-            {isLoading && searchResultsBySource.length === 0 ? (
-              <div className="grid grid-cols-2 gap-4">
-                {Array.from({ length: 10 }).map((_, index) => (
-                  <div key={index} className="space-y-2">
-                    <Skeleton className="aspect-video w-full rounded-lg" />
-                    <Skeleton className="h-5 w-3/4" />
-                    <Skeleton className="h-4 w-1/2" />
-                  </div>
-                ))}
-              </div>
-            ) : activeGroup ? (
-              <div className="grid grid-cols-2 gap-4">
-                {activeGroup.items.map(item => (
-                  <ContentCard key={`${item.id}-search-${activeGroup.source.id}`} item={item} sourceId={activeGroup.source.id} />
-                ))}
-              </div>
-            ) : (
-              !isLoading && totalResultsCount > 0 && (
-                <div className="text-center py-12 flex flex-col items-center justify-center h-full text-muted-foreground">
-                  <p className="text-lg">请选择一个来源以查看结果。</p>
-                </div>
-              )
-            )}
-          </main>
-        </div>
-      ) : (
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-6 mt-2 overflow-hidden">
-          <aside className="md:col-span-1 h-full flex flex-col backdrop-blur-md rounded-lg shadow-sm bg-card/50">
-            <SourceList />
-          </aside>
-          <main ref={resultsContainerRef} className="md:col-span-3 h-full overflow-y-auto">
-            {/* Desktop results rendering */}
-            {isLoading && searchResultsBySource.length === 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-                {Array.from({ length: 10 }).map((_, index) => (
-                  <div key={index} className="space-y-2">
-                    <Skeleton className="aspect-video w-full rounded-lg" />
-                    <Skeleton className="h-5 w-3/4" />
-                    <Skeleton className="h-4 w-1/2" />
-                  </div>
-                ))}
-              </div>
-            ) : activeGroup ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-                {activeGroup.items.map(item => (
-                  <ContentCard key={`${item.id}-search-${activeGroup.source.id}`} item={item} sourceId={activeGroup.source.id} />
-                ))}
-              </div>
-            ) : (
-              !isLoading && totalResultsCount > 0 && (
-                <div className="text-center py-12 flex flex-col items-center justify-center h-full text-muted-foreground">
-                  <p className="text-lg">请从左侧选择一个来源以查看结果。</p>
-                </div>
-              )
-            )}
-          </main>
+      {error && (
+        <Alert variant="destructive" className="my-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>搜索提示</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {!query && !isLoading && (
+        <div className="flex-1 text-center py-12 flex flex-col items-center justify-center text-muted-foreground">
+            <SearchIconLucide className="mx-auto h-16 w-16 mb-4" />
+            <p className="text-xl">通过上方的搜索框查找内容。</p>
         </div>
       )}
-      {!isLoading && totalResultsCount === 0 && (
-        <div className="text-center py-12 flex flex-col items-center justify-center h-full text-muted-foreground">
-          <SearchIconLucide className="mx-auto h-16 w-16 mb-4" />
-          <p className="text-xl">未找到与 "{decodeURIComponent(query)}" 相关的内容。</p>
-          {sources.length === 0 && (
-              <p className="mt-2 text-sm">提示：您尚未配置任何内容源。</p>
-          )}
-        </div>
+      
+      {query && (
+        <>
+        <p className="text-muted-foreground mb-4 text-sm">
+            {isLoading ? `正在为“${decodeURIComponent(query)}”搜索中...` : `在 ${searchResultsBySource.length} 个来源中找到 ${totalResultsCount} 条相关内容。`}
+        </p>
+
+        {isMobile ? (
+            <div className="flex flex-col flex-1 mt-2 overflow-hidden">
+            {searchResultsBySource.length > 0 && (
+                <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+                <SheetTrigger asChild>
+                    <Button variant="outline" className="mb-4 flex justify-between items-center">
+                    <span>{activeGroup?.source.name || '选择播放源'}</span>
+                    <ChevronRight className="h-4 w-4" />
+                    </Button>
+                </SheetTrigger>
+                <SheetContent side="bottom" className="h-[60%] flex flex-col">
+                    <SourceList />
+                </SheetContent>
+                </Sheet>
+            )}
+            <main ref={resultsContainerRef} className="flex-1 h-full overflow-y-auto">
+                {isLoading && searchResultsBySource.length === 0 ? (
+                <div className="grid grid-cols-2 gap-4">
+                    {Array.from({ length: 10 }).map((_, index) => (
+                    <div key={index} className="space-y-2">
+                        <Skeleton className="aspect-video w-full rounded-lg" />
+                        <Skeleton className="h-5 w-3/4" />
+                        <Skeleton className="h-4 w-1/2" />
+                    </div>
+                    ))}
+                </div>
+                ) : activeGroup ? (
+                <div className="grid grid-cols-2 gap-4">
+                    {activeGroup.items.map(item => (
+                    <ContentCard key={`${item.id}-search-${activeGroup.source.id}`} item={item} sourceId={activeGroup.source.id} />
+                    ))}
+                </div>
+                ) : (
+                !isLoading && totalResultsCount > 0 && (
+                    <div className="text-center py-12 flex flex-col items-center justify-center h-full text-muted-foreground">
+                    <p className="text-lg">请选择一个来源以查看结果。</p>
+                    </div>
+                )
+                )}
+            </main>
+            </div>
+        ) : (
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-6 mt-2 overflow-hidden">
+            <aside className="md:col-span-1 h-full flex flex-col backdrop-blur-md rounded-lg shadow-sm bg-card/50">
+                <SourceList />
+            </aside>
+            <main ref={resultsContainerRef} className="md:col-span-3 h-full overflow-y-auto">
+                {isLoading && searchResultsBySource.length === 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+                    {Array.from({ length: 10 }).map((_, index) => (
+                    <div key={index} className="space-y-2">
+                        <Skeleton className="aspect-video w-full rounded-lg" />
+                        <Skeleton className="h-5 w-3/4" />
+                        <Skeleton className="h-4 w-1/2" />
+                    </div>
+                    ))}
+                </div>
+                ) : activeGroup ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+                    {activeGroup.items.map(item => (
+                    <ContentCard key={`${item.id}-search-${activeGroup.source.id}`} item={item} sourceId={activeGroup.source.id} />
+                    ))}
+                </div>
+                ) : (
+                !isLoading && totalResultsCount > 0 && (
+                    <div className="text-center py-12 flex flex-col items-center justify-center h-full text-muted-foreground">
+                    <p className="text-lg">请从左侧选择一个来源以查看结果。</p>
+                    </div>
+                )
+                )}
+            </main>
+            </div>
+        )}
+        {!isLoading && totalResultsCount === 0 && (
+            <div className="text-center py-12 flex flex-col items-center justify-center h-full text-muted-foreground">
+            <SearchIconLucide className="mx-auto h-16 w-16 mb-4" />
+            <p className="text-xl">未找到与 "{decodeURIComponent(query)}" 相关的内容。</p>
+            {sources.length === 0 && (
+                <p className="mt-2 text-sm">提示：您尚未配置任何内容源。</p>
+            )}
+            </div>
+        )}
+        </>
       )}
     </div>
   );
@@ -255,7 +258,7 @@ function SearchPageSkeleton() {
   return (
     <div>
       <Skeleton className="h-8 w-1/3 mb-4" />
-      <Skeleton className="h-5 w-1/4 mb-8" />
+      <Skeleton className="h-10 w-full max-w-xl mb-8" />
       <div className="grid grid-cols-1 md:grid-cols-4 gap-8 items-start">
         <div className="md:col-span-1 space-y-4">
           <Skeleton className="h-6 w-1/2" />
@@ -264,7 +267,6 @@ function SearchPageSkeleton() {
           <Skeleton className="h-9 w-full" />
         </div>
         <div className="md:col-span-3 space-y-6">
-            <Skeleton className="h-7 w-1/4" />
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
             {Array.from({ length: 5 }).map((_, index) => (
                 <div key={index} className="space-y-2">
