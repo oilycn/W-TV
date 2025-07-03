@@ -101,17 +101,23 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     const [history, setHistory] = useLocalStorage<HistoryEntry[]>('cinemaViewHistory', []);
 
     const isMobile = useIsMobile();
+    const [isWebFullscreen, setIsWebFullscreen] = useState(false);
     
-    const handleEnterLandscapeFullscreen = useCallback(() => {
-        if (player && player.fullscreen) {
-            if (player.fullscreen.active) {
-                player.exitFullscreen();
-            } else {
-                player.enterFullscreen();
-            }
+    const handleToggleWebFullscreen = useCallback(() => {
+        setIsWebFullscreen(prev => !prev);
+    }, []);
+
+    useEffect(() => {
+        if (isWebFullscreen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
         }
-    }, [player]);
-    
+        return () => {
+            document.body.style.overflow = '';
+        };
+    }, [isWebFullscreen]);
+
     useEffect(() => {
         if (resolvedParams && resolvedParams.id) {
             setPageId(resolvedParams.id);
@@ -261,12 +267,12 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         if (e.key === ' ' || e.key === 'f' || e.key === 'F' || e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') e.preventDefault();
         
         if (e.key === ' ') player.paused ? player.play() : player.pause();
-        if (e.key === 'f' || e.key === 'F') document.fullscreenElement ? player.exitFullscreen() : player.enterFullscreen();
+        if (e.key === 'f' || e.key === 'F') handleToggleWebFullscreen();
         if (!e.altKey && e.key === 'ArrowLeft') { player.currentTime -= 10; displayShortcutHint('快退10秒'); }
         if (!e.altKey && e.key === 'ArrowRight') { player.currentTime += 10; displayShortcutHint('快进10秒'); }
         if (e.key === 'ArrowUp') { player.volume = Math.min(player.volume + 0.1, 1); displayShortcutHint(`音量 ${Math.round(player.volume * 100)}`);}
         if (e.key === 'ArrowDown') { player.volume = Math.max(player.volume - 0.1, 0); displayShortcutHint(`音量 ${Math.round(player.volume * 100)}`);}
-    }, [player, handleNextEpisode, getNextEpisode]);
+    }, [player, handleNextEpisode, getNextEpisode, handleToggleWebFullscreen]);
     
     useEffect(() => {
         document.addEventListener('keydown', handleKeyboardShortcuts);
@@ -325,7 +331,11 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         <div className="container mx-auto max-w-screen-2xl px-4 py-6">
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                 <div className="lg:col-span-3 flex flex-col gap-6">
-                     <div className="relative aspect-video bg-black rounded-lg overflow-hidden shadow-2xl">
+                     <div className={cn(
+                        'relative aspect-video bg-black rounded-lg overflow-hidden shadow-2xl',
+                        isWebFullscreen && !isMobile && 'fixed inset-0 z-50 w-full h-full rounded-none',
+                        isWebFullscreen && isMobile && 'fixed inset-0 z-50 w-[100vh] h-[100vw] rotate-90 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2'
+                    )}>
                         {currentPlayUrl && useIframeFallback ? (
                             <iframe
                                 key={currentPlayUrl}
@@ -363,24 +373,22 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                                         ),
                                         beforeFullscreenButton: (
                                             <>
-                                                {isMobile && (
-                                                    <button onClick={handleEnterLandscapeFullscreen} className="vds-button" aria-label="横向全屏">
-                                                        <svg
-                                                            xmlns="http://www.w3.org/2000/svg"
-                                                            viewBox="0 0 24 24"
-                                                            fill="none"
-                                                            stroke="currentColor"
-                                                            strokeWidth="2"
-                                                            strokeLinecap="round"
-                                                            strokeLinejoin="round"
-                                                            className="vds-icon"
-                                                        >
-                                                            <title>横向全屏</title>
-                                                            <rect x="3" y="7" width="6" height="10" rx="1"></rect>
-                                                            <rect x="11" y="4" width="10" height="6" rx="1"></rect>
-                                                        </svg>
-                                                    </button>
-                                                )}
+                                                <button onClick={handleToggleWebFullscreen} className="vds-button" aria-label="网页全屏">
+                                                    <svg
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        viewBox="0 0 24 24"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        strokeWidth="2"
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                        className="vds-icon"
+                                                    >
+                                                        <title>横向全屏</title>
+                                                        <rect x="3" y="7" width="6" height="10" rx="1"></rect>
+                                                        <rect x="11" y="4" width="10" height="6" rx="1"></rect>
+                                                    </svg>
+                                                </button>
                                                 <AirPlayButton className='vds-button'><AirPlayIcon className='vds-icon' /></AirPlayButton>
                                             </>
                                         )
@@ -394,7 +402,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                         )}
                     </div>
                     
-                    <div>
+                    <div className={cn({'hidden': isWebFullscreen})}>
                         <h3 className="text-xl font-semibold mb-3">简介</h3>
                         <p className="text-sm text-muted-foreground leading-relaxed">
                             {item.description}
@@ -402,7 +410,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                     </div>
                 </div>
 
-                <div className="lg:col-span-1">
+                <div className={cn("lg:col-span-1", {'hidden': isWebFullscreen})}>
                     <div className="space-y-4">
                         <div>
                             <h1 className="text-2xl font-bold tracking-tight mb-2">{item.title}</h1>
