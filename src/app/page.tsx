@@ -47,20 +47,29 @@ function HomePageContent() {
 
   const categoryName = useMemo(() => globalCategories.find(c => c.id === selectedCategoryId)?.name || (selectedCategoryId === 'all' ? '全部' : '未知分类'), [globalCategories, selectedCategoryId]);
 
+  const activeSourceName = useMemo(() => {
+    if (!activeSourceId) return null;
+    return sources.find(s => s.id === activeSourceId)?.name;
+  }, [sources, activeSourceId]);
+
   // Update page title in the header
   useEffect(() => {
+    let title = '';
     if (isLoadingContent) {
-      setPageTitle('正在加载...');
+      title = '正在加载...';
     } else if (sources.length === 0) {
-      setPageTitle('请先设置内容源');
-    } else if (totalItems > 0) {
-      setPageTitle(`${categoryName} · 共 ${totalItems} 部影片`);
+      title = '请先设置内容源';
     } else {
-        setPageTitle(categoryName);
+      const sourcePart = activeSourceName ? `${activeSourceName} - ` : '';
+      const categoryPart = categoryName;
+      const countPart = totalItems > 0 ? ` · ${totalItems} 部` : '';
+      title = `${sourcePart}${categoryPart}${countPart}`;
     }
+    setPageTitle(title);
+    
     // Cleanup on unmount
     return () => setPageTitle('');
-  }, [isLoadingContent, sources.length, categoryName, totalItems, setPageTitle]);
+  }, [isLoadingContent, sources.length, categoryName, totalItems, setPageTitle, activeSourceName]);
 
 
   // Effect to synchronize activeSourceId from URL trigger

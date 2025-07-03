@@ -48,7 +48,7 @@ export function AppHeader() {
   if (!isClient) {
     // Simple static header for SSR/initial render
     return (
-      <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur md:px-6">
+      <header className="sticky top-0 z-20 flex h-16 items-center border-b bg-background/95 px-4 backdrop-blur-md md:px-6">
         <Link href="/" className="mr-4">
           <AppLogo />
         </Link>
@@ -100,10 +100,16 @@ export function AppHeader() {
       </div>
 
       {/* --- Mobile View --- */}
-      <div className="flex w-full items-center justify-between md:hidden">
+      <div className="relative flex w-full items-center justify-between md:hidden">
         <Link href="/" className="flex items-center gap-2">
           <AppLogo />
         </Link>
+
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            <span className="text-sm font-medium text-foreground truncate max-w-[calc(100vw-120px)]">
+                {pageTitle}
+            </span>
+        </div>
 
         <Sheet open={isSearchOpen} onOpenChange={setIsSearchOpen}>
           <SheetTrigger asChild>
