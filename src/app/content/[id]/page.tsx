@@ -103,7 +103,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     const isMobile = useIsMobile();
     
     const handleEnterLandscapeFullscreen = useCallback(() => {
-        if (player) {
+        if (player && player.fullscreen) {
             if (player.fullscreen.active) {
                 player.exitFullscreen();
             } else {
