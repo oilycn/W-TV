@@ -326,7 +326,7 @@ export default function SettingsPage() {
         {sources.map(source => (
           <Card 
             key={source.id} 
-            className={`flex items-center justify-between p-4 shadow-md ${source.id === activeSourceId ? 'border-primary ring-2 ring-primary' : ''}`}
+            className={`flex items-center justify-between p-4 ${source.id === activeSourceId ? 'border-primary ring-2 ring-primary' : ''}`}
           >
             <div>
               <p className="font-medium text-foreground">{source.name}</p>
@@ -350,7 +350,7 @@ export default function SettingsPage() {
         </p>
       </div>
 
-       <Card className="shadow-lg">
+       <Card>
         <CardHeader>
           <CardTitle>外观设置</CardTitle>
           <CardDescription>自定义应用的外观和主题。</CardDescription>
@@ -377,7 +377,7 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card className="shadow-lg">
+      <Card>
         <CardHeader>
           <CardTitle>订阅链接</CardTitle>
           <CardDescription>输入包含内容源配置的 JSON 订阅链接。加载后会替换当前所有手动添加的源。</CardDescription>
@@ -417,7 +417,7 @@ export default function SettingsPage() {
         </CardFooter>
       </Card>
       
-      <Card className="shadow-lg">
+      <Card>
         <CardHeader>
           <CardTitle>手动添加新内容源</CardTitle>
           <CardDescription>输入内容源的名称和 URL。</CardDescription>
