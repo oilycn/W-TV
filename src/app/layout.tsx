@@ -19,7 +19,7 @@ const inter = Inter({
   subsets: ['latin'],
 });
 
-const robotoMono = Roboto_mono({
+const robotoMono = Roboto_Mono({
   variable: '--font-geist-mono',
   subsets: ['latin'],
 });
