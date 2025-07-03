@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import type { ContentItem, SourceConfig, HistoryEntry } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, getMockContentItemById } from '@/lib/content-loader';
-import { Loader2, Star } from 'lucide-react';
+import { Loader2, Star, Maximize } from 'lucide-react';
 import { useCategories } from '@/contexts/CategoryContext';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -84,7 +84,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     
     const [item, setItem] = useState<ContentItem | null | undefined>(undefined);
     const itemRef = useRef<ContentItem | null>();
-    itemRef.current = item;
 
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -99,24 +98,21 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     const [player, setPlayer] = useState<MediaPlayerElement | null>(null);
     const [useIframeFallback, setUseIframeFallback] = useState(false);
     const [history, setHistory] = useLocalStorage<HistoryEntry[]>('cinemaViewHistory', []);
-
-    const isMobile = useIsMobile();
-    const [isWebFullscreen, setIsWebFullscreen] = useState(false);
     
-    const handleToggleWebFullscreen = useCallback(() => {
-        setIsWebFullscreen(prev => !prev);
-    }, []);
-
-    useEffect(() => {
-        if (isWebFullscreen) {
-            document.body.style.overflow = 'hidden';
-        } else {
-            document.body.style.overflow = '';
+    const handleEnterLandscapeFullscreen = useCallback(() => {
+        if (player && player.fullscreen) {
+            if (player.fullscreen.active) {
+                player.exitFullscreen();
+            } else {
+                player.enterFullscreen();
+            }
         }
-        return () => {
-            document.body.style.overflow = '';
-        };
-    }, [isWebFullscreen]);
+    }, [player]);
+    
+    useEffect(() => {
+        itemRef.current = item;
+    }, [item]);
+    
 
     useEffect(() => {
         if (resolvedParams && resolvedParams.id) {
@@ -138,6 +134,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
 
         const sourceIdToUse = overrideSourceId || activeSourceId;
         const currentItem = itemRef.current;
+
         if (currentItem && sourceIdToUse) {
             setHistory(prevHistory => {
                 const otherHistory = prevHistory.filter(entry => entry.item.id !== currentItem.id);
@@ -267,12 +264,12 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         if (e.key === ' ' || e.key === 'f' || e.key === 'F' || e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') e.preventDefault();
         
         if (e.key === ' ') player.paused ? player.play() : player.pause();
-        if (e.key === 'f' || e.key === 'F') handleToggleWebFullscreen();
+        if (e.key === 'f' || e.key === 'F') handleEnterLandscapeFullscreen();
         if (!e.altKey && e.key === 'ArrowLeft') { player.currentTime -= 10; displayShortcutHint('快退10秒'); }
         if (!e.altKey && e.key === 'ArrowRight') { player.currentTime += 10; displayShortcutHint('快进10秒'); }
         if (e.key === 'ArrowUp') { player.volume = Math.min(player.volume + 0.1, 1); displayShortcutHint(`音量 ${Math.round(player.volume * 100)}`);}
         if (e.key === 'ArrowDown') { player.volume = Math.max(player.volume - 0.1, 0); displayShortcutHint(`音量 ${Math.round(player.volume * 100)}`);}
-    }, [player, handleNextEpisode, getNextEpisode, handleToggleWebFullscreen]);
+    }, [player, handleNextEpisode, getNextEpisode, handleEnterLandscapeFullscreen]);
     
     useEffect(() => {
         document.addEventListener('keydown', handleKeyboardShortcuts);
@@ -331,11 +328,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         <div className="container mx-auto max-w-screen-2xl px-4 py-6">
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                 <div className="lg:col-span-3 flex flex-col gap-6">
-                     <div className={cn(
-                        'relative aspect-video bg-black rounded-lg overflow-hidden shadow-2xl',
-                        isWebFullscreen && !isMobile && 'fixed inset-0 z-50 w-full h-full rounded-none',
-                        isWebFullscreen && isMobile && 'fixed inset-0 z-50 w-[100vh] h-[100vw] rotate-90 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2'
-                    )}>
+                     <div className='relative aspect-video bg-black rounded-lg overflow-hidden shadow-2xl'>
                         {currentPlayUrl && useIframeFallback ? (
                             <iframe
                                 key={currentPlayUrl}
@@ -373,7 +366,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                                         ),
                                         beforeFullscreenButton: (
                                             <>
-                                                <button onClick={handleToggleWebFullscreen} className="vds-button" aria-label="网页全屏">
+                                                <button onClick={handleEnterLandscapeFullscreen} className="vds-button" aria-label="横向全屏">
                                                     <svg
                                                         xmlns="http://www.w3.org/2000/svg"
                                                         viewBox="0 0 24 24"
@@ -402,7 +395,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                         )}
                     </div>
                     
-                    <div className={cn({'hidden': isWebFullscreen})}>
+                    <div>
                         <h3 className="text-xl font-semibold mb-3">简介</h3>
                         <p className="text-sm text-muted-foreground leading-relaxed">
                             {item.description}
@@ -410,7 +403,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                     </div>
                 </div>
 
-                <div className={cn("lg:col-span-1", {'hidden': isWebFullscreen})}>
+                <div className="lg:col-span-1">
                     <div className="space-y-4">
                         <div>
                             <h1 className="text-2xl font-bold tracking-tight mb-2">{item.title}</h1>
