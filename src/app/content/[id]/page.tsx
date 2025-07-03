@@ -178,6 +178,9 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                     item: item,
                     watchedAt: Date.now(),
                     sourceId: activeSourceId,
+                    episodeName: episodeName,
+                    sourceName: sourceName,
+                    episodeUrl: url,
                 };
                 return [newEntry, ...otherHistory];
             });

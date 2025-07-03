@@ -59,4 +59,7 @@ export interface HistoryEntry {
   item: ContentItem;
   watchedAt: number; // timestamp
   sourceId: string;
+  episodeName: string;
+  sourceName: string;
+  episodeUrl: string;
 }

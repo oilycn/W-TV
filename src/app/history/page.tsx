@@ -70,12 +70,17 @@ export default function HistoryPage() {
 
       {sortedHistory.length > 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
-          {sortedHistory.map(({ item, sourceId, watchedAt }) => (
+          {sortedHistory.map(({ item, sourceId, watchedAt, episodeName }) => (
             <div key={`${item.id}-${watchedAt}`} className="flex flex-col">
               <ContentCard item={item} sourceId={sourceId} />
                <p className="mt-1 text-xs text-muted-foreground text-center">
                 {new Date(watchedAt).toLocaleString()}
               </p>
+              {episodeName && (
+                <p className="mt-1 text-xs text-foreground font-medium text-center truncate" title={episodeName}>
+                  看到: {episodeName}
+                </p>
+              )}
             </div>
           ))}
         </div>
