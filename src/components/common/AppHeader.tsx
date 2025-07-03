@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from 'react';
@@ -18,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SearchBar } from "@/components/search/SearchBar";
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/hooks/use-is-mobile';
 import { cn } from '@/lib/utils';
 
 
@@ -51,8 +52,8 @@ export function AppHeader() {
   
   if (!isClient) {
     return (
-      <header className="sticky top-0 z-20 bg-background/95 backdrop-blur-md">
-        <div className="flex h-14 items-center border-b px-4 md:px-6 pt-[env(safe-area-inset-top)]">
+      <header className="sticky top-0 z-20 bg-background/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
+        <div className="flex h-14 items-center border-b px-4 md:px-6">
             <Link href="/" className="mr-4">
               <AppLogo />
             </Link>
@@ -77,8 +78,8 @@ export function AppHeader() {
   );
 
   return (
-    <header className="sticky top-0 z-20 bg-background/95 backdrop-blur-md">
-      <div className="relative flex h-14 items-center border-b px-4 md:px-6 pt-[env(safe-area-inset-top)] overflow-hidden">
+    <header className="sticky top-0 z-20 bg-background/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
+      <div className="relative flex h-14 items-center border-b px-4 md:px-6 overflow-hidden">
         {/* --- Desktop View --- */}
         <div className="hidden w-full items-center gap-4 md:flex">
           <Link href="/" className="mr-4 flex items-center gap-4">
@@ -134,7 +135,7 @@ export function AppHeader() {
             
             {/* Search View */}
             <div className={cn(
-            "absolute inset-y-0 left-0 right-0 flex items-center gap-2 bg-background px-2 transition-all duration-300 md:hidden pt-[env(safe-area-inset-top)]",
+            "absolute inset-y-0 left-0 right-0 flex items-center gap-2 bg-background px-2 transition-all duration-300 md:hidden",
             {
                 'opacity-100': isMobileSearchVisible,
                 'opacity-0 pointer-events-none translate-x-4': !isMobileSearchVisible,

@@ -47,15 +47,15 @@ export const viewport: Viewport = {
 };
 
 const AppHeaderFallback = () => (
-  <div style={{
+  <header style={{
     position: 'sticky',
     top: 0,
     zIndex: 20,
-    backgroundColor: 'hsl(var(--background))', 
     paddingTop: 'env(safe-area-inset-top)',
+    backgroundColor: 'hsl(var(--background))'
   }}>
     <div style={{ height: '56px', borderBottom: '1px solid hsl(var(--border))' }} />
-  </div>
+  </header>
 );
 
 
