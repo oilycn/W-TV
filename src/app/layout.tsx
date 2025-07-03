@@ -19,7 +19,7 @@ const inter = Inter({
   subsets: ['latin'],
 });
 
-const robotoMono = Roboto_Mono({
+const robotoMono = Roboto_mono({
   variable: '--font-geist-mono',
   subsets: ['latin'],
 });
@@ -81,7 +81,7 @@ export default function RootLayout({
               <Suspense fallback={<AppHeaderFallback />}>
                 <AppHeader />
               </Suspense>
-              <main className="flex-1 p-4 md:p-6 overflow-auto pb-20 md:pb-6">
+              <main className="flex-1 p-4 md:p-6 overflow-auto pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-6">
                 {children}
               </main>
               <BottomNavBar />
