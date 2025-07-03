@@ -21,12 +21,6 @@ const robotoMono = Roboto_Mono({
 export const metadata: Metadata = {
   title: '晚风TV',
   description: '您的个性化影院体验',
-  manifest: '/manifest.json',
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'black',
-    title: '晚风TV',
-  },
   formatDetection: {
     telephone: false,
   },
@@ -64,7 +58,6 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <meta name="mobile-web-app-capable" content="yes" />
         {/* Vidstack Player CSS from CDN */}
         <link rel="stylesheet" href="https://fastly.jsdelivr.net/npm/vidstack@1.11.24/player/styles/base.css" />
         <link rel="stylesheet" href="https://fastly.jsdelivr.net/npm/@vidstack/react@1.11.24/player/styles/default/theme.css" />
