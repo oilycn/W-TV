@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -9,17 +8,28 @@ import { Search } from 'lucide-react';
 
 interface SearchBarProps {
   onSearchSubmit?: () => void;
+  autoFocus?: boolean;
 }
 
-export function SearchBar({ onSearchSubmit }: SearchBarProps) {
+export function SearchBar({ onSearchSubmit, autoFocus = false }: SearchBarProps) {
   const router = useRouter();
   const currentSearchParams = useSearchParams();
   const [query, setQuery] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Update query state if URL 'q' parameter changes (e.g., on /search page)
   useEffect(() => {
     setQuery(decodeURIComponent(currentSearchParams.get('q') || ''));
   }, [currentSearchParams]);
+
+  // Autofocus the input when it becomes visible
+  useEffect(() => {
+    if (autoFocus && inputRef.current) {
+        // A small delay can help ensure the element is fully rendered and transitions are complete
+        setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, [autoFocus]);
+
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +49,7 @@ export function SearchBar({ onSearchSubmit }: SearchBarProps) {
   return (
     <form onSubmit={handleSearch} className="relative w-full">
       <Input
+        ref={inputRef}
         type="search"
         placeholder="搜索电影、电视剧..."
         className="pr-10 h-9"
