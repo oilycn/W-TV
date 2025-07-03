@@ -9,6 +9,11 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import { Suspense } from 'react';
 import { BottomNavBar } from '@/components/common/BottomNavBar';
 
+// Vidstack Player CSS (local)
+import '@vidstack/react/player/styles/default/theme.css';
+import '@vidstack/react/player/styles/default/layouts/video.css';
+
+
 const inter = Inter({
   variable: '--font-geist-sans',
   subsets: ['latin'],
@@ -68,11 +73,6 @@ export default function RootLayout({
         {/* PWA Icon Links for better compatibility */}
         <link rel="icon" href="/icons/icon-192x192.png" type="image/png" sizes="192x192" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
-
-        {/* Vidstack Player CSS from CDN */}
-        <link rel="stylesheet" href="https://fastly.jsdelivr.net/npm/vidstack@1.11.24/player/styles/base.css" />
-        <link rel="stylesheet" href="https://fastly.jsdelivr.net/npm/@vidstack/react@1.11.24/player/styles/default/theme.css" />
-        <link rel="stylesheet" href="https://fastly.jsdelivr.net/npm/@vidstack/react@1.11.24/player/styles/default/layouts/video.css" />
       </head>
       <body className={`${inter.variable} ${robotoMono.variable} antialiased`}>
         <ThemeProvider> 
