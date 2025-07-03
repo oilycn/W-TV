@@ -7,6 +7,7 @@ import type { ContentItem, SourceConfig, HistoryEntry } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, getMockContentItemById } from '@/lib/content-loader';
 import { Loader2, Star } from 'lucide-react';
+import { useCategories } from '@/contexts/CategoryContext';
 
 // Vidstack Imports
 import { type MediaProviderAdapter, AirPlayButton, isHLSProvider, type MediaPlayerElement } from '@vidstack/react';
@@ -75,8 +76,8 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     const resolvedParams = use(paramsProp as any); 
 
     const [pageId, setPageId] = useState<string | null>(null);
-    const [sources, setSources] = useLocalStorage<SourceConfig[]>('cinemaViewSources', []);
-    const [activeSourceId, setActiveSourceId] = useLocalStorage<string | null>('cinemaViewActiveSourceId', null);
+    const [sources] = useLocalStorage<SourceConfig[]>('cinemaViewSources', []);
+    const { activeSourceId, setActiveSourceId } = useCategories();
     
     const [item, setItem] = useState<ContentItem | null | undefined>(undefined);
     const [isLoading, setIsLoading] = useState(true);

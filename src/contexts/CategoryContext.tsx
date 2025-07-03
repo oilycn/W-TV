@@ -11,6 +11,8 @@ interface CategoryContextType {
   setCategories: (categories: ApiCategory[]) => void;
   pageTitle: string;
   setPageTitle: (title: string) => void;
+  activeSourceId: string | null;
+  setActiveSourceId: (id: string | null) => void;
 }
 
 const CategoryContext = createContext<CategoryContextType | undefined>(undefined);
@@ -33,7 +35,7 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
   const [categories, setCategoriesState] = useState<ApiCategory[]>([]);
   const [pageTitle, setPageTitle] = useState('');
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
-  const [activeSourceId] = useLocalStorage<string | null>(LOCAL_STORAGE_KEY_ACTIVE_SOURCE, null);
+  const [activeSourceId, setActiveSourceId] = useLocalStorage<string | null>(LOCAL_STORAGE_KEY_ACTIVE_SOURCE, null);
 
   const activeSourceUrl = useMemo(() => {
     if (activeSourceId) {
@@ -82,8 +84,10 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
     return () => { isMounted = false; }
   }, [activeSourceUrl, setCategories]);
   
+  const value = { categories, setCategories, pageTitle, setPageTitle, activeSourceId, setActiveSourceId };
+  
   return (
-    <CategoryContext.Provider value={{ categories, setCategories, pageTitle, setPageTitle }}>
+    <CategoryContext.Provider value={value}>
       {children}
     </CategoryContext.Provider>
   );

@@ -17,12 +17,10 @@ import {
 import { useRouter } from 'next/navigation';
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
-const LOCAL_STORAGE_KEY_ACTIVE_SOURCE = 'cinemaViewActiveSourceId';
 
 function CategoriesPageContent() {
-    const { categories } = useCategories();
+    const { categories, activeSourceId, setActiveSourceId } = useCategories();
     const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
-    const [activeSourceId, setActiveSourceId] = useLocalStorage<string | null>(LOCAL_STORAGE_KEY_ACTIVE_SOURCE, null);
     const router = useRouter();
 
     // Remove 'all' category for the display grid, as this page is for choosing a specific one.

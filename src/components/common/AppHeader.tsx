@@ -20,20 +20,20 @@ import {
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { SearchBar } from "@/components/search/SearchBar";
+import { useIsMobile } from '@/hooks/use-mobile';
 
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
-const LOCAL_STORAGE_KEY_ACTIVE_SOURCE = 'cinemaViewActiveSourceId';
 
 export function AppHeader() {
   const [isClient, setIsClient] = useState(false);
   const { theme, toggleTheme } = useTheme();
-  const { pageTitle } = useCategories();
+  const { pageTitle, activeSourceId, setActiveSourceId } = useCategories();
   const router = useRouter();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const isMobile = useIsMobile();
   
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
-  const [activeSourceId, setActiveSourceId] = useLocalStorage<string | null>(LOCAL_STORAGE_KEY_ACTIVE_SOURCE, null);
   
   const handleSourceChange = (newSourceId: string) => {
     setActiveSourceId(newSourceId);

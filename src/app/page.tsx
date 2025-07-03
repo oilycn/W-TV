@@ -14,18 +14,18 @@ import { AlertCircle, Search as SearchIconTv, Tv2, Loader2 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useCategories } from '@/contexts/CategoryContext';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
-const LOCAL_STORAGE_KEY_ACTIVE_SOURCE = 'cinemaViewActiveSourceId';
 
 function HomePageContent() {
   const searchParamsHook = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const { categories: globalCategories, setPageTitle } = useCategories();
+  const { categories: globalCategories, setPageTitle, activeSourceId, setActiveSourceId } = useCategories();
+  const isMobile = useIsMobile();
 
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
-  const [activeSourceId, setActiveSourceId] = useLocalStorage<string | null>(LOCAL_STORAGE_KEY_ACTIVE_SOURCE, null);
   
   const [contentItems, setContentItems] = useState<ContentItem[]>([]);
   const [isLoadingContent, setIsLoadingContent] = useState(true);
@@ -235,12 +235,12 @@ function HomePageContent() {
          </Alert>
       )}
       
-      {isLoadingCategories && (
+      {isLoadingCategories && !isMobile && (
         <div className="bg-card p-3 rounded-md shadow-sm hidden md:block">
           <Skeleton className="h-9 w-full" />
         </div>
       )}
-      {(!isLoadingCategories && globalCategories.length > 0) && (
+      {(!isLoadingCategories && globalCategories.length > 0 && !isMobile) && (
         <ScrollArea className="w-full whitespace-nowrap rounded-md border shadow-sm bg-card hidden md:block">
           <div className="flex space-x-2 p-3">
             {globalCategories.map(category => (
