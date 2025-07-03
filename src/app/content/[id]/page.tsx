@@ -6,9 +6,11 @@ import { useSearchParams } from 'next/navigation';
 import type { ContentItem, SourceConfig, HistoryEntry } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, getMockContentItemById } from '@/lib/content-loader';
-import { Loader2, Expand, Star } from 'lucide-react';
+import { Loader2, Star } from 'lucide-react';
 import { useCategories } from '@/contexts/CategoryContext';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-mobile';
+
 
 // Vidstack Imports
 import { type MediaProviderAdapter, AirPlayButton, isHLSProvider, type MediaPlayerElement } from '@vidstack/react';
@@ -100,6 +102,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     const [history, setHistory] = useLocalStorage<HistoryEntry[]>('cinemaViewHistory', []);
 
     const [isWebFullscreen, setIsWebFullscreen] = useState(false);
+    const isMobile = useIsMobile();
     
     const handleToggleWebFullscreen = () => {
         setIsWebFullscreen(prev => !prev);
@@ -355,9 +358,14 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         <div className="container mx-auto max-w-screen-2xl px-4 py-6">
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                 <div className="lg:col-span-3 flex flex-col gap-6">
-                    <div className={cn(
-                        "relative aspect-video bg-black rounded-lg overflow-hidden shadow-2xl transition-[width,height]",
-                        isWebFullscreen && "fixed inset-0 z-50 w-screen h-screen rounded-none"
+                     <div className={cn(
+                        "relative aspect-video bg-black rounded-lg overflow-hidden shadow-2xl transition-all duration-300",
+                        isWebFullscreen ?
+                            (isMobile ?
+                                "fixed top-1/2 left-1/2 z-50 w-[100vh] h-[100vw] -translate-x-1/2 -translate-y-1/2 rotate-90 rounded-none"
+                                :
+                                "fixed inset-0 z-50 w-screen h-screen rounded-none")
+                            : ""
                     )}>
                         {currentPlayUrl && useIframeFallback ? (
                             <iframe
@@ -396,8 +404,21 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                                         ),
                                         beforeFullscreenButton: (
                                             <>
-                                                <button onClick={handleToggleWebFullscreen} className="vds-button" aria-label="网页全屏">
-                                                    <Expand className="vds-icon" />
+                                                <button onClick={handleToggleWebFullscreen} className="vds-button" aria-label="网页横向全屏">
+                                                     <svg
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        viewBox="0 0 24 24"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        strokeWidth="2"
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                        className="vds-icon"
+                                                    >
+                                                        <title>网页横向全屏</title>
+                                                        <rect x="3" y="7" width="6" height="10" rx="1"></rect>
+                                                        <rect x="11" y="4" width="10" height="6" rx="1"></rect>
+                                                    </svg>
                                                 </button>
                                                 <AirPlayButton className='vds-button'><AirPlayIcon className='vds-icon' /></AirPlayButton>
                                             </>
