@@ -302,7 +302,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             provider.config = {
                 manifestLoadTimeout: 90000,
                 levelLoadTimeout: 90000,
-                fragLoadTimeout: 150000,
+                fragLoadTimeout: 15000,
                 fragLoadRetryDelay: 1000,
                 fragLoadMaxRetry: 8,
                 autoStartLoad: true,
