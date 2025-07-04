@@ -24,6 +24,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 
+const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
+
 function SourceAndCategorySelector({ onSelection }: { onSelection: () => void }) {
   const { categories, activeSourceId, setActiveSourceId } = useCategories();
   const [sources] = useLocalStorage<SourceConfig[]>('cinemaViewSources', []);
