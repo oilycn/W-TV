@@ -7,9 +7,10 @@ import { Star } from 'lucide-react';
 interface ContentCardProps {
   item: ContentItem;
   sourceId?: string;
+  sourceName?: string;
 }
 
-export function ContentCard({ item, sourceId }: ContentCardProps) {
+export function ContentCard({ item, sourceId, sourceName }: ContentCardProps) {
   const getAiHint = (currentItem: ContentItem) => {
     if (currentItem.genres && currentItem.genres.length > 0) {
       return currentItem.genres.slice(0, 2).join(" ").toLowerCase();
@@ -44,6 +45,11 @@ export function ContentCard({ item, sourceId }: ContentCardProps) {
           <CardTitle className="text-base font-semibold leading-tight truncate text-card-foreground" title={item.title}>
             {item.title || "未知标题"}
           </CardTitle>
+          {sourceName && (
+            <p className="text-xs font-medium text-primary mt-1 truncate" title={sourceName}>
+              {sourceName}
+            </p>
+          )}
           <div className="flex justify-between items-center text-xs text-muted-foreground mt-auto pt-2">
             {/* Left side: Year & Genre */}
             <div className="flex items-center gap-1.5 truncate">

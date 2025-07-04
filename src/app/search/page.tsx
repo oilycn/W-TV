@@ -95,6 +95,7 @@ function SearchResults() {
         group.items.map(item => ({
           ...item, 
           sourceId: group.source.id,
+          sourceName: group.source.name,
           renderKey: `${group.source.id}-${item.id}` 
         }))
       );
@@ -108,6 +109,7 @@ function SearchResults() {
     return group.items.map(item => ({
       ...item,
       sourceId: group.source.id,
+      sourceName: group.source.name,
       renderKey: `${group.source.id}-${item.id}`
     }));
   }, [searchResultsBySource, selectedSourceId]);
@@ -176,10 +178,15 @@ function SearchResults() {
     </>
   );
 
-  const ResultsGrid = ({ items }: { items: typeof itemsToDisplay }) => (
+  const ResultsGrid = ({ items }: { items: (typeof itemsToDisplay) }) => (
     <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
         {items.map(item => (
-          <ContentCard key={item.renderKey} item={item} sourceId={item.sourceId} />
+          <ContentCard 
+            key={item.renderKey} 
+            item={item} 
+            sourceId={item.sourceId}
+            sourceName={selectedSourceId === 'all' ? item.sourceName : undefined}
+          />
         ))}
     </div>
   );
