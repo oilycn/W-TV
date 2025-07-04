@@ -34,6 +34,11 @@ export function ContentCard({ item, sourceId }: ContentCardProps) {
             unoptimized={item.posterUrl.startsWith('https://placehold.co')}
             data-ai-hint={getAiHint(item)}
           />
+          {item.remarks && (
+            <div className="absolute top-2 right-2 rounded-sm bg-black/75 px-2 py-0.5 text-xs font-semibold text-white backdrop-blur-sm">
+              {item.remarks}
+            </div>
+          )}
         </CardHeader>
         <CardContent className="p-3 flex-grow flex flex-col">
           <CardTitle className="text-base font-semibold leading-tight truncate text-card-foreground" title={item.title}>

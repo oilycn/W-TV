@@ -11,6 +11,7 @@ export interface ContentItem {
   genres?: string[]; // From type_name of the item itself
   releaseYear?: number;
   runtime?: string; // e.g., "2h 15m"
+  remarks?: string; // e.g., "更新至24集" or "HD"
   type: 'movie' | 'tv_show';
   availableQualities?: string[]; // e.g., ["1080p", "720p", "4K"]
   playbackSources?: PlaybackSourceGroup[];

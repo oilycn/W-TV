@@ -21,6 +21,7 @@ const mockContentItems: ContentItem[] = [
     genres: ['科幻', '冒险'],
     releaseYear: 2023,
     runtime: '2h 30m',
+    remarks: '超清4K',
     type: 'movie',
     availableQualities: ['1080p', '4K'],
     playbackSources: [
@@ -49,6 +50,7 @@ const mockContentItems: ContentItem[] = [
     userRating: 9.0,
     genres: ['悬疑', '剧情', '犯罪'],
     releaseYear: 2024,
+    remarks: '更新至12集',
     type: 'tv_show',
     availableQualities: ['1080p', '720p'],
     playbackSources: [
@@ -149,7 +151,8 @@ function mapApiItemToContentItem(apiItem: any): ContentItem | null {
     userRating: parseFloat(apiItem.vod_douban_score) || parseFloat(apiItem.vod_score) || undefined,
     genres: genres,
     releaseYear: parseInt(String(apiItem.vod_year)) || undefined,
-    runtime: apiItem.vod_duration || apiItem.vod_remarks || undefined,
+    runtime: apiItem.vod_duration || undefined,
+    remarks: apiItem.vod_remarks || undefined,
     type: type,
     availableQualities: apiItem.vod_quality ? String(apiItem.vod_quality).split(',') : (apiItem.vod_remarks && String(apiItem.vod_remarks).match(/[0-9]+[pP]/g) ? String(apiItem.vod_remarks).match(/[0-9]+[pP]/g) : undefined),
     playbackSources: playbackSources.length > 0 ? playbackSources : undefined,
@@ -344,4 +347,3 @@ export function getMockPaginatedResponse(page: number = 1, categoryId?: string, 
     total,
   };
 }
-
