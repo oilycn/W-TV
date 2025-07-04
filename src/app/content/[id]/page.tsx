@@ -300,18 +300,15 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         if (isHLSProvider(provider)) {
             provider.library = Hls;
             provider.config = {
-                // Timeouts and Retries for more resilient playback
-                manifestLoadTimeout: 60000, // 60s
-                levelLoadTimeout: 60000,    // 60s
-                fragLoadTimeout: 60000,     // 60s
-                fragLoadRetryDelay: 1000,   // Start with 1s delay
-                fragLoadMaxRetry: 5,        // Retry 5 times
-
-                // Buffer settings for smoother playback
+                manifestLoadTimeout: 90000,
+                levelLoadTimeout: 90000,
+                fragLoadTimeout: 150000,
+                fragLoadRetryDelay: 1000,
+                fragLoadMaxRetry: 8,
                 autoStartLoad: true,
-                maxBufferLength: 180, // Target 3 minutes of buffer
-                maxBufferSize: 120 * 1024 * 1024, // 120 MB
-                maxMaxBufferLength: 300, // Max buffer can grow to 5 minutes
+                maxBufferLength: 180,
+                maxBufferSize: 120 * 1024 * 1024,
+                maxMaxBufferLength: 300,
                 loader: CustomHlsJsLoader,
             };
         }
