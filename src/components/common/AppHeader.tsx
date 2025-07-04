@@ -28,7 +28,7 @@ const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 
 function SourceAndCategorySelector({ onSelection }: { onSelection: () => void }) {
   const { categories, activeSourceId, setActiveSourceId } = useCategories();
-  const [sources] = useLocalStorage<SourceConfig[]>('cinemaViewSources', []);
+  const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -61,14 +61,14 @@ function SourceAndCategorySelector({ onSelection }: { onSelection: () => void })
     <ScrollArea className="flex-1 -mx-6">
         <div className="px-6 space-y-6 pb-6">
             <div>
-                <h3 className="text-lg font-semibold mb-3">内容源</h3>
+                <h3 className="text-base font-semibold mb-2 text-muted-foreground">内容源</h3>
                 <Select value={activeSourceId || ''} onValueChange={handleSourceChange}>
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="w-full text-base py-5">
                         <SelectValue placeholder="选择内容源" />
                     </SelectTrigger>
                     <SelectContent>
                         {sources.map(source => (
-                        <SelectItem key={source.id} value={source.id}>
+                        <SelectItem key={source.id} value={source.id} className="text-base py-2">
                             {source.name}
                         </SelectItem>
                         ))}
@@ -77,7 +77,7 @@ function SourceAndCategorySelector({ onSelection }: { onSelection: () => void })
             </div>
             
             <div>
-                <h3 className="text-lg font-semibold mb-3">分类</h3>
+                <h3 className="text-base font-semibold mb-2 text-muted-foreground">分类</h3>
                 {categories.length > 1 ? (
                     <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
                         {displayCategories.map(category => (
@@ -85,7 +85,7 @@ function SourceAndCategorySelector({ onSelection }: { onSelection: () => void })
                                 key={category.id}
                                 variant="secondary"
                                 onClick={() => handleCategoryClick(category.id)}
-                                className="h-auto justify-center rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-primary hover:text-primary-foreground"
+                                className="h-auto justify-center rounded-lg px-3 py-3 text-sm font-medium transition-colors hover:bg-primary hover:text-primary-foreground"
                             >
                                 <span className="truncate">{category.name}</span>
                             </Button>
@@ -94,7 +94,7 @@ function SourceAndCategorySelector({ onSelection }: { onSelection: () => void })
                 ) : (
                     <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
                         {Array.from({ length: 12 }).map((_, index) => (
-                            <Skeleton key={index} className="h-12 w-full rounded-lg" />
+                            <Skeleton key={index} className="h-[50px] w-full rounded-lg" />
                         ))}
                     </div>
                 )}
@@ -213,8 +213,8 @@ export function AppHeader() {
                                     <ChevronsUpDown className="h-4 w-4 text-muted-foreground shrink-0" />
                                 </button>
                             </SheetTrigger>
-                            <SheetContent side="bottom" className="h-[75svh] flex flex-col p-0">
-                                <SheetHeader className="p-4 border-b">
+                            <SheetContent side="bottom" className="h-[60svh] flex flex-col">
+                                <SheetHeader>
                                     <SheetTitle>浏览内容</SheetTitle>
                                 </SheetHeader>
                                 <SourceAndCategorySelector onSelection={() => setIsSelectorSheetOpen(false)} />
