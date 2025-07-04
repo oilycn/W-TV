@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import AppLogo from "./AppLogo";
+import { usePathname, useRouter } from 'next/navigation';
 import Link from "next/link";
+import AppLogo from "./AppLogo";
 import { Button } from "@/components/ui/button";
-import { Settings, Sun, Moon, Search as SearchIcon, ArrowLeft } from "lucide-react";
+import { Settings, Sun, Moon, Search as SearchIcon, ArrowLeft, ChevronsUpDown } from "lucide-react";
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCategories } from '@/contexts/CategoryContext';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
@@ -20,9 +20,88 @@ import {
 import { SearchBar } from "@/components/search/SearchBar";
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 
+function SourceAndCategorySelector({ onSelection }: { onSelection: () => void }) {
+  const { categories, activeSourceId, setActiveSourceId } = useCategories();
+  const [sources] = useLocalStorage<SourceConfig[]>('cinemaViewSources', []);
+  const router = useRouter();
+  const pathname = usePathname();
 
-const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
+  const displayCategories = categories.filter(c => c.id !== 'all');
+
+  const handleSourceChange = (newSourceId: string) => {
+    setActiveSourceId(newSourceId);
+    if (pathname === '/') {
+        router.push('/');
+    }
+  };
+
+  const handleCategoryClick = (categoryId: string) => {
+    router.push(`/?category=${categoryId}`);
+    onSelection();
+  };
+
+  if (sources.length === 0) {
+    return (
+        <div className="flex flex-col items-center justify-center text-center p-4 h-full">
+             <p className="text-muted-foreground">请先到“设置”页面添加内容源。</p>
+             <Button asChild onClick={onSelection} className="mt-4">
+                <Link href="/settings">前往设置</Link>
+             </Button>
+        </div>
+    )
+  }
+
+  return (
+    <ScrollArea className="flex-1 -mx-6">
+        <div className="px-6 space-y-6 pb-6">
+            <div>
+                <h3 className="text-lg font-semibold mb-3">内容源</h3>
+                <Select value={activeSourceId || ''} onValueChange={handleSourceChange}>
+                    <SelectTrigger className="w-full">
+                        <SelectValue placeholder="选择内容源" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {sources.map(source => (
+                        <SelectItem key={source.id} value={source.id}>
+                            {source.name}
+                        </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+            
+            <div>
+                <h3 className="text-lg font-semibold mb-3">分类</h3>
+                {categories.length > 1 ? (
+                    <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+                        {displayCategories.map(category => (
+                            <Button
+                                key={category.id}
+                                variant="secondary"
+                                onClick={() => handleCategoryClick(category.id)}
+                                className="h-auto justify-center rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-primary hover:text-primary-foreground"
+                            >
+                                <span className="truncate">{category.name}</span>
+                            </Button>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+                        {Array.from({ length: 12 }).map((_, index) => (
+                            <Skeleton key={index} className="h-12 w-full rounded-lg" />
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    </ScrollArea>
+  );
+}
+
 
 export function AppHeader() {
   const [isClient, setIsClient] = useState(false);
@@ -31,6 +110,8 @@ export function AppHeader() {
   const router = useRouter();
   const [isMobileSearchVisible, setIsMobileSearchVisible] = useState(false);
   const isMobile = useIsMobile();
+  const pathname = usePathname();
+  const [isSelectorSheetOpen, setIsSelectorSheetOpen] = useState(false);
   
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
   
@@ -52,7 +133,7 @@ export function AppHeader() {
   if (!isClient) {
     return (
       <header className="sticky top-0 z-20 bg-background/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
-        <div className="flex h-14 items-center border-b px-4 md:px-6">
+        <div className="flex h-14 items-center justify-between border-b px-4 md:px-6">
             <Link href="/" className="mr-4">
               <AppLogo />
             </Link>
@@ -78,7 +159,7 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-20 bg-background/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
-      <div className="relative flex h-14 items-center border-b px-4 md:px-6 overflow-hidden">
+      <div className="relative flex h-14 items-center justify-between border-b px-4 md:px-6 overflow-hidden">
         {/* --- Desktop View --- */}
         <div className="hidden w-full items-center gap-4 md:flex">
           <Link href="/" className="mr-4 flex items-center gap-4">
@@ -120,9 +201,28 @@ export function AppHeader() {
                 
 
                 <div className="absolute left-1/2 -translate-x-1/2">
-                    <span className="text-sm font-medium text-foreground truncate max-w-[calc(100vw-160px)]">
-                        {pageTitle}
-                    </span>
+                    { pathname === '/' ? (
+                        <Sheet open={isSelectorSheetOpen} onOpenChange={setIsSelectorSheetOpen}>
+                            <SheetTrigger asChild>
+                                <button className="flex items-center gap-1.5 rounded-md px-2 py-1 hover:bg-accent -ml-2 -mr-2">
+                                    <span className="text-sm font-medium text-foreground truncate max-w-[calc(100vw-200px)]">
+                                        {pageTitle}
+                                    </span>
+                                    <ChevronsUpDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                                </button>
+                            </SheetTrigger>
+                            <SheetContent side="bottom" className="h-[75svh] flex flex-col p-0">
+                                <SheetHeader className="p-4 border-b">
+                                    <SheetTitle>浏览内容</SheetTitle>
+                                </SheetHeader>
+                                <SourceAndCategorySelector onSelection={() => setIsSelectorSheetOpen(false)} />
+                            </SheetContent>
+                        </Sheet>
+                    ) : (
+                        <span className="text-sm font-medium text-foreground truncate max-w-[calc(100vw-160px)]">
+                            {pageTitle}
+                        </span>
+                    )}
                 </div>
 
                 <div className='flex-1 flex justify-end'>
@@ -134,7 +234,7 @@ export function AppHeader() {
             
             {/* Search View */}
             <div className={cn(
-            "absolute inset-y-0 left-0 right-0 flex items-center gap-2 bg-background px-2 transition-all duration-300 md:hidden",
+            "absolute inset-y-0 left-0 right-0 flex h-full items-center gap-2 bg-background px-2 transition-all duration-300 md:hidden",
             {
                 'opacity-100': isMobileSearchVisible,
                 'opacity-0 pointer-events-none translate-x-4': !isMobileSearchVisible,
