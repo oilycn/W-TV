@@ -1,56 +1,49 @@
-# Dockerfile for Next.js with standalone output
+# Dockerfile
 
-# 1. Builder stage
-# This stage installs dependencies and builds the Next.js application.
-FROM node:20-alpine AS builder
-
-# Set working directory
+# 1. Installer stage: Install dependencies
+FROM node:18-alpine AS deps
+# Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
+RUN apk add --no-cache libc6-compat
 WORKDIR /app
-
-# Install dependencies
-# Copy package.json and lock file (if available) for better caching
-COPY package.json package-lock.json* ./
-# Use npm install to get all dependencies needed for building
+COPY package.json ./
 RUN npm install
 
-# Copy the rest of the application source code
+# 2. Builder stage: Build the application
+FROM node:18-alpine AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Disable Next.js telemetry during the build
-ENV NEXT_TELEMETRY_DISABLED 1
-
-# Build the application
-# The `next build` command will automatically leverage `output: 'standalone'`
-# from your next.config.ts, preparing the app for the final stage.
+# This will trigger the pwa build process as well
 RUN npm run build
 
-# 2. Production stage
-# This stage creates the final, lean production image.
-FROM node:20-alpine AS runner
+# 3. Production stage: Create the final, minimal image
+FROM node:18-alpine AS runner
 WORKDIR /app
 
-# Set environment variables for production
-ENV NODE_ENV production
+ENV NODE_ENV=production
+# Disable Next.js telemetry
 ENV NEXT_TELEMETRY_DISABLED 1
-# The default port for Next.js is 3000
-ENV PORT 3000
 
-# Create a non-root user and group for better security
-RUN addgroup -S nodejs
-RUN adduser -S nextjs -G nodejs
+# Create a non-root user for security
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
 
-# Copy the standalone output from the builder stage.
-# This directory contains the server, public assets, static assets,
-# and minimal required node_modules.
-# We also set the ownership to the non-root user.
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Copy the standalone output
+COPY --from=builder /app/.next/standalone ./
+# Copy the public folder for PWA assets, icons, etc.
+COPY --from=builder /app/public ./public
+# Copy the static assets (built JS, CSS)
+COPY --from=builder /app/.next/static ./.next/static
 
-# Switch to the non-root user
+# Set the correct user
 USER nextjs
 
-# Expose the port the app runs on
+# The port the app will run on
 EXPOSE 3000
 
-# The command to start the Next.js server in standalone mode
+# Set the port environment variable
+ENV PORT 3000
+
+# Start the app
 CMD ["node", "server.js"]
