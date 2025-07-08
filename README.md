@@ -4,6 +4,8 @@
 
 ![](https://raw.githubusercontent.com/oilycn/MyPic/master/IMG/wanfeng-tv.png)
 
+**❗重要提示：在使用本项目前，请务必阅读我们的 [版权与内容免责声明](DISCLAIMER.md)。**
+
 核心功能包括：
 - **动态内容加载**: 从用户配置的多个内容源 (类似TVBox的通用视频API接口) 动态加载和解析内容。
 - **内容源管理**:
