@@ -1,5 +1,7 @@
-
 import type { ContentItem, SourceConfig, PlaybackURL, PlaybackSourceGroup, ApiCategory, PaginatedContentResponse } from '@/types';
+
+// Centralized path for the proxy API route
+const PROXY_API_PATH = '/api/proxy';
 
 // Mock data to be used if fetching fails or no sources are configured
 const mockCategoriesRaw: ApiCategory[] = [
@@ -159,27 +161,32 @@ function mapApiItemToContentItem(apiItem: any): ContentItem | null {
   };
 }
 
-async function fetchViaProxy(targetUrl: string, sourceName?: string): Promise<any> {
-  const proxyRequestUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
-  // console.log(`fetchViaProxy: Requesting ${proxyRequestUrl} (for ${sourceName || 'target resource'})`);
+async function fetchViaProxy(
+  targetUrl: string,
+  options: { sourceName?: string; revalidate?: number } = {}
+): Promise<any> {
+  const { sourceName, revalidate } = options;
+  const proxyRequestUrl = `${PROXY_API_PATH}?url=${encodeURIComponent(targetUrl)}`;
   
   try {
-    const response = await fetch(proxyRequestUrl);
+    const fetchOptions: RequestInit = {
+      next: revalidate !== undefined ? { revalidate } : undefined,
+    };
+    const response = await fetch(proxyRequestUrl, fetchOptions);
 
-    if (!response.ok) { // This means the /api/proxy call itself was not ok OR it's forwarding an error
+    if (!response.ok) {
       let errorDetails = `Status: ${response.status}`;
       let errorTextFromServer = '';
       try {
-        // Proxy should return JSON error, even if it's forwarding an upstream text error in 'details'
         const errorData = await response.json();
-        errorDetails = errorData.error || errorData.message || errorDetails; // errorData.error is from proxy's own error, errorData.message might be from target
-        if (errorData.details) { // This 'details' comes from the proxy wrapping an upstream text error
+        errorDetails = errorData.error || errorData.message || errorDetails;
+        if (errorData.details) {
             errorTextFromServer = String(errorData.details);
         }
-      } catch (e) { /* ignore if error response is not JSON, errorDetails remains status */ }
-      const errorMessage = `Error fetching from ${sourceName || 'source'} (via proxy ${proxyRequestUrl}): ${errorDetails}`;
+      } catch (e) { /* ignore */ }
+      const errorMessage = `Error fetching from ${sourceName || 'source'} (via proxy): ${errorDetails}`;
       
-      const logFn = (response.status >= 500 && response.status <= 599) ? console.warn : console.error;
+      const logFn = (response.status >= 500) ? console.warn : console.error;
       logFn(`fetchViaProxy: ${errorMessage}`, errorTextFromServer ? `\nUpstream Details: ${errorTextFromServer.substring(0, 500)}` : '');
       
       const errorToThrow = new Error(errorMessage);
@@ -190,36 +197,28 @@ async function fetchViaProxy(targetUrl: string, sourceName?: string): Promise<an
     const proxyResponseData = await response.json();
 
     if (proxyResponseData.error && !proxyResponseData.nonJsonData) {
-        // console.error(`fetchViaProxy: Proxy reported an error from upstream for ${targetUrl}:`, proxyResponseData.error, "Details:", proxyResponseData.details);
         const errorToThrow = new Error(proxyResponseData.error + (proxyResponseData.details ? `: ${proxyResponseData.details}` : ''));
         (errorToThrow as any).details = proxyResponseData.details;
         throw errorToThrow;
     }
 
     if (typeof proxyResponseData.nonJsonData === 'string') {
-      // This means the upstream API returned plain text, which the proxy forwarded.
-      // It's up to the caller to decide if this is an error or expected.
-      // For functions like fetchApiCategories or fetchApiContentList, they treat this as an API error.
-      // console.warn(`fetchViaProxy: Proxy returned raw string (nonJsonData) for ${targetUrl}. Data: "${proxyResponseData.nonJsonData.substring(0, 200)}"`);
       throw new Error(`Target source (${sourceName || 'resource'}) returned non-JSON data: "${proxyResponseData.nonJsonData.substring(0, 100)}"`);
     }
     
-    // console.log(`fetchViaProxy: Successfully received and parsed JSON data from proxy for ${sourceName || targetUrl}`);
     return proxyResponseData;
 
   } catch (error) {
-    // This catches errors from the fetch operation to the proxy itself, 
-    // or re-throws errors from the above blocks.
-    // console.error(`fetchViaProxy: Exception for ${targetUrl}:`, error);
     throw error; 
   }
 }
 
-
 export async function fetchApiCategories(sourceUrl: string): Promise<ApiCategory[]> {
-  // console.log(`fetchApiCategories: Attempting to fetch categories from ${sourceUrl}`);
   try {
-    const data = await fetchViaProxy(sourceUrl, `categories from ${sourceUrl}`);
+    const data = await fetchViaProxy(sourceUrl, {
+      sourceName: `categories from ${sourceUrl}`,
+      revalidate: 3600, // Cache categories for 1 hour
+    });
     
     if (data && Array.isArray(data.class)) {
       let categories: ApiCategory[] = data.class.map((cat: any) => ({
@@ -228,18 +227,12 @@ export async function fetchApiCategories(sourceUrl: string): Promise<ApiCategory
       })).filter((cat: ApiCategory | null): cat is ApiCategory => cat !== null && cat.id !== '' && cat.name !== '');
       
       if (!categories.some(c => c.id === 'all')) {
-        // console.log("fetchApiCategories: Prepending 'All' category.");
         categories.unshift({ id: 'all', name: '全部' });
       }
-      // console.log(`fetchApiCategories: Successfully fetched ${categories.length} categories from ${sourceUrl}.`);
       return categories;
     }
-    // console.warn(`No 'class' array found in category data from ${sourceUrl}`, JSON.stringify(data).substring(0,200));
     return [{ id: 'all', name: '全部 (默认)' }]; 
   } catch (error) {
-    // Error is already logged by fetchViaProxy if it's a network/proxy issue
-    // console.error(`Failed to fetch categories from ${sourceUrl}. Error:`, error instanceof Error ? error.message : String(error));
-    // Ensure 'All' category is always present, even on error.
     return [{ id: 'all', name: '全部 (错误)' }]; 
   }
 }
@@ -258,10 +251,14 @@ export async function fetchApiContentList(
     if (params.categoryId && params.categoryId !== 'all') apiUrl.searchParams.set('t', params.categoryId);
     if (params.searchTerm) apiUrl.searchParams.set('wd', params.searchTerm);
   }
-  // console.log(`fetchApiContentList: Requesting ${apiUrl.toString()} from source ${sourceUrl} with params ${JSON.stringify(params)}`);
 
   try {
-    const actualData = await fetchViaProxy(apiUrl.toString(), `content list/item from ${sourceUrl}`);
+    // Cache search results and lists for a shorter duration
+    const revalidateDuration = params.ids ? 86400 : 60; // 1 day for specific items, 1 minute for lists/searches
+    const actualData = await fetchViaProxy(apiUrl.toString(), {
+      sourceName: `content list/item from ${sourceUrl}`,
+      revalidate: revalidateDuration,
+    });
         
     const items = (actualData.list && Array.isArray(actualData.list))
       ? actualData.list.map(mapApiItemToContentItem).filter((item: ContentItem | null): item is ContentItem => item !== null)
@@ -272,8 +269,6 @@ export async function fetchApiContentList(
     const total = parseInt(String(actualData.total), 10) || (items.length > 0 ? items.length : 0); 
     const limit = parseInt(String(actualData.limit), 10) || (items.length > 0 ? items.length : 20);
 
-
-    // console.log(`fetchApiContentList: Fetched ${items.length} items. Page: ${page}, PageCount: ${pageCount}, Total: ${total}, Limit: ${limit}`);
     return {
       items,
       page,
@@ -283,29 +278,23 @@ export async function fetchApiContentList(
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    if (params.searchTerm && (errorMessage.includes('暂不支持搜索') || errorMessage.includes('Target source (content list/item from') && errorMessage.includes('returned non-JSON data: "暂不支持搜索"'))) {
-      console.warn(`API Search Not Supported (or returned non-JSON 'not supported' message): ${sourceUrl} (API URL: ${apiUrl.toString()}). Error: ${errorMessage}`);
+    if (params.searchTerm && (errorMessage.includes('暂不支持搜索') || errorMessage.includes('returned non-JSON data: "暂不支持搜索"'))) {
+      console.warn(`API Search Not Supported: ${sourceUrl}. Error: ${errorMessage}`);
     } else if (!errorMessage.includes('Error fetching from')) { 
-      // Avoid double logging if fetchViaProxy already logged it.
-      // Log other unexpected errors during processing *after* successful proxy fetch, or if fetchViaProxy re-throws.
-      console.error(`Failed to fetch or parse content list from ${sourceUrl} (API URL: ${apiUrl.toString()}). Error:`, errorMessage);
+      console.error(`Failed to fetch or parse content list from ${sourceUrl}. Error:`, errorMessage);
     }
     return { items: [], page: 1, pageCount: 1, limit: 20, total: 0 };
   }
 }
 
 export async function fetchContentItemById(sourceUrl: string, itemId: string): Promise<ContentItem | null> {
-  // console.log(`fetchContentItemById: Fetching item ${itemId} from ${sourceUrl}`);
   try {
     const response = await fetchApiContentList(sourceUrl, { ids: itemId });
     if (response.items && response.items.length > 0) {
-      // console.log(`fetchContentItemById: Found item ${itemId}`);
       return response.items[0];
     }
-    // console.warn(`fetchContentItemById: Item with ID ${itemId} not found or error in response from ${sourceUrl}. Response items count:`, response.items?.length);
     return null;
   } catch (error) {
-     // Errors would be logged by fetchApiContentList or fetchViaProxy
      return null;
   }
 }
