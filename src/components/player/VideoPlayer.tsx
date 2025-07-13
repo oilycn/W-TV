@@ -77,15 +77,25 @@ export default function VideoPlayer({
     if (isHLSProvider(provider)) {
       provider.library = Hls;
       provider.config = {
-        manifestLoadTimeout: 60000,
-        levelLoadTimeout: 60000,
-        fragLoadTimeout: 15000,
-        fragLoadRetryDelay: 1000,
-        fragLoadMaxRetry: 8,
+        // --- Start of Performance Optimizations ---
+
+        // 1. Timeout and Retry Strategy: "Quick Fail, Many Retries"
+        // This helps recover from temporary network glitches faster than waiting for a long timeout.
+        manifestLoadTimeout: 60000, // Allow more time for the main playlist to load.
+        levelLoadTimeout: 60000,   // More time for sub-playlists.
+        fragLoadTimeout: 15000,    // Shorter timeout for individual segments (15s).
+        fragLoadRetryDelay: 1000,  // Wait 1s before retrying a failed segment.
+        fragLoadMaxRetry: 8,       // Retry a segment up to 8 times.
+
+        // 2. Buffer Strategy: "Buffer Aggressively"
+        // This is key to surviving slow segment loads without stuttering.
+        maxBufferLength: 180,              // Aim to have 3 minutes of video buffered ahead.
+        maxBufferSize: 120 * 1024 * 1024,  // Allow HLS to use up to 120MB of memory for this buffer.
+        maxMaxBufferLength: 300,           // The absolute maximum buffer, even in good conditions (5 minutes).
+
+        // --- End of Performance Optimizations ---
+        
         autoStartLoad: true,
-        maxBufferLength: 180,
-        maxBufferSize: 120 * 1024 * 1024,
-        maxMaxBufferLength: 300,
         loader: CustomHlsJsLoader,
       };
     }
