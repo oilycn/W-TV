@@ -362,7 +362,7 @@ function HomePageContent() {
           {/* 内容网格 */}
           <div className="p-1 md:p-2">
             {isLoadingContent && contentItems.length === 0 ? (
-              <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 md:gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 md:gap-3">
                 {Array.from({ length: 18 }).map((_, index) => (
                   <div key={index} className="animate-pulse">
                     <Skeleton className="aspect-[3/4] w-full rounded-lg" />
@@ -370,7 +370,7 @@ function HomePageContent() {
                 ))}
               </div>
             ) : contentItems.length > 0 ? (
-              <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 md:gap-3" ref={mainContentRef}>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 md:gap-3" ref={mainContentRef}>
                 {contentItems.map((item, index) => (
                   <ContentCard 
                     key={`${item.id}-${activeSourceUrl || 'mock'}-${item.title}-${index}`}
@@ -449,7 +449,7 @@ function HomePageSkeleton() {
         
         {/* 内容网格骨架 */}
         <div className="p-1 md:p-2">
-          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 md:gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 md:gap-3">
             {Array.from({ length: 18 }).map((_, index) => (
               <div key={index} className="animate-pulse">
                 <Skeleton className="aspect-[3/4] w-full rounded-lg" />
