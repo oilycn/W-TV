@@ -37,7 +37,7 @@ export function ContentCard({ item, sourceId, sourceName }: ContentCardProps) {
         
         {/* 更新状态标签 - 右上角 */}
         {item.remarks && (
-          <div className="absolute top-2 right-2 bg-gradient-to-r from-red-500 to-red-600 text-white text-xs px-2 py-1 rounded-md font-medium shadow-lg z-10">
+          <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-md font-medium shadow-lg z-10">
             {item.remarks}
           </div>
         )}

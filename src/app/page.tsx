@@ -10,7 +10,14 @@ import { fetchApiContentList, getMockPaginatedResponse } from '@/lib/content-loa
 import { ContentCard } from '@/components/content/ContentCard';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, Search as SearchIconTv, Tv2, Loader2 } from 'lucide-react';
+import { 
+  AlertCircle, Search as SearchIconTv, Tv2, Loader2,
+  Film, Tv, Palette, Mic, BookOpen, Music, Trophy, Gamepad2,
+  Newspaper, GraduationCap, Home, ChefHat, Plane, Rocket,
+  Ghost, Laugh, Heart, Zap, Sword, Shield, Baby, DollarSign,
+  Stethoscope, Sparkles, Car, Laptop, Smartphone, Camera,
+  Headphones, Radio, Monitor, Clapperboard, Theater, Popcorn
+} from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useCategories } from '@/contexts/CategoryContext';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
@@ -256,11 +263,11 @@ function HomePageContent() {
       <div className="flex gap-6">
         {/* 左侧边栏 - 固定在页面左侧 */}
         {isClient && !isMobile && (
-          <div className="hidden lg:block fixed left-0 top-16 w-64 h-[calc(100vh-4rem)] bg-background border-r border-transparent z-10">
+          <div className="hidden lg:block fixed left-0 top-16 w-48 h-[calc(100vh-4rem)] bg-background border-r border-transparent z-10">
             <div className="h-full flex flex-col">
               {/* 分类导航 - 可滚动区域 */}
               {(!isLoadingCategories && globalCategories.length > 0) && (
-                <div className="flex-1 overflow-y-auto p-4" style={{
+                <div className="flex-1 overflow-y-auto px-2 py-3" style={{
                   scrollbarWidth: 'none',
                   msOverflowStyle: 'none'
                 }}>
@@ -270,19 +277,73 @@ function HomePageContent() {
                     }
                   `}</style>
                   <div className="space-y-1">
-                    {globalCategories.map(category => (
-                      <button
-                        key={`${activeSourceUrl || 'mock'}-${category.id}`}
-                        onClick={() => handleCategoryChange(category.id)}
-                        className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all duration-200 ${
-                          selectedCategoryId === category.id 
-                            ? 'bg-primary text-primary-foreground font-medium' 
-                            : 'text-foreground hover:bg-muted hover:text-foreground'
-                        }`}
-                      >
-                        {category.name}
-                      </button>
-                    ))}
+                    {globalCategories.map((category, index) => {
+                      // 线条风格图标映射
+                      const getIcon = (name: string, index: number) => {
+                        const iconComponents = [
+                          Film, Tv, Palette, Mic, BookOpen, Music, Trophy, Gamepad2,
+                          Newspaper, GraduationCap, Home, ChefHat, Plane, Rocket,
+                          Ghost, Laugh, Heart, Zap, Sword, Shield, Baby, DollarSign,
+                          Stethoscope, Sparkles, Car, Laptop, Smartphone, Camera,
+                          Headphones, Radio, Monitor, Clapperboard, Theater, Popcorn
+                        ];
+                        
+                        // 智能匹配线条图标
+                        if (name.includes('电影') || name.includes('影')) return Film;
+                        if (name.includes('电视') || name.includes('剧') || name.includes('连续')) return Tv;
+                        if (name.includes('动漫') || name.includes('动画') || name.includes('卡通')) return Palette;
+                        if (name.includes('综艺') || name.includes('娱乐') || name.includes('真人秀')) return Theater;
+                        if (name.includes('纪录') || name.includes('记录') || name.includes('文献')) return BookOpen;
+                        if (name.includes('音乐') || name.includes('歌曲') || name.includes('演唱')) return Music;
+                        if (name.includes('体育') || name.includes('运动') || name.includes('比赛')) return Trophy;
+                        if (name.includes('游戏') || name.includes('电竞') || name.includes('竞技')) return Gamepad2;
+                        if (name.includes('新闻') || name.includes('资讯') || name.includes('时事')) return Newspaper;
+                        if (name.includes('科教') || name.includes('教育') || name.includes('学习')) return GraduationCap;
+                        if (name.includes('生活') || name.includes('日常') || name.includes('居家')) return Home;
+                        if (name.includes('美食') || name.includes('料理') || name.includes('烹饪')) return ChefHat;
+                        if (name.includes('旅游') || name.includes('旅行') || name.includes('风景')) return Plane;
+                        if (name.includes('科幻') || name.includes('未来') || name.includes('太空')) return Rocket;
+                        if (name.includes('恐怖') || name.includes('惊悚') || name.includes('悬疑')) return Ghost;
+                        if (name.includes('喜剧') || name.includes('搞笑') || name.includes('幽默')) return Laugh;
+                        if (name.includes('爱情') || name.includes('浪漫') || name.includes('情感')) return Heart;
+                        if (name.includes('动作') || name.includes('武打') || name.includes('功夫')) return Zap;
+                        if (name.includes('战争') || name.includes('军事') || name.includes('历史')) return Sword;
+                        if (name.includes('犯罪') || name.includes('警匪') || name.includes('侦探')) return Shield;
+                        if (name.includes('儿童') || name.includes('少儿') || name.includes('亲子')) return Baby;
+                        if (name.includes('财经') || name.includes('经济') || name.includes('商业')) return DollarSign;
+                        if (name.includes('健康') || name.includes('医疗') || name.includes('养生')) return Stethoscope;
+                        if (name.includes('时尚') || name.includes('美妆') || name.includes('潮流')) return Sparkles;
+                        if (name.includes('汽车') || name.includes('车辆') || name.includes('交通')) return Car;
+                        if (name.includes('科技') || name.includes('数码') || name.includes('互联网')) return Laptop;
+                        if (name.includes('全部') || name.includes('所有') || name.includes('全')) return Smartphone;
+                        if (name.includes('直播') || name.includes('现场')) return Radio;
+                        if (name.includes('电台') || name.includes('广播')) return Headphones;
+                        if (name.includes('摄影') || name.includes('拍摄')) return Camera;
+                        if (name.includes('监控') || name.includes('安防')) return Monitor;
+                        if (name.includes('电影院') || name.includes('影院')) return Clapperboard;
+                        if (name.includes('零食') || name.includes('小食')) return Popcorn;
+                        
+                        // 如果没有匹配到，使用索引对应的图标组件
+                        return iconComponents[index % iconComponents.length];
+                      };
+                      
+                      const IconComponent = getIcon(category.name, index);
+                      
+                      return (
+                        <button
+                          key={`${activeSourceUrl || 'mock'}-${category.id}`}
+                          onClick={() => handleCategoryChange(category.id)}
+                          className={`w-full text-left px-4 py-2.5 rounded-md text-base transition-all duration-200 flex items-center gap-3 ${
+                            selectedCategoryId === category.id 
+                              ? 'bg-primary text-primary-foreground font-medium' 
+                              : 'text-foreground hover:bg-muted hover:text-foreground'
+                          }`}
+                        >
+                          <IconComponent className="w-5 h-5 flex-shrink-0" />
+                          <span className="truncate">{category.name}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -291,7 +352,7 @@ function HomePageContent() {
               <div className="flex-shrink-0 border-t border-border/20 bg-background">
                 {/* 统计信息 */}
                 {contentItems.length > 0 && (
-                  <div className="px-4 py-3">
+                  <div className="px-3 py-3">
                     <h3 className="text-sm font-medium text-foreground mb-2">统计信息</h3>
                     <div className="space-y-1 text-sm">
                       <div className="flex justify-between">
@@ -314,7 +375,7 @@ function HomePageContent() {
 
                 {/* 当前源信息 */}
                 {activeSourceName && (
-                  <div className="px-4 pb-4">
+                  <div className="px-3 pb-3">
                     <div className={contentItems.length > 0 ? "border-t border-border/20 pt-3" : ""}>
                       <h3 className="text-sm font-medium text-foreground mb-2">当前源</h3>
                       <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
@@ -333,7 +394,7 @@ function HomePageContent() {
         )}
 
         {/* 右侧主内容区域 */}
-        <div className={`flex-1 min-w-0 ${isClient && !isMobile ? 'lg:ml-64' : ''}`}>
+        <div className={`flex-1 min-w-0 ${isClient && !isMobile ? 'lg:ml-48' : ''}`}>
           {/* 移动端分类导航 */}
           {(!isLoadingCategories && globalCategories.length > 0 && isMobile) && (
             <div className="mb-3 lg:hidden">
@@ -362,7 +423,7 @@ function HomePageContent() {
           {/* 内容网格 */}
           <div className="p-1 md:p-2">
             {isLoadingContent && contentItems.length === 0 ? (
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 md:gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2 md:gap-3">
                 {Array.from({ length: 18 }).map((_, index) => (
                   <div key={index} className="animate-pulse">
                     <Skeleton className="aspect-[3/4] w-full rounded-lg" />
@@ -370,7 +431,7 @@ function HomePageContent() {
                 ))}
               </div>
             ) : contentItems.length > 0 ? (
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 md:gap-3" ref={mainContentRef}>
+              <div className="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2 md:gap-3" ref={mainContentRef}>
                 {contentItems.map((item, index) => (
                   <ContentCard 
                     key={`${item.id}-${activeSourceUrl || 'mock'}-${item.title}-${index}`}
@@ -416,16 +477,16 @@ function HomePageSkeleton() {
   return (
     <div className="flex gap-6">
       {/* 左侧边栏骨架 */}
-      <div className="hidden lg:block fixed left-0 top-16 w-64 h-[calc(100vh-4rem)] bg-background border-r border-transparent z-10">
+      <div className="hidden lg:block fixed left-0 top-16 w-48 h-[calc(100vh-4rem)] bg-background border-r border-transparent z-10">
         <div className="h-full flex flex-col">
-          <div className="flex-1 p-4">
+          <div className="flex-1 px-2 py-3">
             <div className="space-y-1">
               {Array.from({ length: 8 }).map((_, index) => (
-                <Skeleton key={index} className="h-10 w-full rounded-lg" />
+                <Skeleton key={index} className="h-10 w-full rounded-md" />
               ))}
             </div>
           </div>
-          <div className="flex-shrink-0 border-t border-border/20 bg-background p-4">
+          <div className="flex-shrink-0 border-t border-border/20 bg-background p-3">
             <Skeleton className="h-4 w-16 mb-2" />
             <div className="space-y-1">
               <Skeleton className="h-4 w-full" />
@@ -437,7 +498,7 @@ function HomePageSkeleton() {
       </div>
 
       {/* 右侧内容骨架 */}
-      <div className="flex-1 min-w-0 lg:ml-64">
+      <div className="flex-1 min-w-0 lg:ml-48">
         {/* 移动端分类骨架 */}
         <div className="mb-3 lg:hidden">
           <div className="flex space-x-1 border-b border-transparent">
@@ -449,7 +510,7 @@ function HomePageSkeleton() {
         
         {/* 内容网格骨架 */}
         <div className="p-1 md:p-2">
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 md:gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2 md:gap-3">
             {Array.from({ length: 18 }).map((_, index) => (
               <div key={index} className="animate-pulse">
                 <Skeleton className="aspect-[3/4] w-full rounded-lg" />
