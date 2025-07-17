@@ -35,28 +35,31 @@ export function ContentCard({ item, sourceId, sourceName }: ContentCardProps) {
           data-ai-hint={getAiHint(item)}
         />
         
-        {/* 顶部标签 */}
+        {/* 更新状态标签 - 右上角 */}
         {item.remarks && (
-          <div className="absolute top-2 right-2 bg-gradient-to-r from-red-500 to-red-600 text-white text-xs px-2 py-1 rounded-md font-medium shadow-lg">
+          <div className="absolute top-2 right-2 bg-gradient-to-r from-red-500 to-red-600 text-white text-xs px-2 py-1 rounded-md font-medium shadow-lg z-10">
             {item.remarks}
-          </div>
-        )}
-        
-        {/* 评分标签 */}
-        {item.userRating && (
-          <div className="absolute top-2 left-2 flex items-center gap-1 bg-black/70 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-md">
-            <Star className="w-3 h-3 fill-current text-yellow-400" />
-            <span className="font-semibold">{item.userRating.toFixed(1)}</span>
           </div>
         )}
         
         {/* 底部信息覆盖层 */}
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-3 pt-8">
           <div className="text-white">
-            {/* 标题 */}
-            <h3 className="font-semibold text-sm leading-tight line-clamp-2 mb-1" title={item.title}>
-              {item.title || "未知标题"}
-            </h3>
+            {/* 评分和标题 */}
+            <div className="flex items-start gap-2 mb-1">
+              {/* 评分 - 移动端显示在标题前 */}
+              {item.userRating && (
+                <div className="flex items-center gap-1 bg-yellow-500/20 backdrop-blur-sm text-yellow-400 text-xs px-1.5 py-0.5 rounded flex-shrink-0">
+                  <Star className="w-3 h-3 fill-current" />
+                  <span className="font-semibold">{item.userRating.toFixed(1)}</span>
+                </div>
+              )}
+              
+              {/* 标题 */}
+              <h3 className="font-semibold text-sm leading-tight line-clamp-2 flex-1" title={item.title}>
+                {item.title || "未知标题"}
+              </h3>
+            </div>
             
             {/* 年份和类型 */}
             <div className="flex items-center gap-2 text-xs text-white/80">
