@@ -397,7 +397,7 @@ function HomePageContent() {
         <div className={`flex-1 min-w-0 ${isClient && !isMobile ? 'lg:ml-48' : ''}`}>
           {/* 移动端分类导航 */}
           {(!isLoadingCategories && globalCategories.length > 0 && isMobile) && (
-            <div className="mb-3 lg:hidden">
+            <div className="lg:hidden">
               <ScrollArea className="w-full whitespace-nowrap">
                 <div className="flex space-x-1 border-b border-transparent">
                   {globalCategories.map(category => (
@@ -421,7 +421,7 @@ function HomePageContent() {
           )}
 
           {/* 内容网格 */}
-          <div className="p-1 md:p-2">
+          <div className="p-1 md:p-2 pt-0">
             {isLoadingContent && contentItems.length === 0 ? (
               <div className="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2 md:gap-3">
                 {Array.from({ length: 18 }).map((_, index) => (
@@ -500,7 +500,7 @@ function HomePageSkeleton() {
       {/* 右侧内容骨架 */}
       <div className="flex-1 min-w-0 lg:ml-48">
         {/* 移动端分类骨架 */}
-        <div className="mb-3 lg:hidden">
+        <div className="lg:hidden">
           <div className="flex space-x-1 border-b border-transparent">
             {Array.from({ length: 6 }).map((_, index) => (
               <Skeleton key={index} className="h-10 w-16 rounded-none" />
@@ -509,7 +509,7 @@ function HomePageSkeleton() {
         </div>
         
         {/* 内容网格骨架 */}
-        <div className="p-1 md:p-2">
+        <div className="p-1 md:p-2 pt-0">
           <div className="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2 md:gap-3">
             {Array.from({ length: 18 }).map((_, index) => (
               <div key={index} className="animate-pulse">
