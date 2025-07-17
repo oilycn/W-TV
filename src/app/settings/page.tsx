@@ -9,8 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, PlusCircle, DownloadCloud, XCircle, Sun, Moon } from 'lucide-react';
+import { Trash2, PlusCircle, DownloadCloud, XCircle, Sun, Moon, Settings } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Switch } from '@/components/ui/switch';
 import { useCategories } from '@/contexts/CategoryContext';
@@ -310,151 +311,326 @@ export default function SettingsPage() {
   const renderSourcesList = () => {
     if (!isClient) {
       return (
-        <div className="space-y-4">
-          <Skeleton className="h-[76px] w-full rounded-md" />
-          <Skeleton className="h-[76px] w-full rounded-md" />
+        <div className="space-y-3">
+          <Skeleton className="h-16 w-full rounded-lg" />
+          <Skeleton className="h-16 w-full rounded-lg" />
+          <Skeleton className="h-16 w-full rounded-lg" />
         </div>
       );
     }
 
     if (sources.length === 0) {
-      return <p className="text-muted-foreground">暂无内容源。请添加一个以上的内容源或使用订阅链接加载。</p>;
+      return (
+        <div className="text-center py-8">
+          <div className="inline-flex items-center justify-center w-12 h-12 bg-muted/50 rounded-full mb-3">
+            <Settings className="h-6 w-6 text-muted-foreground" />
+          </div>
+          <h3 className="text-base font-semibold mb-2">暂无内容源</h3>
+          <p className="text-sm text-muted-foreground max-w-md mx-auto">
+            您还没有添加任何内容源。请使用上方的订阅链接或手动添加功能来添加内容源。
+          </p>
+        </div>
+      );
     }
 
     return (
-      <div className="space-y-4">
-        {sources.map(source => (
-          <Card 
+      <div className="space-y-3">
+        {sources.map((source, index) => (
+          <div 
             key={source.id} 
-            className={`flex items-center justify-between p-4 ${source.id === activeSourceId ? 'border-primary ring-2 ring-primary' : ''}`}
+            className={`group relative overflow-hidden rounded-xl border-2 transition-all duration-300 hover:shadow-lg ${
+              source.id === activeSourceId 
+                ? 'border-primary bg-primary/5 shadow-md' 
+                : 'border-border bg-card hover:border-primary/50'
+            }`}
           >
-            <div>
-              <p className="font-medium text-foreground">{source.name}</p>
-              <p className="text-sm text-muted-foreground break-all">{source.url}</p>
+            {/* Active indicator */}
+            {source.id === activeSourceId && (
+              <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-primary to-accent"></div>
+            )}
+            
+            <div className="flex items-center justify-between p-3">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                {/* Source icon */}
+                <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold ${
+                  source.id === activeSourceId 
+                    ? 'bg-primary text-primary-foreground' 
+                    : 'bg-muted text-muted-foreground'
+                }`}>
+                  {source.name.charAt(0).toUpperCase()}
+                </div>
+                
+                {/* Source info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h4 className="text-sm font-semibold text-foreground truncate">{source.name}</h4>
+                    {source.id === activeSourceId && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+                        当前使用
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate" title={source.url}>
+                    {source.url}
+                  </p>
+                  <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                    <span>源 #{index + 1}</span>
+                    <span>•</span>
+                    <span>API 接口</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Actions */}
+              <div className="flex items-center gap-1">
+                {source.id !== activeSourceId && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => setActiveSourceId(source.id)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-primary hover:text-primary hover:bg-primary/10 h-7 px-2 text-xs"
+                  >
+                    设为当前
+                  </Button>
+                )}
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => handleRemoveSource(source.id)} 
+                  aria-label="移除源"
+                  className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10 h-7 w-7 p-0"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
-            <Button variant="ghost" size="icon" onClick={() => handleRemoveSource(source.id)} aria-label="移除源">
-              <Trash2 className="h-5 w-5 text-destructive" />
-            </Button>
-          </Card>
+          </div>
         ))}
+        
+        {/* Summary */}
+        <div className="mt-4 p-3 bg-muted/30 rounded-lg border border-dashed">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">
+              共 {sources.length} 个内容源
+            </span>
+            <span className="text-muted-foreground">
+              当前使用: {sources.find(s => s.id === activeSourceId)?.name || '未选择'}
+            </span>
+          </div>
+        </div>
       </div>
     );
   };
 
   return (
-    <div className="container mx-auto py-4 space-y-6">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold mb-2 text-foreground">设置</h1>
-        <p className="text-muted-foreground">
-          管理您的内容源、主题和其他应用设置。
-        </p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+      <div className="container mx-auto py-4 sm:py-6 px-4 max-w-4xl">
+        {/* Header Section */}
+        <div className="text-center mb-4 sm:mb-6 animate-in fade-in-50 slide-in-from-top-5 duration-700">
+          <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-primary/10 rounded-full mb-2 sm:mb-3">
+            <Settings className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+          </div>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold mb-1 sm:mb-2 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            应用设置
+          </h1>
+          <p className="text-muted-foreground text-sm sm:text-base max-w-2xl mx-auto px-2">
+            个性化您的观影体验，管理内容源和应用偏好设置
+          </p>
+        </div>
 
-       <Card>
-        <CardHeader>
-          <CardTitle>外观设置</CardTitle>
-          <CardDescription>自定义应用的外观和主题。</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between rounded-lg border p-4">
-            <div className="space-y-0.5">
-              <Label htmlFor="theme-switch">主题模式</Label>
-              <p className="text-xs text-muted-foreground">
-                切换亮色或暗色主题。
-              </p>
+        <div className="grid gap-4 sm:gap-6 md:gap-8 animate-in fade-in-50 duration-500">
+          {/* Theme Settings */}
+          <Card className="overflow-hidden border-0 shadow-lg bg-card/50 backdrop-blur-sm animate-in slide-in-from-left-5 duration-700 delay-100">
+            <div className="bg-gradient-to-r from-primary/10 to-accent/10 p-1">
+              <div className="bg-card rounded-lg">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-primary/10 rounded-md">
+                      {theme === 'dark' ? <Moon className="h-4 w-4 text-primary" /> : <Sun className="h-4 w-4 text-primary" />}
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">外观主题</CardTitle>
+                      <CardDescription className="text-sm">选择界面主题风格</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3 transition-all hover:bg-muted/50">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="theme-switch" className="text-sm font-medium">主题模式</Label>
+                      <p className="text-xs text-muted-foreground">
+                        {theme === 'dark' ? '深色主题' : '浅色主题'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Sun className={`h-4 w-4 transition-colors ${theme === 'light' ? 'text-primary' : 'text-muted-foreground'}`} />
+                      <Switch
+                        id="theme-switch"
+                        checked={theme === 'dark'}
+                        onCheckedChange={toggleTheme}
+                        aria-label="切换主题"
+                        className="data-[state=checked]:bg-primary"
+                      />
+                      <Moon className={`h-4 w-4 transition-colors ${theme === 'dark' ? 'text-primary' : 'text-muted-foreground'}`} />
+                    </div>
+                  </div>
+                </CardContent>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Sun className="h-5 w-5" />
-              <Switch
-                id="theme-switch"
-                checked={theme === 'dark'}
-                onCheckedChange={toggleTheme}
-                aria-label="切换主题"
-              />
-              <Moon className="h-5 w-5" />
+          </Card>
+
+          {/* Subscription Settings */}
+          <Card className="overflow-hidden border-0 shadow-lg bg-card/50 backdrop-blur-sm animate-in slide-in-from-left-5 duration-700 delay-200">
+            <div className="bg-gradient-to-r from-blue-500/10 to-cyan-500/10 p-1">
+              <div className="bg-card rounded-lg">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-blue-500/10 rounded-md">
+                      <DownloadCloud className="h-4 w-4 text-blue-500" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">订阅管理</CardTitle>
+                      <CardDescription className="text-sm">批量导入内容源配置</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3 p-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="subscriptionUrl" className="text-sm font-medium">订阅链接 URL</Label>
+                    <div className="relative">
+                      <Input
+                        id="subscriptionUrl"
+                        type="url"
+                        value={currentSubscriptionUrlInput}
+                        onChange={(e) => setCurrentSubscriptionUrlInput(e.target.value)}
+                        placeholder="例如: https://example.com/sources.json"
+                        disabled={isLoadingSubscription}
+                        className="pr-8 h-9 text-sm focus:border-primary transition-colors"
+                      />
+                      {currentSubscriptionUrlInput && (
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                          <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                        </div>
+                      )}
+                    </div>
+                    {isClient && subscriptionUrl && (
+                      <div className="flex items-center gap-2 text-xs text-green-600 bg-green-50 dark:bg-green-900/20 p-2 rounded-md">
+                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                        <span>当前订阅: {subscriptionUrl}</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+                <CardFooter className="flex flex-col sm:flex-row gap-2 pt-0 p-4">
+                  <Button 
+                    onClick={handleLoadSubscription} 
+                    size="sm"
+                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white relative overflow-hidden"
+                    disabled={isLoadingSubscription}
+                  >
+                    {isLoadingSubscription && (
+                      <div className="absolute inset-0 bg-blue-600/20">
+                        <div className="h-full bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse"></div>
+                      </div>
+                    )}
+                    <DownloadCloud className={`mr-1.5 h-3.5 w-3.5 ${isLoadingSubscription ? 'animate-bounce' : ''}`} /> 
+                    {isLoadingSubscription ? "加载中..." : "加载订阅"}
+                  </Button>
+                  {isClient && subscriptionUrl && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRemoveSubscription}
+                      disabled={isLoadingSubscription}
+                      className="flex-1 sm:flex-none border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                    >
+                      <XCircle className="mr-1.5 h-3.5 w-3.5" />
+                      移除订阅
+                    </Button>
+                  )}
+                </CardFooter>
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </Card>
+          
+          {/* Manual Source Addition */}
+          <Card className="overflow-hidden border-0 shadow-lg bg-card/50 backdrop-blur-sm animate-in slide-in-from-left-5 duration-700 delay-300">
+            <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 p-1">
+              <div className="bg-card rounded-lg">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-green-500/10 rounded-md">
+                      <PlusCircle className="h-4 w-4 text-green-500" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">添加内容源</CardTitle>
+                      <CardDescription className="text-sm">手动添加自定义内容源</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3 p-4">
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="sourceName" className="text-sm font-medium">源名称</Label>
+                      <Input
+                        id="sourceName"
+                        value={newSourceName}
+                        onChange={(e) => setNewSourceName(e.target.value)}
+                        placeholder="例如：我的电影收藏"
+                        className="h-9 text-sm focus:border-primary transition-colors"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="sourceUrl" className="text-sm font-medium">源 URL</Label>
+                      <Input
+                        id="sourceUrl"
+                        type="url"
+                        value={newSourceUrl}
+                        onChange={(e) => setNewSourceUrl(e.target.value)}
+                        placeholder="https://example.com/api/content.json"
+                        className="h-9 text-sm focus:border-primary transition-colors"
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter className="pt-0 p-4">
+                  <Button 
+                    onClick={handleAddSource} 
+                    size="sm"
+                    className="w-full sm:w-auto bg-green-500 hover:bg-green-600 text-white"
+                  >
+                    <PlusCircle className="mr-1.5 h-3.5 w-3.5" /> 添加内容源
+                  </Button>
+                </CardFooter>
+              </div>
+            </div>
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>订阅链接</CardTitle>
-          <CardDescription>输入包含内容源配置的 JSON 订阅链接。加载后会替换当前所有手动添加的源。</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="subscriptionUrl">订阅链接 URL</Label>
-            <Input
-              id="subscriptionUrl"
-              type="url"
-              value={currentSubscriptionUrlInput}
-              onChange={(e) => setCurrentSubscriptionUrlInput(e.target.value)}
-              placeholder="例如: https://example.com/sources.json"
-              disabled={isLoadingSubscription}
-            />
-          </div>
-        </CardContent>
-        <CardFooter className="flex justify-between">
-          <Button 
-            onClick={handleLoadSubscription} 
-            className="bg-primary hover:bg-primary/90 text-primary-foreground"
-            disabled={isLoadingSubscription}
-          >
-            <DownloadCloud className="mr-2 h-4 w-4" /> 
-            {isLoadingSubscription ? "加载中..." : "加载订阅"}
-          </Button>
-          {isClient && subscriptionUrl && (
-            <Button
-              variant="destructive"
-              onClick={handleRemoveSubscription}
-              disabled={isLoadingSubscription}
-            >
-              <XCircle className="mr-2 h-4 w-4" />
-              移除订阅
-            </Button>
-          )}
-        </CardFooter>
-      </Card>
-      
-      <Card>
-        <CardHeader>
-          <CardTitle>手动添加新内容源</CardTitle>
-          <CardDescription>输入内容源的名称和 URL。</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="sourceName">源名称</Label>
-            <Input
-              id="sourceName"
-              value={newSourceName}
-              onChange={(e) => setNewSourceName(e.target.value)}
-              placeholder="例如：我的电影收藏"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="sourceUrl">源 URL</Label>
-            <Input
-              id="sourceUrl"
-              type="url"
-              value={newSourceUrl}
-              onChange={(e) => setNewSourceUrl(e.target.value)}
-              placeholder="https://example.com/api/content.json"
-            />
-          </div>
-        </CardContent>
-        <CardFooter>
-          <Button onClick={handleAddSource} className="bg-accent hover:bg-accent/90 text-accent-foreground">
-            <PlusCircle className="mr-2 h-4 w-4" /> 添加源
-          </Button>
-        </CardFooter>
-      </Card>
-
-      <div>
-        <h2 className="text-2xl font-semibold mb-4 text-foreground">当前内容源列表</h2>
-        {renderSourcesList()}
+          {/* Sources List */}
+          <Card className="overflow-hidden border-0 shadow-lg bg-card/50 backdrop-blur-sm animate-in slide-in-from-left-5 duration-700 delay-400">
+            <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 p-1">
+              <div className="bg-card rounded-lg">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-purple-500/10 rounded-md">
+                      <Settings className="h-4 w-4 text-purple-500" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">内容源列表</CardTitle>
+                      <CardDescription className="text-sm">
+                        管理您的所有内容源 {sources.length > 0 && `(${sources.length} 个源)`}
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4">
+                  {renderSourcesList()}
+                </CardContent>
+              </div>
+            </div>
+          </Card>
+        </div>
       </div>
-
     </div>
   );
 }

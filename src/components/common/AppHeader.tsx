@@ -135,7 +135,7 @@ export function AppHeader() {
   if (!isClient) {
     return (
       <header className="sticky top-0 z-20 bg-background/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
-        <div className="flex h-14 items-center justify-between border-b px-4 md:px-6">
+        <div className="flex h-14 items-center justify-between border-b border-transparent px-4 md:px-6">
             <Link href="/" className="mr-4">
               <AppLogo />
             </Link>
@@ -161,7 +161,7 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-20 bg-background/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
-      <div className="relative flex h-14 items-center justify-between border-b px-4 md:px-6 overflow-hidden">
+      <div className="relative flex h-14 items-center justify-between border-b border-transparent px-4 md:px-6 overflow-hidden">
         {/* --- Desktop View --- */}
         <div className="hidden w-full items-center gap-4 md:flex">
           <Link href="/" className="mr-4 flex items-center gap-4">

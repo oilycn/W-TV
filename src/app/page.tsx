@@ -44,8 +44,13 @@ function HomePageContent() {
   
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+  const [isClient, setIsClient] = useState(false);
 
   const categoryName = useMemo(() => globalCategories.find(c => c.id === selectedCategoryId)?.name || (selectedCategoryId === 'all' ? '全部' : '未知分类'), [globalCategories, selectedCategoryId]);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const activeSourceName = useMemo(() => {
     if (!activeSourceId) return null;
@@ -199,6 +204,13 @@ function HomePageContent() {
 
 
   const handleCategoryChange = (newCategoryId: string) => {
+    // 切换分类时清空当前内容并重置页面
+    setContentItems([]);
+    setPage(1);
+    
+    // 滚动到页面顶部
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
     updateURLParamsForNav({ 
         category: newCategoryId === 'all' ? null : newCategoryId, 
         page: 1,
@@ -240,58 +252,154 @@ function HomePageContent() {
           <Skeleton className="h-9 w-full" />
         </div>
       )}
-      {(!isLoadingCategories && globalCategories.length > 0 && !isMobile) && (
-        <ScrollArea className="w-full whitespace-nowrap rounded-md border shadow-sm bg-card hidden md:block">
-          <div className="flex space-x-2 p-3">
-            {globalCategories.map(category => (
-              <Button
-                key={`${activeSourceUrl || 'mock'}-${category.id}`}
-                variant={selectedCategoryId === category.id ? "default" : "outline"}
-                onClick={() => handleCategoryChange(category.id)}
-                className="relative whitespace-nowrap text-sm h-9 px-4"
-                size="sm"
-              >
-                {category.name}
-              </Button>
-            ))}
-          </div>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
-      )}
+      {/* 主要内容区域 - 左侧边栏 + 右侧内容 */}
+      <div className="flex gap-6">
+        {/* 左侧边栏 - 固定在页面左侧 */}
+        {isClient && !isMobile && (
+          <div className="hidden lg:block fixed left-0 top-16 w-64 h-[calc(100vh-4rem)] bg-background border-r border-transparent z-10">
+            <div className="h-full flex flex-col">
+              {/* 分类导航 - 可滚动区域 */}
+              {(!isLoadingCategories && globalCategories.length > 0) && (
+                <div className="flex-1 overflow-y-auto p-4" style={{
+                  scrollbarWidth: 'none',
+                  msOverflowStyle: 'none'
+                }}>
+                  <style jsx>{`
+                    div::-webkit-scrollbar {
+                      display: none;
+                    }
+                  `}</style>
+                  <div className="space-y-1">
+                    {globalCategories.map(category => (
+                      <button
+                        key={`${activeSourceUrl || 'mock'}-${category.id}`}
+                        onClick={() => handleCategoryChange(category.id)}
+                        className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all duration-200 ${
+                          selectedCategoryId === category.id 
+                            ? 'bg-primary text-primary-foreground font-medium' 
+                            : 'text-foreground hover:bg-muted hover:text-foreground'
+                        }`}
+                      >
+                        {category.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-      {isLoadingContent && contentItems.length === 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
-          {Array.from({ length: 12 }).map((_, index) => (
-            <div key={index} className="space-y-2">
-              <Skeleton className="aspect-video w-full rounded-lg" />
-              <Skeleton className="h-5 w-3/4" />
-              <Skeleton className="h-4 w-1/2" />
-            </div>
-          ))}
-        </div>
-      ) : contentItems.length > 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
-          {contentItems.map((item, index) => (
-            <ContentCard key={`${item.id}-${activeSourceUrl || 'mock'}-${item.title}-${index}`} item={item} sourceId={activeSourceId ?? undefined} />
-          ))}
-        </div>
-      ) : (
-        !isLoadingContent && (
-            <div className="text-center py-12 flex flex-col items-center justify-center min-h-[300px]">
-                <SearchIconTv className="w-16 h-16 mb-4 text-muted-foreground" />
-                <p className="text-xl text-muted-foreground">
-                  {currentSearchTermQuery ? `未找到与 "${currentSearchTermQuery}" 相关的内容。` : "此分类下暂无内容。"}
-                </p>
-                { !activeSourceUrl && sources.length > 0 && ( 
-                    <p className="mt-2 text-sm text-muted-foreground">内容源可能正在加载或选择中，请稍候。</p>
+              {/* 底部固定信息区域 */}
+              <div className="flex-shrink-0 border-t border-border/20 bg-background">
+                {/* 统计信息 */}
+                {contentItems.length > 0 && (
+                  <div className="px-4 py-3">
+                    <h3 className="text-sm font-medium text-foreground mb-2">统计信息</h3>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">已加载</span>
+                        <span className="font-medium">{contentItems.length}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">页码</span>
+                        <span className="font-medium">{page}/{totalPages}</span>
+                      </div>
+                      {totalItems > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">总计</span>
+                          <span className="font-medium text-primary">{totalItems}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )}
+
+                {/* 当前源信息 */}
+                {activeSourceName && (
+                  <div className="px-4 pb-4">
+                    <div className={contentItems.length > 0 ? "border-t border-border/20 pt-3" : ""}>
+                      <h3 className="text-sm font-medium text-foreground mb-2">当前源</h3>
+                      <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-foreground truncate">{activeSourceName}</div>
+                          <div className="text-xs text-muted-foreground">正在使用</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-        )
-      )}
-      
-      <div ref={loadMoreTriggerRef} className="flex justify-center items-center p-4">
-        {isLoadingMore && <Loader2 className="h-8 w-8 animate-spin text-primary" />}
+          </div>
+        )}
+
+        {/* 右侧主内容区域 */}
+        <div className={`flex-1 min-w-0 ${isClient && !isMobile ? 'lg:ml-64' : ''}`}>
+          {/* 移动端分类导航 */}
+          {(!isLoadingCategories && globalCategories.length > 0 && isMobile) && (
+            <div className="mb-6 lg:hidden">
+              <ScrollArea className="w-full whitespace-nowrap">
+                <div className="flex space-x-1 border-b border-transparent">
+                  {globalCategories.map(category => (
+                    <Button
+                      key={`${activeSourceUrl || 'mock'}-${category.id}`}
+                      variant="ghost"
+                      onClick={() => handleCategoryChange(category.id)}
+                      className={`relative whitespace-nowrap text-sm h-10 px-4 rounded-none border-b-2 transition-all duration-200 ${
+                        selectedCategoryId === category.id 
+                          ? 'border-primary text-primary bg-primary/5 font-medium' 
+                          : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                      }`}
+                    >
+                      {category.name}
+                    </Button>
+                  ))}
+                </div>
+                <ScrollBar orientation="horizontal" className="h-1" />
+              </ScrollArea>
+            </div>
+          )}
+
+          {/* 内容网格 */}
+          <div className="p-2">
+            {isLoadingContent && contentItems.length === 0 ? (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-4">
+                {Array.from({ length: 18 }).map((_, index) => (
+                  <div key={index} className="animate-pulse">
+                    <Skeleton className="aspect-[3/4] w-full rounded-lg" />
+                  </div>
+                ))}
+              </div>
+            ) : contentItems.length > 0 ? (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-4" ref={mainContentRef}>
+                {contentItems.map((item, index) => (
+                  <ContentCard 
+                    key={`${item.id}-${activeSourceUrl || 'mock'}-${item.title}-${index}`}
+                    item={item} 
+                    sourceId={activeSourceId ?? undefined}
+                  />
+                ))}
+              </div>
+            ) : (
+              !isLoadingContent && (
+                  <div className="text-center py-12 flex flex-col items-center justify-center min-h-[300px]">
+                      <SearchIconTv className="w-16 h-16 mb-4 text-muted-foreground" />
+                      <p className="text-xl text-muted-foreground">
+                        {currentSearchTermQuery ? `未找到与 "${currentSearchTermQuery}" 相关的内容。` : "此分类下暂无内容。"}
+                      </p>
+                      { !activeSourceUrl && sources.length > 0 && ( 
+                          <p className="mt-2 text-sm text-muted-foreground">内容源可能正在加载或选择中，请稍候。</p>
+                      )}
+                  </div>
+              )
+            )}
+            
+            <div ref={loadMoreTriggerRef} className="flex justify-center items-center p-4">
+              {isLoadingMore && <Loader2 className="h-8 w-8 animate-spin text-primary" />}
+            </div>
+          </div>
+        </div>
       </div>
+      
     </div>
   );
 }
@@ -306,18 +414,49 @@ export default function HomePage() {
 
 function HomePageSkeleton() {
   return (
-    <div className="space-y-6">
-      <div className="bg-card p-3 rounded-md shadow-sm hidden md:block">
-        <Skeleton className="h-9 w-full" />
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
-        {Array.from({ length: 12 }).map((_, index) => (
-          <div key={index} className="space-y-2">
-            <Skeleton className="aspect-video w-full rounded-lg" />
-            <Skeleton className="h-5 w-3/4" />
-            <Skeleton className="h-4 w-1/2" />
+    <div className="flex gap-6">
+      {/* 左侧边栏骨架 */}
+      <div className="hidden lg:block fixed left-0 top-16 w-64 h-[calc(100vh-4rem)] bg-background border-r border-transparent z-10">
+        <div className="h-full flex flex-col">
+          <div className="flex-1 p-4">
+            <div className="space-y-1">
+              {Array.from({ length: 8 }).map((_, index) => (
+                <Skeleton key={index} className="h-10 w-full rounded-lg" />
+              ))}
+            </div>
           </div>
-        ))}
+          <div className="flex-shrink-0 border-t border-border/20 bg-background p-4">
+            <Skeleton className="h-4 w-16 mb-2" />
+            <div className="space-y-1">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-full" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 右侧内容骨架 */}
+      <div className="flex-1 min-w-0 lg:ml-64">
+        {/* 移动端分类骨架 */}
+        <div className="mb-6 lg:hidden">
+          <div className="flex space-x-1 border-b border-transparent">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <Skeleton key={index} className="h-10 w-16 rounded-none" />
+            ))}
+          </div>
+        </div>
+        
+        {/* 内容网格骨架 */}
+        <div className="p-2">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-4">
+            {Array.from({ length: 18 }).map((_, index) => (
+              <div key={index} className="animate-pulse">
+                <Skeleton className="aspect-[3/4] w-full rounded-lg" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )
