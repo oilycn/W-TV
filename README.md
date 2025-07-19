@@ -2,8 +2,6 @@
 
 这是一个基于 Next.js 构建的个性化影院体验应用程序，在 Firebase Studio 中创建。
 
-![](https://raw.githubusercontent.com/oilycn/MyPic/master/IMG/wanfeng-tv.png)
-
 **❗重要提示：在使用本项目前，请务必阅读我们的 [版权与内容免责声明](DISCLAIMER.md)。**
 
 核心功能包括：
@@ -104,4 +102,112 @@ docker run -d -p 9002:3000 wanfeng-tv
 `用户 -> HTTPS -> 反向代理 (处理 SSL) -> HTTP -> Docker 容器 (运行 Next.js 应用)`
 
 因此，如果您将此 Docker 镜像部署到自己的服务器上，请务必配置反向代理和 SSL 证书，以确保 PWA 功能正常工作。
-```
+
+## 🚀 云平台部署指南
+
+### Vercel 部署 (推荐)
+
+Vercel 是 Next.js 的官方推荐部署平台，提供零配置部署体验。
+
+#### 通过 Vercel Dashboard (最简单)
+
+1. **准备代码仓库**
+   - 将项目代码推送到 GitHub、GitLab 或 Bitbucket
+
+2. **连接 Vercel**
+   - 访问 [vercel.com](https://vercel.com)
+   - 使用 GitHub 账号登录
+   - 点击 "New Project"
+
+3. **导入项目**
+   - 选择你的代码仓库
+   - Vercel 会自动检测到 Next.js 项目
+   - 保持默认配置即可
+
+4. **部署**
+   - 点击 "Deploy" 开始部署
+   - 几分钟后即可获得 HTTPS 域名
+
+
+### Cloudflare Pages 部署
+
+Cloudflare Pages 提供全球 CDN 加速和免费 HTTPS。
+
+#### 通过 Cloudflare Dashboard
+
+1. **准备工作**
+   - 确保代码已推送到 Git 仓库
+   - 登录 [Cloudflare Dashboard](https://dash.cloudflare.com)
+
+2. **创建 Pages 项目**
+   - 进入 "Pages" 部分
+   - 点击 "Create a project"
+   - 选择 "Connect to Git"
+
+3. **配置构建设置**
+   ```
+   Framework preset: 无
+   Build command: npm run pages:build
+   Build output directory: .vercel/output/static
+   Root directory: 保持默认
+   Node.js version: 保持默认
+   ```
+
+
+
+### 自定义域名配置
+
+#### Vercel 自定义域名
+
+1. 在 Vercel 项目设置中点击 "Domains"
+2. 添加你的域名
+3. 按照提示配置 DNS 记录：
+   ```
+   类型: CNAME
+   名称: www (或 @)
+   值: cname.vercel-dns.com
+   ```
+
+#### Cloudflare Pages 自定义域名
+
+1. 在 Pages 项目设置中点击 "Custom domains"
+2. 添加域名并验证所有权
+3. Cloudflare 会自动配置 DNS（如果域名在 Cloudflare 管理）
+
+### 部署后验证
+
+部署完成后，请验证以下功能：
+
+- ✅ 页面正常加载
+- ✅ PWA 功能可用（可添加到主屏幕）
+- ✅ 主题切换正常
+- ✅ 搜索功能正常
+- ✅ 视频播放正常
+- ✅ 响应式设计在各设备上正常
+
+#### 常见问题
+
+1. **构建失败**
+   - 检查 Node.js 版本是否兼容
+   - 确认所有依赖已正确安装
+
+2. **PWA 功能不可用**
+   - 确认网站使用 HTTPS
+   - 检查 Service Worker 是否正确注册
+
+3. **API 请求失败**
+   - 检查 CORS 配置
+   - 验证环境变量设置
+
+4. **静态资源加载失败**
+   - 检查 `next.config.ts` 中的 `basePath` 配置
+   - 确认 CDN 配置正确
+
+---
+
+**部署成功后，你的晚风TV应用将拥有：**
+- 🌍 全球 CDN 加速
+- 🔒 免费 HTTPS 证书
+- 📱 完整的 PWA 功能
+- ⚡ 极快的加载速度
+- 📊 详细的访问分析
