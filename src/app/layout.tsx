@@ -71,7 +71,7 @@ export default function RootLayout({
         <link rel="icon" href="/icons/icon-192x192.png" type="image/png" sizes="192x192" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
       </head>
-      <body className={`${inter.variable} ${robotoMono.variable} antialiased`}>
+      <body className={`${inter.variable} ${robotoMono.variable} antialiased`} suppressHydrationWarning>
         <ThemeProvider> 
           <CategoryProvider>
             <div className="flex flex-col min-h-screen">

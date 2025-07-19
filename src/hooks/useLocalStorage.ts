@@ -16,7 +16,13 @@ function getValue<T>(key: string, initialValue: T | (() => T)): T {
 }
 
 export function useLocalStorage<T>(key: string, initialValue: T | (() => T)): [T, React.Dispatch<React.SetStateAction<T>>] {
-  const [storedValue, setStoredValue] = useState<T>(() => getValue(key, initialValue));
+  const [storedValue, setStoredValue] = useState<T>(() => {
+    // Avoid hydration mismatch by always returning initial value on server
+    if (typeof window === 'undefined') {
+      return typeof initialValue === 'function' ? (initialValue as () => T)() : initialValue;
+    }
+    return getValue(key, initialValue);
+  });
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -45,7 +51,6 @@ export function useLocalStorage<T>(key: string, initialValue: T | (() => T)): [T
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [key]);
-
 
   return [storedValue, setStoredValue];
 }

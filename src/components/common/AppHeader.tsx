@@ -106,9 +106,8 @@ function SourceAndCategorySelector({ onSelection }: { onSelection: () => void })
 
 
 export function AppHeader() {
-  const [isClient, setIsClient] = useState(false);
   const { theme, toggleTheme } = useTheme();
-  const { pageTitle, activeSourceId, setActiveSourceId } = useCategories();
+  const { pageTitle, activeSourceId, setActiveSourceId, contentStats = null } = useCategories();
   const router = useRouter();
   const [isMobileSearchVisible, setIsMobileSearchVisible] = useState(false);
   const isMobile = useIsMobile();
@@ -122,9 +121,6 @@ export function AppHeader() {
     router.push('/'); 
   };
 
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
 
   useEffect(() => {
     if (!isMobile) {
@@ -132,7 +128,7 @@ export function AppHeader() {
     }
   }, [isMobile]);
   
-  if (!isClient) {
+  if (false) {
     return (
       <header className="sticky top-0 z-20 bg-background/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
         <div className="flex h-14 items-center justify-between border-b border-transparent px-4 md:px-6">
@@ -174,6 +170,16 @@ export function AppHeader() {
             <div className="w-full max-w-xs">
               <SearchBar onSearchSubmit={() => {}} />
             </div>
+            
+            {/* 简洁统计信息 */}
+            {contentStats && contentStats.totalItems > 0 && (
+              <div className="hidden xl:flex items-center text-xs text-muted-foreground bg-muted/30 rounded-full px-3 py-1">
+                <span>{contentStats.loadedCount}/{contentStats.totalItems}</span>
+                {contentStats.totalPages > 1 && (
+                  <span className="ml-2 opacity-60">P{contentStats.currentPage}/{contentStats.totalPages}</span>
+                )}
+              </div>
+            )}
             <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="切换主题">
               {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
             </Button>

@@ -132,7 +132,7 @@ function SearchResults() {
   const SourceList = () => (
     <>
       <div className="p-4">
-        <h2 className="text-lg font-semibold text-card-foreground">搜索来源</h2>
+        <h2 className="text-sm font-medium text-foreground">搜索来源</h2>
       </div>
       <Separator className="mx-4 w-auto bg-border/50" />
       <ScrollArea className="flex-1">
@@ -143,8 +143,7 @@ function SearchResults() {
                 variant={selectedSourceId === 'all' ? "secondary" : "ghost"}
                 onClick={() => handleSourceSelect('all')}
                 className={cn(
-                  "justify-start w-full text-left h-auto py-2.5 px-3 text-base",
-                  selectedSourceId === 'all' && "font-bold"
+                  "justify-start w-full text-left h-auto py-2 px-3 text-sm"
                 )}
               >
                 <span className="flex-1 truncate">全部结果</span>
@@ -159,8 +158,7 @@ function SearchResults() {
               variant={selectedSourceId === group.source.id ? "secondary" : "ghost"}
               onClick={() => handleSourceSelect(group.source.id)}
               className={cn(
-                "justify-start w-full text-left h-auto py-2.5 px-3 text-base",
-                selectedSourceId === group.source.id && "font-bold"
+                "justify-start w-full text-left h-auto py-2 px-3 text-sm"
               )}
             >
               <span className="flex-1 truncate">{group.source.name}</span>
@@ -181,7 +179,7 @@ function SearchResults() {
   );
 
   const ResultsGrid = ({ items }: { items: (typeof itemsToDisplay) }) => (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4 md:gap-6">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-6 md:gap-8">
         {items.map(item => (
           <ContentCard 
             key={item.renderKey} 
@@ -194,7 +192,7 @@ function SearchResults() {
   );
 
   const LoadingSkeleton = () => (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4 md:gap-6">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-6 md:gap-8">
       {Array.from({ length: 14 }).map((_, index) => (
         <div key={index} className="space-y-2">
             <Skeleton className="aspect-[3/4] w-full rounded-lg" />
@@ -208,12 +206,6 @@ function SearchResults() {
   return (
     <div className="flex flex-col h-[calc(100vh-6rem)]">
       <div className="flex-shrink-0 pb-4">
-        <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-4">
-          搜索
-        </h1>
-        <div className='max-w-xl'>
-          <SearchBar />
-        </div>
       </div>
 
       {error && (
@@ -227,15 +219,12 @@ function SearchResults() {
       {!query && !isLoading && (
         <div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground">
             <SearchIconLucide className="mx-auto h-16 w-16 mb-4" />
-            <p className="text-xl">通过上方的搜索框查找内容。</p>
+            <p className="text-xl">通过顶部搜索栏查找内容。</p>
         </div>
       )}
       
       {query && (
         <div className="flex-1 flex flex-col min-h-0">
-          <p className="flex-shrink-0 text-muted-foreground mb-4 text-sm">
-              {isLoading && totalResultsCount === 0 ? `正在为“${decodeURIComponent(query)}”搜索中...` : `在 ${searchResultsBySource.length} 个来源中找到 ${totalResultsCount} 条相关内容。`}
-          </p>
 
           {isMobile ? (
               <div className="flex-1 flex flex-col min-h-0">
@@ -257,11 +246,25 @@ function SearchResults() {
                   </main>
               </div>
           ) : (
-              <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-6 min-h-0">
-                  <aside className="hidden md:flex md:col-span-1 h-full flex-col backdrop-blur-md rounded-lg shadow-sm bg-card/50 border">
-                      <SourceList />
-                  </aside>
-                  <main ref={resultsContainerRef} className="md:col-span-3 h-full overflow-y-auto pr-2">
+              <div className="flex gap-6 min-h-0">
+                  {/* 左侧来源列表 - 立体设计 */}
+                  <div className="hidden lg:block fixed left-0 top-16 w-48 h-[calc(100vh-4rem)] z-10" suppressHydrationWarning>
+                      {/* 立体卡片式背景 */}
+                      <div className="absolute inset-2 bg-gradient-to-br from-card via-card to-muted/10 rounded-xl shadow-2xl shadow-black/10"></div>
+                      <div className="absolute inset-2 bg-gradient-to-t from-transparent via-primary/3 to-primary/8 rounded-xl"></div>
+                      <div className="absolute inset-2 border border-border/20 rounded-xl"></div>
+                      {/* 内部光效 */}
+                      <div className="absolute top-2 left-2 right-2 h-8 bg-gradient-to-b from-white/10 to-transparent rounded-t-xl"></div>
+                      <div className="absolute bottom-2 left-2 right-2 h-8 bg-gradient-to-t from-black/5 to-transparent rounded-b-xl"></div>
+                      <div className="h-full flex flex-col relative z-10 p-2">
+                          <div className="h-full bg-gradient-to-b from-background/50 to-background/80 rounded-lg backdrop-blur-sm flex flex-col">
+                              <SourceList />
+                          </div>
+                      </div>
+                  </div>
+                  
+                  {/* 右侧搜索结果 */}
+                  <main ref={resultsContainerRef} className="flex-1 min-w-0 lg:ml-48 h-full overflow-y-auto pr-2">
                       {isLoading && itemsToDisplay.length === 0 ? <LoadingSkeleton /> : <ResultsGrid items={itemsToDisplay} />}
                   </main>
               </div>
@@ -295,7 +298,7 @@ function SearchPageSkeleton() {
           <Skeleton className="h-9 w-full" />
         </div>
         <div className="md:col-span-3">
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4 md:gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-6 md:gap-8">
               {Array.from({ length: 7 }).map((_, index) => (
                   <div key={index} className="space-y-2">
                       <Skeleton className="aspect-[3/4] w-full rounded-lg" />

@@ -87,10 +87,12 @@
   }
   body {
     @apply bg-background text-foreground;
-    /* 添加微妙的纹理背景 */
+    /* 添加微妙的纹理背景 - 延迟加载避免闪烁 */
     background-image: 
       radial-gradient(circle at 25% 25%, hsl(var(--muted) / 0.1) 0%, transparent 50%),
       radial-gradient(circle at 75% 75%, hsl(var(--primary) / 0.05) 0%, transparent 50%);
+    /* 确保背景平滑过渡 */
+    transition: background-color 0.3s ease;
   }
 }
 

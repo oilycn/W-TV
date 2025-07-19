@@ -29,7 +29,7 @@ function HomePageContent() {
   const searchParamsHook = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const { categories: globalCategories, setPageTitle, activeSourceId, setActiveSourceId } = useCategories();
+  const { categories: globalCategories, setPageTitle, activeSourceId, setActiveSourceId, setContentStats } = useCategories();
   const isMobile = useIsMobile();
 
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
@@ -51,13 +51,9 @@ function HomePageContent() {
   
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const [isClient, setIsClient] = useState(false);
 
   const categoryName = useMemo(() => globalCategories.find(c => c.id === selectedCategoryId)?.name || (selectedCategoryId === 'all' ? '全部' : '未知分类'), [globalCategories, selectedCategoryId]);
 
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
 
   const activeSourceName = useMemo(() => {
     if (!activeSourceId) return null;
@@ -209,6 +205,17 @@ function HomePageContent() {
     };
   }, [isLoadingContent, isLoadingMore, page, totalPages]);
 
+  // 更新统计信息到Context
+  useEffect(() => {
+    if (setContentStats && contentItems.length > 0) {
+      setContentStats({
+        loadedCount: contentItems.length,
+        currentPage: page,
+        totalPages: totalPages,
+        totalItems: totalItems
+      });
+    }
+  }, [contentItems.length, page, totalPages, totalItems, setContentStats]);
 
   const handleCategoryChange = (newCategoryId: string) => {
     // 切换分类时清空当前内容并重置页面
@@ -254,20 +261,22 @@ function HomePageContent() {
          </Alert>
       )}
       
-      {isLoadingCategories && !isMobile && (
-        <div className="bg-card p-3 rounded-md shadow-sm hidden md:block">
-          <Skeleton className="h-9 w-full" />
-        </div>
-      )}
+      
       {/* 主要内容区域 - 左侧边栏 + 右侧内容 */}
       <div className="flex gap-6">
         {/* 左侧边栏 - 固定在页面左侧 */}
-        {isClient && !isMobile && (
-          <div className="hidden lg:block fixed left-0 top-16 w-48 h-[calc(100vh-4rem)] bg-background border-r border-transparent z-10">
-            <div className="h-full flex flex-col">
+        <div className="hidden lg:block fixed left-0 top-16 w-48 h-[calc(100vh-4rem)] z-10" suppressHydrationWarning>
+          {/* 立体卡片式背景 */}
+          <div className="absolute inset-2 bg-gradient-to-br from-card via-card to-muted/10 rounded-xl shadow-2xl shadow-black/10"></div>
+          <div className="absolute inset-2 bg-gradient-to-t from-transparent via-primary/3 to-primary/8 rounded-xl"></div>
+          <div className="absolute inset-2 border border-border/20 rounded-xl"></div>
+          {/* 内部光效 */}
+          <div className="absolute top-2 left-2 right-2 h-8 bg-gradient-to-b from-white/10 to-transparent rounded-t-xl"></div>
+          <div className="absolute bottom-2 left-2 right-2 h-8 bg-gradient-to-t from-black/5 to-transparent rounded-b-xl"></div>
+            <div className="h-full flex flex-col relative z-10 p-2">
               {/* 分类导航 - 可滚动区域 */}
               {(!isLoadingCategories && globalCategories.length > 0) && (
-                <div className="flex-1 overflow-y-auto px-2 py-3" style={{
+                <div className="flex-1 overflow-y-auto px-3 py-4 bg-gradient-to-b from-background/50 to-background/80 rounded-lg backdrop-blur-sm" style={{
                   scrollbarWidth: 'none',
                   msOverflowStyle: 'none'
                 }}>
@@ -333,14 +342,17 @@ function HomePageContent() {
                         <button
                           key={`${activeSourceUrl || 'mock'}-${category.id}`}
                           onClick={() => handleCategoryChange(category.id)}
-                          className={`w-full text-left px-4 py-2.5 rounded-md text-base transition-all duration-200 flex items-center gap-3 ${
+                          className={`w-full text-left px-3 py-3 rounded-xl text-sm transition-all duration-300 flex items-center gap-3 relative overflow-hidden group ${
                             selectedCategoryId === category.id 
-                              ? 'bg-primary text-primary-foreground font-medium' 
-                              : 'text-foreground hover:bg-muted hover:text-foreground'
+                              ? 'bg-gradient-to-br from-primary via-primary to-primary/80 text-primary-foreground font-semibold shadow-lg shadow-primary/30 border border-primary/30 transform scale-[1.02]' 
+                              : 'text-foreground hover:bg-gradient-to-br hover:from-card hover:via-card hover:to-muted/20 hover:text-foreground hover:shadow-lg hover:shadow-black/10 border border-border/10 hover:border-border/30 hover:transform hover:scale-[1.01]'
                           }`}
                         >
-                          <IconComponent className="w-5 h-5 flex-shrink-0" />
-                          <span className="truncate">{category.name}</span>
+                          {/* 按钮立体光效 */}
+                          <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"></div>
+                          <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent rounded-t-xl"></div>
+                          <IconComponent className="w-5 h-5 flex-shrink-0 relative z-10" />
+                          <span className="truncate relative z-10">{category.name}</span>
                         </button>
                       );
                     })}
@@ -348,66 +360,18 @@ function HomePageContent() {
                 </div>
               )}
 
-              {/* 底部固定信息区域 */}
-              <div className="flex-shrink-0 border-t border-border/20 bg-background">
-                {/* 统计信息 */}
-                {contentItems.length > 0 && (
-                  <div className="px-3 py-3">
-                    <h3 className="text-sm font-medium text-foreground mb-2">统计信息</h3>
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">已加载</span>
-                        <span className="font-medium">{contentItems.length}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">页码</span>
-                        <span className="font-medium">{page}/{totalPages}</span>
-                      </div>
-                      {totalItems > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">总计</span>
-                          <span className="font-medium text-primary">{totalItems}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
           </div>
-        )}
 
         {/* 右侧主内容区域 */}
-        <div className={`flex-1 min-w-0 ${isClient && !isMobile ? 'lg:ml-48' : ''}`}>
-          {/* 移动端分类导航 */}
-          {(!isLoadingCategories && globalCategories.length > 0 && isMobile) && (
-            <div className="lg:hidden">
-              <ScrollArea className="w-full whitespace-nowrap">
-                <div className="flex space-x-1 border-b border-transparent">
-                  {globalCategories.map(category => (
-                    <Button
-                      key={`${activeSourceUrl || 'mock'}-${category.id}`}
-                      variant="ghost"
-                      onClick={() => handleCategoryChange(category.id)}
-                      className={`relative whitespace-nowrap text-sm h-10 px-4 rounded-none border-b-2 transition-all duration-200 ${
-                        selectedCategoryId === category.id 
-                          ? 'border-primary text-primary bg-primary/5 font-medium' 
-                          : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                      }`}
-                    >
-                      {category.name}
-                    </Button>
-                  ))}
-                </div>
-                <ScrollBar orientation="horizontal" className="h-1" />
-              </ScrollArea>
-            </div>
-          )}
+        <div className="flex-1 min-w-0 lg:ml-48" suppressHydrationWarning>
+          {/* 添加顶部间距以对齐分类栏 */}
+          <div className="pt-4">
 
           {/* 内容网格 */}
           <div className="p-1 md:p-2 pt-0">
             {isLoadingContent && contentItems.length === 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4 md:gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-6 md:gap-8">
                 {Array.from({ length: 18 }).map((_, index) => (
                   <div key={index} className="animate-pulse space-y-2">
                     <Skeleton className="aspect-[3/4] w-full rounded-lg" />
@@ -417,7 +381,7 @@ function HomePageContent() {
                 ))}
               </div>
             ) : contentItems.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4 md:gap-6" ref={mainContentRef}>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-6 md:gap-8" ref={mainContentRef}>
                 {contentItems.map((item, index) => (
                   <ContentCard 
                     key={`${item.id}-${activeSourceUrl || 'mock'}-${item.title}-${index}`}
@@ -443,6 +407,7 @@ function HomePageContent() {
             <div ref={loadMoreTriggerRef} className="flex justify-center items-center p-4">
               {isLoadingMore && <Loader2 className="h-8 w-8 animate-spin text-primary" />}
             </div>
+          </div>
           </div>
         </div>
       </div>
@@ -485,18 +450,10 @@ function HomePageSkeleton() {
 
       {/* 右侧内容骨架 */}
       <div className="flex-1 min-w-0 lg:ml-48">
-        {/* 移动端分类骨架 */}
-        <div className="lg:hidden">
-          <div className="flex space-x-1 border-b border-transparent">
-            {Array.from({ length: 6 }).map((_, index) => (
-              <Skeleton key={index} className="h-10 w-16 rounded-none" />
-            ))}
-          </div>
-        </div>
         
         {/* 内容网格骨架 */}
         <div className="p-1 md:p-2 pt-0">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4 md:gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-6 md:gap-8">
             {Array.from({ length: 18 }).map((_, index) => (
               <div key={index} className="animate-pulse space-y-2">
                 <Skeleton className="aspect-[3/4] w-full rounded-lg" />

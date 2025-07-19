@@ -1,4 +1,3 @@
-
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
@@ -15,31 +14,36 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 const LOCAL_STORAGE_KEY_THEME = 'cinemaViewTheme';
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window === 'undefined') {
-      return "dark"; // Default for SSR, will be updated on client
-    }
-    const storedTheme = localStorage.getItem(LOCAL_STORAGE_KEY_THEME) as Theme | null;
-    if (storedTheme) {
-      return storedTheme; // User preference takes precedence
-    }
-
-    // Calculate time in China (UTC+8)
-    const now = new Date();
-    const utcHours = now.getUTCHours();
-    let chinaHour = (utcHours + 8);
-    if (chinaHour >= 24) {
-      chinaHour = chinaHour - 24;
-    }
-
-    if (chinaHour >= 6 && chinaHour < 18) {
-      return "light";
-    } else {
-      return "dark";
-    }
-  });
+  // 统一初始主题为 dark，避免服务端客户端不一致
+  const [theme, setTheme] = useState<Theme>("dark");
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
+    // 客户端初始化时设置正确的主题
+    const storedTheme = localStorage.getItem(LOCAL_STORAGE_KEY_THEME) as Theme | null;
+    if (storedTheme) {
+      setTheme(storedTheme);
+    } else {
+      // Calculate time in China (UTC+8)
+      const now = new Date();
+      const utcHours = now.getUTCHours();
+      let chinaHour = (utcHours + 8);
+      if (chinaHour >= 24) {
+        chinaHour = chinaHour - 24;
+      }
+
+      if (chinaHour >= 6 && chinaHour < 18) {
+        setTheme("light");
+      } else {
+        setTheme("dark");
+      }
+    }
+    setIsInitialized(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    
     const root = window.document.documentElement;
     const body = window.document.body;
 
@@ -60,7 +64,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
     metaThemeColor.setAttribute('content', computedBackgroundColor);
 
-  }, [theme]);
+  }, [theme, isInitialized]);
 
   const toggleTheme = () => {
     setTheme((prevTheme) => (prevTheme === "light" ? "dark" : "light"));

@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { ApiCategory, SourceConfig } from '@/types';
@@ -13,13 +12,24 @@ interface CategoryContextType {
   setPageTitle: (title: string) => void;
   activeSourceId: string | null;
   setActiveSourceId: (id: string | null) => void;
+  contentStats: {
+    loadedCount: number;
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+  } | null;
+  setContentStats: (stats: {
+    loadedCount: number;
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+  }) => void;
 }
 
 const CategoryContext = createContext<CategoryContextType | undefined>(undefined);
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 const LOCAL_STORAGE_KEY_ACTIVE_SOURCE = 'cinemaViewActiveSourceId';
-
 
 function arraysEqual(arr1: ApiCategory[], arr2: ApiCategory[]): boolean {
   if (arr1.length !== arr2.length) return false;
@@ -36,6 +46,12 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
   const [pageTitle, setPageTitle] = useState('');
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
   const [activeSourceId, setActiveSourceId] = useLocalStorage<string | null>(LOCAL_STORAGE_KEY_ACTIVE_SOURCE, null);
+  const [contentStats, setContentStats] = useState<{
+    loadedCount: number;
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+  } | null>(null);
 
   const activeSourceUrl = useMemo(() => {
     if (activeSourceId) {
@@ -48,13 +64,12 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
     return null;
   }, [sources, activeSourceId]);
 
-
   const setCategories = useCallback((newCategories: ApiCategory[]) => {
     setCategoriesState(prevCategories => {
       if (arraysEqual(prevCategories, newCategories)) {
-        return prevCategories; // Return the old state to prevent re-render if categories are the same
+        return prevCategories;
       }
-      return newCategories; // Update state only if categories have actually changed
+      return newCategories;
     });
   }, []);
 
@@ -75,7 +90,6 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
         }
       } else {
         if (isMounted) {
-          // If no source is active (e.g., user cleared all), show mock categories as placeholder
           setCategories(getMockApiCategories());
         }
       }
@@ -84,7 +98,16 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
     return () => { isMounted = false; }
   }, [activeSourceUrl, setCategories]);
   
-  const value = { categories, setCategories, pageTitle, setPageTitle, activeSourceId, setActiveSourceId };
+  const value = { 
+    categories, 
+    setCategories, 
+    pageTitle, 
+    setPageTitle, 
+    activeSourceId, 
+    setActiveSourceId,
+    contentStats,
+    setContentStats
+  };
   
   return (
     <CategoryContext.Provider value={value}>
