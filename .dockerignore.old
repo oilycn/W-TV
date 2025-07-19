@@ -1,0 +1,34 @@
+
+# Git files
+.git
+.gitignore
+
+# Node modules
+node_modules
+
+# Next.js build artifacts (the Dockerfile handles copying the correct ones)
+.next
+
+# VSCode specific
+.vscode
+
+# Environment files (these should be passed at runtime if needed)
+.env
+.env*.local
+*.env
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Firebase App Hosting config (not needed for general Docker image)
+apphosting.yaml
+
+# IDE specific
+.idea
+*.iml
+
+# OS specific
+.DS_Store
+Thumbs.db

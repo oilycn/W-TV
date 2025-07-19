@@ -1,34 +1,63 @@
+# 优化版 .dockerignore - 减少构建上下文大小
 
-# Git files
+# Git 相关
 .git
 .gitignore
+.github
 
-# Node modules
+# Node.js
 node_modules
-
-# Next.js build artifacts (the Dockerfile handles copying the correct ones)
-.next
-
-# VSCode specific
-.vscode
-
-# Environment files (these should be passed at runtime if needed)
-.env
-.env*.local
-*.env
-
-# Log files
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Firebase App Hosting config (not needed for general Docker image)
-apphosting.yaml
+# Next.js
+.next
+out
 
-# IDE specific
+# 环境变量
+.env*
+*.env
+
+# IDE
+.vscode
 .idea
 *.iml
 
-# OS specific
+# 操作系统
 .DS_Store
 Thumbs.db
+
+# 文档和说明
+README.md
+CHANGELOG.md
+LICENSE
+*.md
+
+# 测试
+__tests__
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+coverage
+
+# 其他构建工具
+.eslintrc*
+.prettierrc*
+tsconfig.json
+tailwind.config.ts
+postcss.config.mjs
+
+# Firebase
+apphosting.yaml
+
+# Docker 相关
+Dockerfile*
+docker-compose*
+.dockerignore*
+
+# 临时文件
+*.tmp
+*.temp
+.cache
