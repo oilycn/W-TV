@@ -69,7 +69,7 @@ export default function HistoryPage() {
       </div>
 
       {sortedHistory.length > 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4 md:gap-6">
           {sortedHistory.map(({ item, sourceId, watchedAt, episodeName }) => (
             <div key={`${item.id}-${watchedAt}`} className="flex flex-col">
               <ContentCard item={item} sourceId={sourceId} />

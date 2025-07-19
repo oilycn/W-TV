@@ -179,7 +179,7 @@ function SearchResults() {
   );
 
   const ResultsGrid = ({ items }: { items: (typeof itemsToDisplay) }) => (
-    <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4 md:gap-6">
         {items.map(item => (
           <ContentCard 
             key={item.renderKey} 
@@ -192,12 +192,12 @@ function SearchResults() {
   );
 
   const LoadingSkeleton = () => (
-    <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-      {Array.from({ length: 10 }).map((_, index) => (
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4 md:gap-6">
+      {Array.from({ length: 14 }).map((_, index) => (
         <div key={index} className="space-y-2">
-            <Skeleton className="aspect-video w-full rounded-lg" />
-            <Skeleton className="h-5 w-3/4" />
-            <Skeleton className="h-4 w-1/2" />
+            <Skeleton className="aspect-[3/4] w-full rounded-lg" />
+            <Skeleton className="h-4 w-4/5 rounded-md" />
+            <Skeleton className="h-3 w-3/5 rounded-md" />
         </div>
       ))}
     </div>
@@ -292,12 +292,12 @@ function SearchPageSkeleton() {
           <Skeleton className="h-9 w-full" />
         </div>
         <div className="md:col-span-3 space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-            {Array.from({ length: 5 }).map((_, index) => (
+            <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4 md:gap-6">
+            {Array.from({ length: 7 }).map((_, index) => (
                 <div key={index} className="space-y-2">
-                <Skeleton className="aspect-video w-full rounded-lg" />
-                <Skeleton className="h-5 w-3/4" />
-                <Skeleton className="h-4 w-1/2" />
+                    <Skeleton className="aspect-[3/4] w-full rounded-lg" />
+                    <Skeleton className="h-4 w-4/5 rounded-md" />
+                    <Skeleton className="h-3 w-3/5 rounded-md" />
                 </div>
             ))}
             </div>

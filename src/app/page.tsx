@@ -423,15 +423,17 @@ function HomePageContent() {
           {/* 内容网格 */}
           <div className="p-1 md:p-2 pt-0">
             {isLoadingContent && contentItems.length === 0 ? (
-              <div className="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2 md:gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4 md:gap-6">
                 {Array.from({ length: 18 }).map((_, index) => (
-                  <div key={index} className="animate-pulse">
+                  <div key={index} className="animate-pulse space-y-2">
                     <Skeleton className="aspect-[3/4] w-full rounded-lg" />
+                     <Skeleton className="h-4 w-4/5 rounded-md" />
+                     <Skeleton className="h-3 w-3/5 rounded-md" />
                   </div>
                 ))}
               </div>
             ) : contentItems.length > 0 ? (
-              <div className="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2 md:gap-3" ref={mainContentRef}>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4 md:gap-6" ref={mainContentRef}>
                 {contentItems.map((item, index) => (
                   <ContentCard 
                     key={`${item.id}-${activeSourceUrl || 'mock'}-${item.title}-${index}`}
@@ -510,10 +512,12 @@ function HomePageSkeleton() {
         
         {/* 内容网格骨架 */}
         <div className="p-1 md:p-2 pt-0">
-          <div className="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2 md:gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4 md:gap-6">
             {Array.from({ length: 18 }).map((_, index) => (
-              <div key={index} className="animate-pulse">
+              <div key={index} className="animate-pulse space-y-2">
                 <Skeleton className="aspect-[3/4] w-full rounded-lg" />
+                <Skeleton className="h-4 w-4/5 rounded-md" />
+                <Skeleton className="h-3 w-3/5 rounded-md" />
               </div>
             ))}
           </div>
