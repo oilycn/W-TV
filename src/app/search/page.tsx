@@ -35,7 +35,7 @@ function SearchResults() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [totalResultsCount, setTotalResultsCount] = useState(0);
-  const [selectedSourceId, setSelectedSourceId] = useState<string | 'all' | null>('all');
+  const [selectedSourceId, setSelectedSourceId] = useState<string | 'all'>('all');
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const resultsContainerRef = useRef<HTMLElement>(null);
   
@@ -62,9 +62,11 @@ function SearchResults() {
         const response = await fetchApiContentList(source.url, { searchTerm: currentQuery });
         if (response.items && response.items.length > 0) {
           setSearchResultsBySource(prevResults => {
+            // Prevent duplicates if a source responds multiple times somehow
             if (prevResults.some(r => r.source.id === source.id)) return prevResults;
             const newGroup = { source, items: response.items };
-            return [...prevResults, newGroup];
+            // Sort results alphabetically by source name as they come in
+            return [...prevResults, newGroup].sort((a, b) => a.source.name.localeCompare(b.source.name));
           });
           setTotalResultsCount(prevCount => prevCount + response.items.length);
         }
@@ -204,7 +206,7 @@ function SearchResults() {
   );
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-[calc(100vh-6rem)]">
       <div className="flex-shrink-0 pb-4">
         <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-4">
           搜索
@@ -223,57 +225,58 @@ function SearchResults() {
       )}
 
       {!query && !isLoading && (
-        <div className="flex-1 text-center py-12 flex flex-col items-center justify-center text-muted-foreground">
+        <div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground">
             <SearchIconLucide className="mx-auto h-16 w-16 mb-4" />
             <p className="text-xl">通过上方的搜索框查找内容。</p>
         </div>
       )}
       
       {query && (
-        <>
-        <p className="text-muted-foreground mb-4 text-sm">
-            {isLoading && totalResultsCount === 0 ? `正在为“${decodeURIComponent(query)}”搜索中...` : `在 ${searchResultsBySource.length} 个来源中找到 ${totalResultsCount} 条相关内容。`}
-        </p>
+        <div className="flex-1 flex flex-col min-h-0">
+          <p className="flex-shrink-0 text-muted-foreground mb-4 text-sm">
+              {isLoading && totalResultsCount === 0 ? `正在为“${decodeURIComponent(query)}”搜索中...` : `在 ${searchResultsBySource.length} 个来源中找到 ${totalResultsCount} 条相关内容。`}
+          </p>
 
-        {isMobile ? (
-            <div className="flex flex-col flex-1 mt-2 overflow-hidden">
-            {searchResultsBySource.length > 0 && (
-                <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-                <SheetTrigger asChild>
-                    <Button variant="outline" className="mb-4 flex justify-between items-center">
-                    <span>{activeSourceName}</span>
-                    <ChevronRight className="h-4 w-4" />
-                    </Button>
-                </SheetTrigger>
-                <SheetContent side="bottom" className="h-[60%] flex flex-col">
-                    <SourceList />
-                </SheetContent>
-                </Sheet>
-            )}
-            <main ref={resultsContainerRef} className="flex-1 h-full overflow-y-auto">
-                 {isLoading && itemsToDisplay.length === 0 ? <LoadingSkeleton /> : <ResultsGrid items={itemsToDisplay} />}
-            </main>
-            </div>
-        ) : (
-            <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-6 mt-2 overflow-hidden">
-            <aside className="md:col-span-1 h-full flex flex-col backdrop-blur-md rounded-lg shadow-sm bg-card/50">
-                <SourceList />
-            </aside>
-            <main ref={resultsContainerRef} className="md:col-span-3 h-full overflow-y-auto">
-                {isLoading && itemsToDisplay.length === 0 ? <LoadingSkeleton /> : <ResultsGrid items={itemsToDisplay} />}
-            </main>
-            </div>
-        )}
-        {!isLoading && itemsToDisplay.length === 0 && (
-            <div className="text-center py-12 flex flex-col items-center justify-center h-full text-muted-foreground">
-            <SearchIconLucide className="mx-auto h-16 w-16 mb-4" />
-            <p className="text-xl">未找到与 "{decodeURIComponent(query)}" 相关的内容。</p>
-            {sources.length === 0 && (
-                <p className="mt-2 text-sm">提示：您尚未配置任何内容源。</p>
-            )}
-            </div>
-        )}
-        </>
+          {isMobile ? (
+              <div className="flex-1 flex flex-col min-h-0">
+                  {searchResultsBySource.length > 0 && (
+                      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+                      <SheetTrigger asChild>
+                          <Button variant="outline" className="mb-4 flex justify-between items-center flex-shrink-0">
+                          <span>{activeSourceName}</span>
+                          <ChevronRight className="h-4 w-4" />
+                          </Button>
+                      </SheetTrigger>
+                      <SheetContent side="bottom" className="h-[60%] flex flex-col">
+                          <SourceList />
+                      </SheetContent>
+                      </Sheet>
+                  )}
+                  <main ref={resultsContainerRef} className="flex-1 min-h-0 overflow-y-auto">
+                      {isLoading && itemsToDisplay.length === 0 ? <LoadingSkeleton /> : <ResultsGrid items={itemsToDisplay} />}
+                  </main>
+              </div>
+          ) : (
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-6 min-h-0">
+                  <aside className="hidden md:flex md:col-span-1 h-full flex-col backdrop-blur-md rounded-lg shadow-sm bg-card/50 border">
+                      <SourceList />
+                  </aside>
+                  <main ref={resultsContainerRef} className="md:col-span-3 h-full overflow-y-auto pr-2">
+                      {isLoading && itemsToDisplay.length === 0 ? <LoadingSkeleton /> : <ResultsGrid items={itemsToDisplay} />}
+                  </main>
+              </div>
+          )}
+
+          {!isLoading && itemsToDisplay.length === 0 && (
+              <div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground">
+                <SearchIconLucide className="mx-auto h-16 w-16 mb-4" />
+                <p className="text-xl">未找到与 "{decodeURIComponent(query)}" 相关的内容。</p>
+                {sources.length === 0 && (
+                    <p className="mt-2 text-sm">提示：您尚未配置任何内容源。</p>
+                )}
+              </div>
+          )}
+        </div>
       )}
     </div>
   );
@@ -291,15 +294,15 @@ function SearchPageSkeleton() {
           <Skeleton className="h-9 w-full" />
           <Skeleton className="h-9 w-full" />
         </div>
-        <div className="md:col-span-3 space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4 md:gap-6">
-            {Array.from({ length: 7 }).map((_, index) => (
-                <div key={index} className="space-y-2">
-                    <Skeleton className="aspect-[3/4] w-full rounded-lg" />
-                    <Skeleton className="h-4 w-4/5 rounded-md" />
-                    <Skeleton className="h-3 w-3/5 rounded-md" />
-                </div>
-            ))}
+        <div className="md:col-span-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4 md:gap-6">
+              {Array.from({ length: 7 }).map((_, index) => (
+                  <div key={index} className="space-y-2">
+                      <Skeleton className="aspect-[3/4] w-full rounded-lg" />
+                      <Skeleton className="h-4 w-4/5 rounded-md" />
+                      <Skeleton className="h-3 w-3/5 rounded-md" />
+                  </div>
+              ))}
             </div>
         </div>
       </div>
