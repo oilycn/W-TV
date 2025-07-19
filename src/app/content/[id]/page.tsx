@@ -18,6 +18,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 
+export const runtime = 'edge';
+
 // Dynamically import the video player component to code-split its heavy libraries
 const VideoPlayer = dynamic(() => import('@/components/player/VideoPlayer'), {
   ssr: false, // The player relies on browser APIs, so disable server-side rendering
