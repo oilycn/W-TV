@@ -372,22 +372,6 @@ function HomePageContent() {
                     </div>
                   </div>
                 )}
-
-                {/* 当前源信息 */}
-                {activeSourceName && (
-                  <div className="px-3 pb-3">
-                    <div className={contentItems.length > 0 ? "border-t border-border/20 pt-3" : ""}>
-                      <h3 className="text-sm font-medium text-foreground mb-2">当前源</h3>
-                      <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-foreground truncate">{activeSourceName}</div>
-                          <div className="text-xs text-muted-foreground">正在使用</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -526,3 +510,5 @@ function HomePageSkeleton() {
     </div>
   )
 }
+
+    
