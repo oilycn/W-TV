@@ -18,7 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 
-// export const runtime = 'edge'; // 临时注释掉，测试EdgeOne兼容性
+export const runtime = 'edge';
 
 // Dynamically import the video player component to code-split its heavy libraries
 const VideoPlayer = dynamic(() => import('@/components/player/VideoPlayer'), {

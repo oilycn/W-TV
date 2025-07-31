@@ -1,6 +1,7 @@
+// EdgeOne专用版本 - 不使用Edge Runtime
 import { type NextRequest, NextResponse } from 'next/server';
 
-export const runtime = 'edge';
+// 注意：EdgeOne版本不使用 export const runtime = 'edge';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -17,51 +18,23 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid URL scheme' }, { status: 400 });
     }
 
-    // Forward conditional request headers for proper caching
+    // EdgeOne特殊处理：添加强制刷新头部以避免304问题
     const forwardHeaders: Record<string, string> = {
       'User-Agent': 'CinemaViewApp/1.0 (NextJS Proxy)',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
     };
     
-    // Forward conditional request headers
-    const ifModifiedSince = request.headers.get('if-modified-since');
-    const ifNoneMatch = request.headers.get('if-none-match');
-    
-    if (ifModifiedSince) {
-      forwardHeaders['if-modified-since'] = ifModifiedSince;
-    }
-    if (ifNoneMatch) {
-      forwardHeaders['if-none-match'] = ifNoneMatch;
-    }
+    // 对于EdgeOne，我们不转发条件请求头以避免304问题
+    // const ifModifiedSince = request.headers.get('if-modified-since');
+    // const ifNoneMatch = request.headers.get('if-none-match');
 
     const response = await fetch(decodedTargetUrl, {
       headers: forwardHeaders,
     });
 
-    // Handle 304 Not Modified response
-    if (response.status === 304) {
-      // Forward the 304 response with appropriate headers
-      const headers = new Headers();
-      
-      // Forward cache-related headers
-      const cacheControl = response.headers.get('cache-control');
-      const etag = response.headers.get('etag');
-      const lastModified = response.headers.get('last-modified');
-      const expires = response.headers.get('expires');
-      
-      if (cacheControl) headers.set('cache-control', cacheControl);
-      if (etag) headers.set('etag', etag);
-      if (lastModified) headers.set('last-modified', lastModified);
-      if (expires) headers.set('expires', expires);
-      
-      return new NextResponse(null, {
-        status: 304,
-        headers: headers,
-      });
-    }
-
     if (!response.ok) {
       const errorText = await response.text();
-      // Log the first 500 characters of the error text for easier debugging.
       console.error(`Proxy: Error fetching ${decodedTargetUrl}: ${response.status} ${response.statusText}`, errorText.substring(0, 500));
       return NextResponse.json(
         { error: `Failed to fetch from target: ${response.status} ${response.statusText}`, details: errorText.substring(0, 500) },
@@ -73,37 +46,26 @@ export async function GET(request: NextRequest) {
     const textData = await response.text();
     const contentType = response.headers.get('content-type');
 
-    // Prepare cache-related headers to forward
+    // 为EdgeOne添加防缓存头部
     const responseHeaders = new Headers();
-    const cacheControl = response.headers.get('cache-control');
-    const etag = response.headers.get('etag');
-    const lastModified = response.headers.get('last-modified');
-    const expires = response.headers.get('expires');
-    
-    if (cacheControl) responseHeaders.set('cache-control', cacheControl);
-    if (etag) responseHeaders.set('etag', etag);
-    if (lastModified) responseHeaders.set('last-modified', lastModified);
-    if (expires) responseHeaders.set('expires', expires);
+    responseHeaders.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    responseHeaders.set('Pragma', 'no-cache');
+    responseHeaders.set('Expires', '0');
 
     try {
       // Attempt to parse as JSON 
       const jsonData = JSON.parse(textData);
-      // If parsing succeeds, return the JSON data directly
       return NextResponse.json(jsonData, {
         headers: responseHeaders,
       });
     } catch (jsonError) {
-      // If JSON parsing fails, it means the upstream source provided invalid JSON
-      // or non-JSON data. The proxy should indicate this.
       console.warn(`Proxy: Response from ${decodedTargetUrl} was not parseable as valid JSON (Content-Type: ${contentType}). Returning as nonJsonData. Data snippet: ${textData.substring(0,200)}...`);
-      // Return the raw textData wrapped in a nonJsonData field
       return NextResponse.json({ nonJsonData: textData }, {
         headers: responseHeaders,
       });
     }
 
   } catch (error) {
-    // This catches errors from the fetch operation itself (e.g., network issues to the target)
     console.error(`Proxy: Exception fetching ${targetUrl}:`, error);
     let errorMessage = 'Unknown proxy error';
     if (error instanceof Error) {
