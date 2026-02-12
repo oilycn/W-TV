@@ -12,15 +12,10 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { 
   AlertCircle, Search as SearchIconTv, Tv2, Loader2,
-  Film, Tv, Palette, Mic, BookOpen, Music, Trophy, Gamepad2,
-  Newspaper, GraduationCap, Home, ChefHat, Plane, Rocket,
-  Ghost, Laugh, Heart, Zap, Sword, Shield, Baby, DollarSign,
-  Stethoscope, Sparkles, Car, Laptop, Smartphone, Camera,
-  Headphones, Radio, Monitor, Clapperboard, Theater, Popcorn
+  Film, Tv, Palette, Theater, Popcorn
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useCategories } from '@/contexts/CategoryContext';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 
@@ -42,11 +37,9 @@ function HomePageContent() {
   const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
-  const mainContentRef = useRef<HTMLDivElement>(null);
 
   // Memoized values from URL search parameters
   const selectedCategoryId = useMemo(() => searchParamsHook.get('category') || 'all', [searchParamsHook]);
-  const activeSourceTrigger = useMemo(() => searchParamsHook.get('activeSourceTrigger'), [searchParamsHook]);
   const currentSearchTermQuery = useMemo(() => searchParamsHook.get('q') || '', [searchParamsHook]);
   const searchTrigger = useMemo(() => searchParamsHook.get('searchTrigger'), [searchParamsHook]);
   
@@ -205,20 +198,18 @@ function HomePageContent() {
     );
   }
 
-  const isLoadingCategories = globalCategories.length <= 1;
-
   return (
-    <div className="flex flex-col lg:flex-row w-full">
-      {/* --- 左侧边栏 - 桌面端固定 --- */}
-      <aside className="hidden lg:block fixed left-0 top-14 w-60 h-[calc(100vh-3.5rem)] z-10 p-3 bg-background" suppressHydrationWarning>
-        <div className="relative h-full flex flex-col bg-card/40 backdrop-blur-md rounded-2xl border border-border/10 shadow-[inset_0_1px_4px_rgba(255,255,255,0.05),0_8px_16px_-4px_rgba(0,0,0,0.3)] overflow-hidden">
-          {/* 装饰光影 - 对称设计 */}
+    <div className="flex flex-col lg:flex-row w-full min-h-screen">
+      {/* --- 左侧边栏 - 绝对固定布局 --- */}
+      <aside className="hidden lg:block fixed left-0 top-14 w-60 h-[calc(100vh-3.5rem)] z-10 p-3 bg-background/80 border-r border-border/5" suppressHydrationWarning>
+        <div className="relative h-full flex flex-col bg-card/40 backdrop-blur-md rounded-2xl border border-white/10 shadow-[inset_0_1px_4px_rgba(255,255,255,0.05),0_8px_16px_-4px_rgba(0,0,0,0.3)] overflow-hidden">
+          {/* 装饰光影 - 对称立体设计 */}
           <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-primary/5 via-transparent to-primary/5"></div>
           
-          {/* 分类列表 - 独立滚动 */}
+          {/* 分类列表 - 隐藏滚动条 */}
           <div className="flex-1 overflow-y-auto px-2 py-4 scrollbar-none">
              <div className="space-y-1.5 px-1">
-               {globalCategories.map((category, index) => {
+               {globalCategories.map((category) => {
                   const getIcon = (name: string) => {
                     if (name.includes('电影')) return Film;
                     if (name.includes('剧')) return Tv;
@@ -249,8 +240,8 @@ function HomePageContent() {
              </div>
           </div>
 
-          {/* 底部统计面板 - 底座化设计 */}
-          <div className="mt-auto bg-gradient-to-t from-background/80 to-transparent backdrop-blur-sm p-4 border-t border-white/5">
+          {/* 底部统计面板 - 无缝集成底座 */}
+          <div className="mt-auto bg-gradient-to-t from-background/90 to-transparent backdrop-blur-sm p-4 border-t border-white/5">
              <div className="grid grid-cols-2 gap-2 text-[10px] text-muted-foreground/60 font-mono uppercase tracking-widest">
                 <div className="bg-white/5 rounded-lg p-2 text-center">
                    <p className="mb-0.5">已加载</p>
@@ -268,7 +259,7 @@ function HomePageContent() {
         </div>
       </aside>
 
-      {/* --- 右侧内容区 --- */}
+      {/* --- 右侧内容区 - 留出固定边栏位置 --- */}
       <main className="flex-1 lg:ml-60 px-4 py-4 md:px-6 md:py-6">
         {error && (
            <Alert variant="destructive" className="mb-6">

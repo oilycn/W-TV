@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -87,11 +88,9 @@
   }
   body {
     @apply bg-background text-foreground;
-    /* 添加微妙的纹理背景 - 延迟加载避免闪烁 */
     background-image: 
       radial-gradient(circle at 25% 25%, hsl(var(--muted) / 0.1) 0%, transparent 50%),
       radial-gradient(circle at 75% 75%, hsl(var(--primary) / 0.05) 0%, transparent 50%);
-    /* 确保背景平滑过渡 */
     transition: background-color 0.3s ease;
   }
 }
@@ -104,14 +103,23 @@
     overflow: hidden;
   }
   
-  /* 隐藏滚动条但保持滚动功能 */
+  /* 极致隐藏滚动条 */
+  .scrollbar-none {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+  
+  .scrollbar-none::-webkit-scrollbar {
+    display: none !important;
+  }
+  
   .hidden-scrollbar {
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
   
   .hidden-scrollbar::-webkit-scrollbar {
-    display: none; /* Chrome, Safari, Opera */
+    display: none;
   }
   
   /* 左侧滚动条样式 */
