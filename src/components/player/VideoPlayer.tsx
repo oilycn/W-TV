@@ -18,22 +18,19 @@ function filterAdsFromM3U8(m3u8Content: string): string {
     if (!m3u8Content) return '';
     const lines = m3u8Content.split('\n');
     let outputLines = [];
-    // Only use very generic and safe keywords.
-    const adKeywords = ['/ads/', 'advertisement'];
+    const adKeywords = ['/ads/', 'advertisement', 'promot', 'banner'];
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         if (line.startsWith('#EXTINF') && i + 1 < lines.length) {
             const urlLine = lines[i + 1];
-            // If the URL line contains an ad keyword, skip both the #EXTINF line and the URL line.
-            if (adKeywords.some(keyword => urlLine.includes(keyword))) {
-                i++; // Increment i to skip the URL line on the next iteration.
+            if (adKeywords.some(keyword => urlLine.toLowerCase().includes(keyword))) {
+                i++;
                 continue;
             }
         }
         outputLines.push(line);
     }
-    
     return outputLines.join('\n');
 }
 
@@ -77,27 +74,49 @@ export default function VideoPlayer({
     if (isHLSProvider(provider)) {
       provider.library = Hls;
       provider.config = {
-        // --- Start of Performance Optimizations ---
-
-        // 1. Timeout and Retry Strategy: "Quick Fail, Many Retries"
-        // This helps recover from temporary network glitches faster than waiting for a long timeout.
-        manifestLoadTimeout: 60000, // Allow more time for the main playlist to load.
-        levelLoadTimeout: 60000,   // More time for sub-playlists.
-        fragLoadTimeout: 15000,    // Shorter timeout for individual segments (15s).
-        fragLoadRetryDelay: 1000,  // Wait 1s before retrying a failed segment.
-        fragLoadMaxRetry: 8,       // Retry a segment up to 8 times.
-
-        // 2. Buffer Strategy: "Buffer Aggressively"
-        // This is key to surviving slow segment loads without stuttering.
-        maxBufferLength: 180,              // Aim to have 3 minutes of video buffered ahead.
-        maxBufferSize: 120 * 1024 * 1024,  // Allow HLS to use up to 120MB of memory for this buffer.
-        maxMaxBufferLength: 300,           // The absolute maximum buffer, even in good conditions (5 minutes).
-
-        // --- End of Performance Optimizations ---
+        // --- 深度参考 Jable 与 W-TV 的 HLS 优化配置 ---
         
+        // 1. 极致启动速度：优先加载极小缓冲实现秒开
+        maxBufferSize: 30 * 1024 * 1024,      // 降低最大缓存限制，提高内存效率
+        maxBufferLength: 300,                // 目标缓冲 5 分钟
+        enableWorker: true,                  // 开启 Web Worker 多线程解码
+        lowLatencyMode: true,                // 开启低延迟直播/点播模式
+        
+        // 2. 强效容错与纠错：应对弱源环境
+        manifestLoadTimeout: 45000,
+        manifestLoadMaxRetry: 5,
+        levelLoadTimeout: 30000,
+        levelLoadMaxRetry: 5,
+        fragLoadTimeout: 20000,
+        fragLoadMaxRetry: 10,                // 高重试次数，应对源断开
+        fragLoadRetryDelay: 1000,
+        
+        // 3. 智能生命周期管理
         autoStartLoad: true,
+        startLevel: -1,                      // 自动选择最佳初始质量
+        
         loader: CustomHlsJsLoader,
       };
+
+      // 监听 HLS 致命错误并自动尝试修复 (参考 W-TV 集成脚本)
+      provider.instance?.on(Hls.Events.ERROR, (event, data) => {
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.warn("网络异常，尝试快速重连...");
+              provider.instance?.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.warn("解码异常，尝试修复轨道...");
+              provider.instance?.recoverMediaError();
+              break;
+            default:
+              console.error("播放器遭遇致命错误，尝试彻底重置...");
+              provider.instance?.destroy();
+              break;
+          }
+        }
+      });
     }
   };
 
@@ -113,58 +132,38 @@ export default function VideoPlayer({
       crossOrigin="anonymous"
       onProviderChange={onProviderChange}
       onEnded={onEnded}
+      fullscreen={{ strategy: 'always' }} // iOS 原生全屏策略适配
     >
       <MediaProvider />
       <DefaultVideoLayout
         icons={defaultLayoutIcons}
         slots={{
           googleCastButton: null,
-          pipButton: null,
+          pipButton: <AirPlayButton className="vds-button"><AirPlayIcon className="vds-icon" /></AirPlayButton>,
           settingsMenu: null,
           beforeCurrentTime: (
             <button
               className="vds-button mr-2"
               onClick={onNextEpisode}
-              aria-label="Next Episode"
+              aria-label="下一集"
             >
-              <svg
-                className="vds-icon"
-                viewBox="0 0 32 32"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M6 24l12-8L6 8v16zM22 8v16h3V8h-3z"
-                  fill="currentColor"
-                />
+              <svg className="vds-icon" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 24l12-8L6 8v16zM22 8v16h3V8h-3z" fill="currentColor" />
               </svg>
             </button>
           ),
           beforeFullscreenButton: (
-            <>
-              <button
-                onClick={onEnterWebFullscreen}
-                className="vds-button"
-                aria-label="网页全屏"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="vds-icon"
-                >
-                  <title>网页全屏</title>
-                  <rect x="3" y="7" width="6" height="10" rx="1"></rect>
-                  <rect x="11" y="4" width="10" height="6" rx="1"></rect>
-                </svg>
-              </button>
-              <AirPlayButton className="vds-button">
-                <AirPlayIcon className="vds-icon" />
-              </AirPlayButton>
-            </>
+            <button
+              onClick={onEnterWebFullscreen}
+              className="vds-button"
+              aria-label="网页全屏"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="vds-icon">
+                <title>网页全屏</title>
+                <rect x="3" y="7" width="6" height="10" rx="1"></rect>
+                <rect x="11" y="4" width="10" height="6" rx="1"></rect>
+              </svg>
+            </button>
           ),
         }}
       />

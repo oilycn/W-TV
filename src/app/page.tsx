@@ -22,6 +22,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useCategories } from '@/contexts/CategoryContext';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { cn } from '@/lib/utils';
 
 const LOCAL_STORAGE_KEY_SOURCES = 'cinemaViewSources';
 
@@ -54,7 +55,6 @@ function HomePageContent() {
 
   const categoryName = useMemo(() => globalCategories.find(c => c.id === selectedCategoryId)?.name || (selectedCategoryId === 'all' ? '全部' : '未知分类'), [globalCategories, selectedCategoryId]);
 
-
   const activeSourceName = useMemo(() => {
     if (!activeSourceId) return null;
     return sources.find(s => s.id === activeSourceId)?.name;
@@ -75,17 +75,8 @@ function HomePageContent() {
     }
     setPageTitle(title);
     
-    // Cleanup on unmount
     return () => setPageTitle('');
   }, [isLoadingContent, sources.length, categoryName, totalItems, setPageTitle, activeSourceName]);
-
-
-  // Effect to synchronize activeSourceId from URL trigger
-  useEffect(() => {
-    if (activeSourceTrigger && activeSourceTrigger !== activeSourceId) {
-      setActiveSourceId(activeSourceTrigger);
-    }
-  }, [activeSourceTrigger, activeSourceId, setActiveSourceId]);
 
   // Effect to ensure activeSourceId is valid or default
   useEffect(() => {
@@ -94,19 +85,13 @@ function HomePageContent() {
       if (!activeSourceIsValid && sources[0]) {
         setActiveSourceId(sources[0].id);
       }
-    } else if (sources.length === 0 && activeSourceId) {
-      setActiveSourceId(null);
     }
   }, [sources, activeSourceId, setActiveSourceId]);
 
-  // Memoized activeSourceUrl based on synchronized activeSourceId and sources
   const activeSourceUrl = useMemo(() => {
     if (activeSourceId) {
       const source = sources.find(s => s.id === activeSourceId);
       if (source) return source.url;
-    }
-    if (sources.length > 0 && sources[0]) {
-      return sources[0].url; // Fallback
     }
     return null;
   }, [sources, activeSourceId]);
@@ -124,22 +109,9 @@ function HomePageContent() {
     router.push(`${pathname}?${currentParams.toString()}`, { scroll: false });
   }, [router, searchParamsHook, pathname]);
 
-  // Effect to reset content on context change
+  // Effect to fetch content
   useEffect(() => {
-    if (mainContentRef.current) {
-        mainContentRef.current.scrollTo({ top: 0, behavior: 'auto' });
-    }
-    setContentItems([]);
-    setPage(1);
-    setIsLoadingContent(true);
-  }, [activeSourceUrl, selectedCategoryId, currentSearchTermQuery, searchTrigger, sources.length]);
-
-  // Effect for fetching content (initial and subsequent)
-  useEffect(() => {
-    if (!activeSourceUrl && sources.length > 0) {
-      setIsLoadingContent(true);
-      return;
-    }
+    if (!activeSourceUrl && sources.length > 0) return;
     
     let isCancelled = false;
     
@@ -150,7 +122,7 @@ function HomePageContent() {
       else setIsLoadingMore(true);
 
       try {
-        const response = await fetchApiContentList(activeSourceUrl, {
+        const response = await fetchApiContentList(activeSourceUrl || '', {
           page: page,
           categoryId: selectedCategoryId === 'all' ? undefined : selectedCategoryId,
           searchTerm: currentSearchTermQuery || undefined,
@@ -163,7 +135,7 @@ function HomePageContent() {
         }
       } catch (e) {
         if (!isCancelled) {
-          setError(prev => (prev ? `${prev} & 无法加载内容列表。` : "无法加载内容列表。"));
+          setError("无法加载内容列表。");
           const mockResponse = getMockPaginatedResponse(page, selectedCategoryId, currentSearchTermQuery);
           setContentItems(prev => page === 1 ? mockResponse.items : [...prev, ...mockResponse.items]);
           setTotalPages(mockResponse.pageCount || 1);
@@ -178,15 +150,12 @@ function HomePageContent() {
     };
     
     loadContent();
-
     return () => { isCancelled = true; };
   }, [page, activeSourceUrl, selectedCategoryId, currentSearchTermQuery, searchTrigger, sources.length]);
-
 
   // Infinite scroll
   useEffect(() => {
     if (!loadMoreTriggerRef.current) return;
-    
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && !isLoadingContent && !isLoadingMore && page < totalPages) {
@@ -195,19 +164,13 @@ function HomePageContent() {
       },
       { threshold: 1.0 }
     );
-
     observer.observe(loadMoreTriggerRef.current);
-    
-    return () => {
-      if (loadMoreTriggerRef.current) {
-        observer.unobserve(loadMoreTriggerRef.current);
-      }
-    };
+    return () => observer.disconnect();
   }, [isLoadingContent, isLoadingMore, page, totalPages]);
 
-  // 更新统计信息到Context
+  // Update stats
   useEffect(() => {
-    if (setContentStats && contentItems.length > 0) {
+    if (setContentStats) {
       setContentStats({
         loadedCount: contentItems.length,
         currentPage: page,
@@ -218,13 +181,9 @@ function HomePageContent() {
   }, [contentItems.length, page, totalPages, totalItems, setContentStats]);
 
   const handleCategoryChange = (newCategoryId: string) => {
-    // 切换分类时清空当前内容并重置页面
     setContentItems([]);
     setPage(1);
-    
-    // 滚动到页面顶部
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    
     updateURLParamsForNav({ 
         category: newCategoryId === 'all' ? null : newCategoryId, 
         page: 1,
@@ -233,18 +192,15 @@ function HomePageContent() {
     });
   };
 
-  if (sources.length === 0 && !activeSourceUrl && !isLoadingContent ) {
+  if (sources.length === 0 && !activeSourceUrl && !isLoadingContent) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-10rem)] text-center p-4">
         <Tv2 className="w-24 h-24 mb-6 text-muted-foreground" />
         <h2 className="text-2xl font-semibold mb-2 text-foreground">欢迎来到 晚风TV</h2>
-        <p className="mb-6 text-muted-foreground max-w-md">
-          您还没有配置任何内容源。请前往“设置”页面添加一个或多个内容源，以便开始浏览和发现精彩内容。
-        </p>
+        <p className="mb-6 text-muted-foreground max-w-md">请前往“设置”页面添加一个或多个内容源。</p>
         <Button asChild className="bg-accent hover:bg-accent/90 text-accent-foreground">
           <Link href="/settings">前往设置</Link>
         </Button>
-        <p className="mt-4 text-sm text-muted-foreground">（当前可能显示示例分类和数据）</p>
       </div>
     );
   }
@@ -252,220 +208,119 @@ function HomePageContent() {
   const isLoadingCategories = globalCategories.length <= 1;
 
   return (
-    <div className="space-y-4" ref={mainContentRef}>
-      {error && (
-         <Alert variant="destructive" className="mb-4">
-           <AlertCircle className="h-4 w-4" />
-           <AlertTitle>加载错误</AlertTitle>
-           <AlertDescription>{error} 部分数据可能来自模拟源。</AlertDescription>
-         </Alert>
-      )}
-      
-      
-      {/* 主要内容区域 - 左侧边栏 + 右侧内容 */}
-      <div className="flex gap-6">
-        {/* 左侧边栏 - 固定在页面左侧 */}
-        <div className="hidden lg:block fixed left-0 top-16 w-48 h-[calc(100vh-4rem)] z-10" suppressHydrationWarning>
-          {/* 立体卡片式背景 */}
-          <div className="absolute inset-2 bg-gradient-to-br from-card via-card to-muted/10 rounded-xl shadow-2xl shadow-black/10"></div>
-          <div className="absolute inset-2 bg-gradient-to-t from-transparent via-primary/3 to-primary/8 rounded-xl"></div>
-          <div className="absolute inset-2 border border-border/20 rounded-xl"></div>
-          {/* 内部光效 */}
-          <div className="absolute top-2 left-2 right-2 h-8 bg-gradient-to-b from-white/10 to-transparent rounded-t-xl"></div>
-          <div className="absolute bottom-2 left-2 right-2 h-8 bg-gradient-to-t from-black/5 to-transparent rounded-b-xl"></div>
-            <div className="h-full flex flex-col relative z-10 p-2">
-              {/* 分类导航 - 可滚动区域 */}
-              {(!isLoadingCategories && globalCategories.length > 0) && (
-                <div className="flex-1 overflow-y-auto px-3 py-4 bg-gradient-to-b from-background/50 to-background/80 rounded-lg backdrop-blur-sm" style={{
-                  scrollbarWidth: 'none',
-                  msOverflowStyle: 'none'
-                }}>
-                  <style jsx>{`
-                    div::-webkit-scrollbar {
-                      display: none;
-                    }
-                  `}</style>
-                  <div className="space-y-1">
-                    {globalCategories.map((category, index) => {
-                      // 线条风格图标映射
-                      const getIcon = (name: string, index: number) => {
-                        const iconComponents = [
-                          Film, Tv, Palette, Mic, BookOpen, Music, Trophy, Gamepad2,
-                          Newspaper, GraduationCap, Home, ChefHat, Plane, Rocket,
-                          Ghost, Laugh, Heart, Zap, Sword, Shield, Baby, DollarSign,
-                          Stethoscope, Sparkles, Car, Laptop, Smartphone, Camera,
-                          Headphones, Radio, Monitor, Clapperboard, Theater, Popcorn
-                        ];
-                        
-                        // 智能匹配线条图标
-                        if (name.includes('电影') || name.includes('影')) return Film;
-                        if (name.includes('电视') || name.includes('剧') || name.includes('连续')) return Tv;
-                        if (name.includes('动漫') || name.includes('动画') || name.includes('卡通')) return Palette;
-                        if (name.includes('综艺') || name.includes('娱乐') || name.includes('真人秀')) return Theater;
-                        if (name.includes('纪录') || name.includes('记录') || name.includes('文献')) return BookOpen;
-                        if (name.includes('音乐') || name.includes('歌曲') || name.includes('演唱')) return Music;
-                        if (name.includes('体育') || name.includes('运动') || name.includes('比赛')) return Trophy;
-                        if (name.includes('游戏') || name.includes('电竞') || name.includes('竞技')) return Gamepad2;
-                        if (name.includes('新闻') || name.includes('资讯') || name.includes('时事')) return Newspaper;
-                        if (name.includes('科教') || name.includes('教育') || name.includes('学习')) return GraduationCap;
-                        if (name.includes('生活') || name.includes('日常') || name.includes('居家')) return Home;
-                        if (name.includes('美食') || name.includes('料理') || name.includes('烹饪')) return ChefHat;
-                        if (name.includes('旅游') || name.includes('旅行') || name.includes('风景')) return Plane;
-                        if (name.includes('科幻') || name.includes('未来') || name.includes('太空')) return Rocket;
-                        if (name.includes('恐怖') || name.includes('惊悚') || name.includes('悬疑')) return Ghost;
-                        if (name.includes('喜剧') || name.includes('搞笑') || name.includes('幽默')) return Laugh;
-                        if (name.includes('爱情') || name.includes('浪漫') || name.includes('情感')) return Heart;
-                        if (name.includes('动作') || name.includes('武打') || name.includes('功夫')) return Zap;
-                        if (name.includes('战争') || name.includes('军事') || name.includes('历史')) return Sword;
-                        if (name.includes('犯罪') || name.includes('警匪') || name.includes('侦探')) return Shield;
-                        if (name.includes('儿童') || name.includes('少儿') || name.includes('亲子')) return Baby;
-                        if (name.includes('财经') || name.includes('经济') || name.includes('商业')) return DollarSign;
-                        if (name.includes('健康') || name.includes('医疗') || name.includes('养生')) return Stethoscope;
-                        if (name.includes('时尚') || name.includes('美妆') || name.includes('潮流')) return Sparkles;
-                        if (name.includes('汽车') || name.includes('车辆') || name.includes('交通')) return Car;
-                        if (name.includes('科技') || name.includes('数码') || name.includes('互联网')) return Laptop;
-                        if (name.includes('全部') || name.includes('所有') || name.includes('全')) return Smartphone;
-                        if (name.includes('直播') || name.includes('现场')) return Radio;
-                        if (name.includes('电台') || name.includes('广播')) return Headphones;
-                        if (name.includes('摄影') || name.includes('拍摄')) return Camera;
-                        if (name.includes('监控') || name.includes('安防')) return Monitor;
-                        if (name.includes('电影院') || name.includes('影院')) return Clapperboard;
-                        if (name.includes('零食') || name.includes('小食')) return Popcorn;
-                        
-                        // 如果没有匹配到，使用索引对应的图标组件
-                        return iconComponents[index % iconComponents.length];
-                      };
-                      
-                      const IconComponent = getIcon(category.name, index);
-                      
-                      return (
-                        <button
-                          key={`${activeSourceUrl || 'mock'}-${category.id}`}
-                          onClick={() => handleCategoryChange(category.id)}
-                          className={`w-full text-left px-3 py-3 rounded-xl text-sm transition-all duration-300 flex items-center gap-3 relative overflow-hidden group ${
-                            selectedCategoryId === category.id 
-                              ? 'bg-gradient-to-br from-primary via-primary to-primary/80 text-primary-foreground font-semibold shadow-lg shadow-primary/30 border border-primary/30 transform scale-[1.02]' 
-                              : 'text-foreground hover:bg-gradient-to-br hover:from-card hover:via-card hover:to-muted/20 hover:text-foreground hover:shadow-lg hover:shadow-black/10 border border-border/10 hover:border-border/30 hover:transform hover:scale-[1.01]'
-                          }`}
-                        >
-                          {/* 按钮立体光效 */}
-                          <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"></div>
-                          <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent rounded-t-xl"></div>
-                          <IconComponent className="w-5 h-5 flex-shrink-0 relative z-10" />
-                          <span className="truncate relative z-10">{category.name}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-            </div>
-          </div>
-
-        {/* 右侧主内容区域 */}
-        <div className="flex-1 min-w-0 lg:ml-48" suppressHydrationWarning>
-          {/* 添加顶部间距以对齐分类栏 */}
-          <div className="pt-4">
-
-          {/* 内容网格 */}
-          <div className="p-1 md:p-2 pt-0">
-            {isLoadingContent && contentItems.length === 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-6 md:gap-8">
-                {Array.from({ length: 18 }).map((_, index) => (
-                  <div key={index} className="animate-pulse space-y-2">
-                    <Skeleton className="aspect-[3/4] w-full rounded-lg" />
-                     <Skeleton className="h-4 w-4/5 rounded-md" />
-                     <Skeleton className="h-3 w-3/5 rounded-md" />
-                  </div>
-                ))}
-              </div>
-            ) : contentItems.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-6 md:gap-8" ref={mainContentRef}>
-                {contentItems.map((item, index) => (
-                  <ContentCard 
-                    key={`${item.id}-${activeSourceUrl || 'mock'}-${item.title}-${index}`}
-                    item={item} 
-                    sourceId={activeSourceId ?? undefined}
-                  />
-                ))}
-              </div>
-            ) : (
-              !isLoadingContent && (
-                  <div className="text-center py-12 flex flex-col items-center justify-center min-h-[300px]">
-                      <SearchIconTv className="w-16 h-16 mb-4 text-muted-foreground" />
-                      <p className="text-xl text-muted-foreground">
-                        {currentSearchTermQuery ? `未找到与 "${currentSearchTermQuery}" 相关的内容。` : "此分类下暂无内容。"}
-                      </p>
-                      { !activeSourceUrl && sources.length > 0 && ( 
-                          <p className="mt-2 text-sm text-muted-foreground">内容源可能正在加载或选择中，请稍候。</p>
+    <div className="flex flex-col lg:flex-row w-full">
+      {/* --- 左侧边栏 - 桌面端固定 --- */}
+      <aside className="hidden lg:block fixed left-0 top-14 w-60 h-[calc(100vh-3.5rem)] z-10 p-3 bg-background" suppressHydrationWarning>
+        <div className="relative h-full flex flex-col bg-card/40 backdrop-blur-md rounded-2xl border border-border/10 shadow-[inset_0_1px_4px_rgba(255,255,255,0.05),0_8px_16px_-4px_rgba(0,0,0,0.3)] overflow-hidden">
+          {/* 装饰光影 - 对称设计 */}
+          <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-primary/5 via-transparent to-primary/5"></div>
+          
+          {/* 分类列表 - 独立滚动 */}
+          <div className="flex-1 overflow-y-auto px-2 py-4 scrollbar-none">
+             <div className="space-y-1.5 px-1">
+               {globalCategories.map((category, index) => {
+                  const getIcon = (name: string) => {
+                    if (name.includes('电影')) return Film;
+                    if (name.includes('剧')) return Tv;
+                    if (name.includes('动漫')) return Palette;
+                    if (name.includes('综艺')) return Theater;
+                    return Popcorn;
+                  };
+                  const Icon = getIcon(category.name);
+                  const isActive = selectedCategoryId === category.id;
+                  
+                  return (
+                    <button
+                      key={category.id}
+                      onClick={() => handleCategoryChange(category.id)}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-300 relative group overflow-hidden",
+                        isActive 
+                          ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]" 
+                          : "text-muted-foreground hover:bg-white/5 hover:text-foreground hover:scale-[1.01]"
                       )}
-                  </div>
-              )
-            )}
-            
-            <div ref={loadMoreTriggerRef} className="flex justify-center items-center p-4">
-              {isLoadingMore && <Loader2 className="h-8 w-8 animate-spin text-primary" />}
-            </div>
+                    >
+                      <Icon className={cn("w-4.5 h-4.5 relative z-10 transition-transform duration-300 group-hover:scale-110", isActive && "text-white")} />
+                      <span className="truncate relative z-10 font-medium">{category.name}</span>
+                      {isActive && <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent pointer-events-none"></div>}
+                    </button>
+                  );
+               })}
+             </div>
           </div>
+
+          {/* 底部统计面板 - 底座化设计 */}
+          <div className="mt-auto bg-gradient-to-t from-background/80 to-transparent backdrop-blur-sm p-4 border-t border-white/5">
+             <div className="grid grid-cols-2 gap-2 text-[10px] text-muted-foreground/60 font-mono uppercase tracking-widest">
+                <div className="bg-white/5 rounded-lg p-2 text-center">
+                   <p className="mb-0.5">已加载</p>
+                   <span className="text-foreground font-bold">{contentItems.length}</span>
+                </div>
+                <div className="bg-white/5 rounded-lg p-2 text-center">
+                   <p className="mb-0.5">总数</p>
+                   <span className="text-primary font-bold">{totalItems}</span>
+                </div>
+             </div>
+             <div className="mt-2 text-center">
+                <p className="text-[9px] text-muted-foreground/40 font-medium">页码: {page} / {totalPages}</p>
+             </div>
           </div>
         </div>
-      </div>
-      
+      </aside>
+
+      {/* --- 右侧内容区 --- */}
+      <main className="flex-1 lg:ml-60 px-4 py-4 md:px-6 md:py-6">
+        {error && (
+           <Alert variant="destructive" className="mb-6">
+             <AlertCircle className="h-4 w-4" />
+             <AlertTitle>提示</AlertTitle>
+             <AlertDescription>{error}</AlertDescription>
+           </Alert>
+        )}
+
+        {/* 视频网格 - 最多显示 7 列 */}
+        <div className="p-1">
+          {isLoadingContent && contentItems.length === 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 3xl:grid-cols-7 gap-6 md:gap-8">
+              {Array.from({ length: 14 }).map((_, i) => (
+                <div key={i} className="animate-pulse space-y-3">
+                  <Skeleton className="aspect-[3/4] w-full rounded-2xl" />
+                  <Skeleton className="h-4 w-4/5 rounded-md" />
+                </div>
+              ))}
+            </div>
+          ) : contentItems.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 3xl:grid-cols-7 gap-6 md:gap-8">
+              {contentItems.map((item, index) => (
+                <ContentCard 
+                  key={`${item.id}-${index}`}
+                  item={item} 
+                  sourceId={activeSourceId ?? undefined}
+                />
+              ))}
+            </div>
+          ) : (
+            !isLoadingContent && (
+              <div className="flex flex-col items-center justify-center min-h-[400px] text-muted-foreground opacity-50">
+                <SearchIconTv className="w-16 h-16 mb-4" />
+                <p className="text-lg">{currentSearchTermQuery ? `未找到与 "${currentSearchTermQuery}" 相关的结果` : "此分类下暂无内容"}</p>
+              </div>
+            )
+          )}
+          
+          <div ref={loadMoreTriggerRef} className="flex justify-center items-center py-10">
+            {isLoadingMore && <Loader2 className="h-8 w-8 animate-spin text-primary/50" />}
+          </div>
+        </div>
+      </main>
     </div>
   );
 }
 
 export default function HomePage() {
   return (
-    <Suspense fallback={<HomePageSkeleton />}>
+    <Suspense fallback={null}>
       <HomePageContent />
     </Suspense>
   );
 }
-
-function HomePageSkeleton() {
-  return (
-    <div className="flex gap-6">
-      {/* 左侧边栏骨架 */}
-      <div className="hidden lg:block fixed left-0 top-16 w-48 h-[calc(100vh-4rem)] bg-background border-r border-transparent z-10">
-        <div className="h-full flex flex-col">
-          <div className="flex-1 px-2 py-3">
-            <div className="space-y-1">
-              {Array.from({ length: 8 }).map((_, index) => (
-                <Skeleton key={index} className="h-10 w-full rounded-md" />
-              ))}
-            </div>
-          </div>
-          <div className="flex-shrink-0 border-t border-border/20 bg-background p-3">
-            <Skeleton className="h-4 w-16 mb-2" />
-            <div className="space-y-1">
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-full" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 右侧内容骨架 */}
-      <div className="flex-1 min-w-0 lg:ml-48">
-        
-        {/* 内容网格骨架 */}
-        <div className="p-1 md:p-2 pt-0">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-6 md:gap-8">
-            {Array.from({ length: 18 }).map((_, index) => (
-              <div key={index} className="animate-pulse space-y-2">
-                <Skeleton className="aspect-[3/4] w-full rounded-lg" />
-                <Skeleton className="h-4 w-4/5 rounded-md" />
-                <Skeleton className="h-3 w-3/5 rounded-md" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-    
