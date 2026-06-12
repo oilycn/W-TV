@@ -191,3 +191,8 @@
   .stagger-11 { animation-delay: 550ms; }
   .stagger-12 { animation-delay: 600ms; }
 }
+
+/* Vidstack Player Theme Overrides */
+.vds-player {
+  --video-brand: hsl(var(--primary));
+}

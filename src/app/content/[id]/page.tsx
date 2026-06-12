@@ -235,15 +235,16 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         }
         
         if (!player) return;
-        if (e.key === ' ' || e.key === 'f' || e.key === 'F' || e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') e.preventDefault();
+        if (e.key === ' ' || e.key === 'f' || e.key === 'F' || e.key === 'Escape' || e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') e.preventDefault();
         
         if (e.key === ' ') player.paused ? player.play() : player.pause();
         if (e.key === 'f' || e.key === 'F') handleEnterWebFullscreen();
+        if (e.key === 'Escape' && isWebFullscreen) { handleEnterWebFullscreen(); }
         if (!e.altKey && e.key === 'ArrowLeft') { player.currentTime -= 10; displayShortcutHint('快退10秒'); }
         if (!e.altKey && e.key === 'ArrowRight') { player.currentTime += 10; displayShortcutHint('快进10秒'); }
         if (e.key === 'ArrowUp') { player.volume = Math.min(player.volume + 0.1, 1); displayShortcutHint(`音量 ${Math.round(player.volume * 100)}`);}
         if (e.key === 'ArrowDown') { player.volume = Math.max(player.volume - 0.1, 0); displayShortcutHint(`音量 ${Math.round(player.volume * 100)}`);}
-    }, [player, handleNextEpisode, getNextEpisode, handleEnterWebFullscreen]);
+    }, [player, handleNextEpisode, getNextEpisode, handleEnterWebFullscreen, isWebFullscreen]);
     
     useEffect(() => {
         document.addEventListener('keydown', handleKeyboardShortcuts);
@@ -305,7 +306,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
               </div>
             )}
 
-            <div className="relative z-20 container mx-auto max-w-screen-2xl px-4 md:px-8 py-6 lg:py-8 flex flex-col gap-8 md:gap-12">
+            <div className={cn("relative container mx-auto max-w-screen-2xl px-4 md:px-8 py-6 lg:py-8 flex flex-col gap-8 md:gap-12", isWebFullscreen ? "z-[100]" : "z-20")}>
                 
                 {/* 1. Player Area */}
                 <div className={cn(
@@ -340,6 +341,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                                 onPlayerInit={setPlayer}
                                 onEnded={handleNextEpisode}
                                 onEnterWebFullscreen={handleEnterWebFullscreen}
+                                isWebFullscreen={isWebFullscreen}
                                 onNextEpisode={handleNextEpisode}
                             />
                         ) : (
