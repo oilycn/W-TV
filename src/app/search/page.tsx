@@ -41,7 +41,9 @@ function SearchResults() {
   
   const isMobile = useIsMobile();
 
-  const loadSearchResults = useCallback(async (currentQuery: string, currentSources: SourceConfig[]) => {
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const loadSearchResults = useCallback(async (currentQuery: string, currentSources: SourceConfig[], signal: AbortSignal) => {
     if (!currentQuery) {
       setSearchResultsBySource([]);
       setTotalResultsCount(0);
@@ -57,38 +59,62 @@ function SearchResults() {
     setSelectedSourceId('all');
     setTotalResultsCount(0);
 
-    const searchPromises = currentSources.map(async (source) => {
-      try {
-        const response = await fetchApiContentList(source.url, { searchTerm: currentQuery });
-        if (response.items && response.items.length > 0) {
-          setSearchResultsBySource(prevResults => {
-            // Prevent duplicates if a source responds multiple times somehow
-            if (prevResults.some(r => r.source.id === source.id)) return prevResults;
-            const newGroup = { source, items: response.items };
-            // Sort results alphabetically by source name as they come in
-            return [...prevResults, newGroup].sort((a, b) => a.source.name.localeCompare(b.source.name));
-          });
-          setTotalResultsCount(prevCount => prevCount + response.items.length);
-        }
-      } catch (e) {
-        console.warn(`Search: Error fetching from source ${source.name} for query "${currentQuery}":`, e);
-      }
-    });
+    const CONCURRENCY_LIMIT = 3; // Keep slots open for Next.js navigation
+    let i = 0;
 
-    await Promise.all(searchPromises);
-    setIsLoading(false);
+    const executeNext = async () => {
+      while (i < currentSources.length) {
+        if (signal.aborted) return;
+        const source = currentSources[i++];
+        try {
+          const response = await fetchApiContentList(source.url, { searchTerm: currentQuery, signal });
+          if (signal.aborted) return;
+          if (response.items && response.items.length > 0) {
+            setSearchResultsBySource(prevResults => {
+              if (prevResults.some(r => r.source.id === source.id)) return prevResults;
+              const newGroup = { source, items: response.items };
+              return [...prevResults, newGroup].sort((a, b) => a.source.name.localeCompare(b.source.name));
+            });
+            setTotalResultsCount(prevCount => prevCount + response.items.length);
+          }
+        } catch (e: any) {
+          if (e.name === 'AbortError') return;
+          console.warn(`Search: Error fetching from source ${source.name} for query "${currentQuery}":`, e);
+        }
+      }
+    };
+
+    const workers = [];
+    for (let w = 0; w < CONCURRENCY_LIMIT; w++) {
+      workers.push(executeNext());
+    }
+
+    await Promise.all(workers);
+    if (!signal.aborted) {
+      setIsLoading(false);
+    }
 
   }, []);
 
   useEffect(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     if (sources.length > 0 || !query) {
-        loadSearchResults(query, sources);
+        loadSearchResults(query, sources, abortController.signal);
     } else if (query && sources.length === 0) {
         setIsLoading(false);
         setError("请先配置内容源后再进行搜索。");
         setSearchResultsBySource([]);
         setTotalResultsCount(0);
     }
+    
+    return () => {
+      abortController.abort();
+    };
   }, [query, sources, loadSearchResults]);
   
   const itemsToDisplay = useMemo(() => {
@@ -129,87 +155,12 @@ function SearchResults() {
     resultsContainerRef.current?.scrollTo({ top: 0, behavior: 'auto' });
   }, [isMobile]);
 
-  const SourceList = () => (
-    <>
-      <div className="p-4">
-        <h2 className="text-sm font-medium text-foreground">搜索来源</h2>
-      </div>
-      <Separator className="mx-4 w-auto bg-border/50" />
-      <ScrollArea className="flex-1">
-        <div className="p-2">
-          {searchResultsBySource.length > 0 && (
-              <Button
-                key="all-results"
-                variant={selectedSourceId === 'all' ? "secondary" : "ghost"}
-                onClick={() => handleSourceSelect('all')}
-                className={cn(
-                  "justify-start w-full text-left h-auto py-2 px-3 text-sm"
-                )}
-              >
-                <span className="flex-1 truncate">全部结果</span>
-                <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                  {totalResultsCount}
-                </span>
-              </Button>
-          )}
-          {searchResultsBySource.map(group => (
-            <Button
-              key={group.source.id}
-              variant={selectedSourceId === group.source.id ? "secondary" : "ghost"}
-              onClick={() => handleSourceSelect(group.source.id)}
-              className={cn(
-                "justify-start w-full text-left h-auto py-2 px-3 text-sm"
-              )}
-            >
-              <span className="flex-1 truncate">{group.source.name}</span>
-              <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                {group.items.length}
-              </span>
-            </Button>
-          ))}
-          {isLoading && searchResultsBySource.length === 0 && (
-            <div className="p-4 flex items-center justify-center text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              <span>搜索中...</span>
-            </div>
-          )}
-        </div>
-      </ScrollArea>
-    </>
-  );
-
-  const ResultsGrid = ({ items }: { items: (typeof itemsToDisplay) }) => (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-6 md:gap-8">
-        {items.map(item => (
-          <ContentCard 
-            key={item.renderKey} 
-            item={item} 
-            sourceId={item.sourceId}
-            sourceName={selectedSourceId === 'all' ? item.sourceName : undefined}
-          />
-        ))}
-    </div>
-  );
-
-  const LoadingSkeleton = () => (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-6 md:gap-8">
-      {Array.from({ length: 14 }).map((_, index) => (
-        <div key={index} className="space-y-2">
-            <Skeleton className="aspect-[3/4] w-full rounded-lg" />
-            <Skeleton className="h-4 w-4/5 rounded-md" />
-            <Skeleton className="h-3 w-3/5 rounded-md" />
-        </div>
-      ))}
-    </div>
-  );
+  // Component definitions removed to prevent remounting issues
 
   return (
-    <div className="flex flex-col h-[calc(100vh-6rem)]">
-      <div className="flex-shrink-0 pb-4">
-      </div>
-
+    <div className="flex flex-col min-h-[calc(100vh-6rem)] w-full max-w-screen-3xl mx-auto px-4 md:px-8 py-6">
       {error && (
-        <Alert variant="destructive" className="my-4">
+        <Alert variant="destructive" className="mb-6 shadow-sm">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>搜索提示</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
@@ -217,68 +168,95 @@ function SearchResults() {
       )}
 
       {!query && !isLoading && (
-        <div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground">
-            <SearchIconLucide className="mx-auto h-16 w-16 mb-4" />
-            <p className="text-xl">通过顶部搜索栏查找内容。</p>
+        <div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground animate-in fade-in zoom-in-95 duration-700">
+            <div className="w-24 h-24 rounded-full bg-muted/50 flex items-center justify-center mb-6 shadow-inner">
+                <SearchIconLucide className="h-10 w-10 text-muted-foreground/60" />
+            </div>
+            <h2 className="text-2xl font-bold text-foreground mb-2 tracking-tight">探索影视世界</h2>
+            <p className="text-lg">请在顶部搜索栏输入你想观看的电影或剧集</p>
         </div>
       )}
       
       {query && (
-        <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex flex-col flex-1 animate-in slide-in-from-bottom-4 fade-in duration-500">
+            <div className="flex items-center justify-between mb-8">
+                <h1 className="text-2xl md:text-3xl font-black tracking-tight flex items-center gap-3">
+                    搜索: <span className="text-primary">"{decodeURIComponent(query)}"</span>
+                </h1>
+                <span className="text-sm font-medium text-muted-foreground bg-muted/50 px-3 py-1 rounded-full border border-border/50 shadow-sm">
+                    找到 {totalResultsCount} 个结果
+                </span>
+            </div>
 
-          {isMobile ? (
-              <div className="flex-1 flex flex-col min-h-0">
-                  {searchResultsBySource.length > 0 && (
-                      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-                      <SheetTrigger asChild>
-                          <Button variant="outline" className="mb-4 flex justify-between items-center flex-shrink-0">
-                          <span>{activeSourceName}</span>
-                          <ChevronRight className="h-4 w-4" />
-                          </Button>
-                      </SheetTrigger>
-                      <SheetContent side="bottom" className="h-[60%] flex flex-col">
-                          <SourceList />
-                      </SheetContent>
-                      </Sheet>
-                  )}
-                  <main ref={resultsContainerRef} className="flex-1 min-h-0 overflow-y-auto">
-                      {isLoading && itemsToDisplay.length === 0 ? <LoadingSkeleton /> : <ResultsGrid items={itemsToDisplay} />}
-                  </main>
-              </div>
-          ) : (
-              <div className="flex gap-6 min-h-0">
-                  {/* 左侧来源列表 - 立体设计 */}
-                  <div className="hidden lg:block fixed left-0 top-16 w-48 h-[calc(100vh-4rem)] z-10" suppressHydrationWarning>
-                      {/* 立体卡片式背景 */}
-                      <div className="absolute inset-2 bg-gradient-to-br from-card via-card to-muted/10 rounded-xl shadow-2xl shadow-black/10"></div>
-                      <div className="absolute inset-2 bg-gradient-to-t from-transparent via-primary/3 to-primary/8 rounded-xl"></div>
-                      <div className="absolute inset-2 border border-border/20 rounded-xl"></div>
-                      {/* 内部光效 */}
-                      <div className="absolute top-2 left-2 right-2 h-8 bg-gradient-to-b from-white/10 to-transparent rounded-t-xl"></div>
-                      <div className="absolute bottom-2 left-2 right-2 h-8 bg-gradient-to-t from-black/5 to-transparent rounded-b-xl"></div>
-                      <div className="h-full flex flex-col relative z-10 p-2">
-                          <div className="h-full bg-gradient-to-b from-background/50 to-background/80 rounded-lg backdrop-blur-sm flex flex-col">
-                              <SourceList />
-                          </div>
-                      </div>
-                  </div>
-                  
-                  {/* 右侧搜索结果 */}
-                  <main ref={resultsContainerRef} className="flex-1 min-w-0 lg:ml-48 h-full overflow-y-auto pr-2">
-                      {isLoading && itemsToDisplay.length === 0 ? <LoadingSkeleton /> : <ResultsGrid items={itemsToDisplay} />}
-                  </main>
-              </div>
-          )}
+            {/* Source Tabs (Horizontal) */}
+            <div className="w-full overflow-x-auto styled-scrollbar pb-4 mb-6">
+                <div className="flex w-max space-x-3 px-1">
+                    {searchResultsBySource.length > 0 && (
+                        <button
+                            onClick={() => handleSourceSelect('all')}
+                            className={cn(
+                                "px-5 py-2.5 rounded-full text-sm font-medium transition-all shadow-sm border",
+                                selectedSourceId === 'all'
+                                ? "bg-primary text-primary-foreground border-primary ring-2 ring-primary/20 scale-105"
+                                : "bg-background text-muted-foreground border-border/60 hover:bg-muted hover:text-foreground"
+                            )}
+                        >
+                            全部结果 ({totalResultsCount})
+                        </button>
+                    )}
+                    {searchResultsBySource.map(group => (
+                        <button
+                            key={group.source.id}
+                            onClick={() => handleSourceSelect(group.source.id)}
+                            className={cn(
+                                "px-5 py-2.5 rounded-full text-sm font-medium transition-all shadow-sm border",
+                                selectedSourceId === group.source.id
+                                ? "bg-primary text-primary-foreground border-primary ring-2 ring-primary/20 scale-105"
+                                : "bg-background text-muted-foreground border-border/60 hover:bg-muted hover:text-foreground"
+                            )}
+                        >
+                            {group.source.name} ({group.items.length})
+                        </button>
+                    ))}
+                </div>
+            </div>
 
-          {!isLoading && itemsToDisplay.length === 0 && (
-              <div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground">
-                <SearchIconLucide className="mx-auto h-16 w-16 mb-4" />
-                <p className="text-xl">未找到与 "{decodeURIComponent(query)}" 相关的内容。</p>
-                {sources.length === 0 && (
-                    <p className="mt-2 text-sm">提示：您尚未配置任何内容源。</p>
+            {/* Results Grid */}
+            <main ref={resultsContainerRef} className="flex-1 w-full pb-12">
+                {isLoading && itemsToDisplay.length === 0 ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-6 md:gap-8">
+                      {Array.from({ length: 14 }).map((_, index) => (
+                        <div key={index} className="space-y-2">
+                            <Skeleton className="aspect-[3/4] w-full rounded-lg" />
+                            <Skeleton className="h-4 w-4/5 rounded-md" />
+                            <Skeleton className="h-3 w-3/5 rounded-md" />
+                        </div>
+                      ))}
+                    </div>
+                ) : itemsToDisplay.length > 0 ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-6 md:gap-8">
+                        {itemsToDisplay.map(item => (
+                          <ContentCard 
+                            key={item.renderKey} 
+                            item={item} 
+                            sourceId={item.sourceId}
+                            sourceName={selectedSourceId === 'all' ? item.sourceName : undefined}
+                          />
+                        ))}
+                    </div>
+                ) : (
+                    <div className="py-20 flex flex-col items-center justify-center text-center animate-in fade-in duration-500">
+                        <div className="w-20 h-20 rounded-full bg-muted/30 flex items-center justify-center mb-4">
+                            <SearchIconLucide className="h-8 w-8 text-muted-foreground/40" />
+                        </div>
+                        <p className="text-xl font-semibold mb-2">未找到匹配内容</p>
+                        <p className="text-muted-foreground text-sm">换个关键词试试，或者检查数据源配置。</p>
+                        {sources.length === 0 && (
+                            <p className="mt-4 text-sm text-destructive">提示：您尚未配置任何内容源。</p>
+                        )}
+                    </div>
                 )}
-              </div>
-          )}
+            </main>
         </div>
       )}
     </div>

@@ -94,7 +94,7 @@ function SourceAndCategorySelector({ onSelection }: { onSelection: () => void })
                 ) : (
                     <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
                         {Array.from({ length: 12 }).map((_, index) => (
-                            <Skeleton key={index} className="h-[50px] w-full rounded-lg" />
+                            <Skeleton key={index} className="h-[50px] w-full rounded-lg bg-white/5" />
                         ))}
                     </div>
                 )}
@@ -104,7 +104,6 @@ function SourceAndCategorySelector({ onSelection }: { onSelection: () => void })
   );
 }
 
-
 export function AppHeader() {
   const { theme, toggleTheme } = useTheme();
   const { pageTitle, activeSourceId, setActiveSourceId, contentStats = null } = useCategories();
@@ -113,14 +112,24 @@ export function AppHeader() {
   const isMobile = useIsMobile();
   const pathname = usePathname();
   const [isSelectorSheetOpen, setIsSelectorSheetOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   
   const [sources] = useLocalStorage<SourceConfig[]>(LOCAL_STORAGE_KEY_SOURCES, []);
+  
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    // Initialize state
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
   
   const handleSourceChange = (newSourceId: string) => {
     setActiveSourceId(newSourceId);
     router.push('/'); 
   };
-
 
   useEffect(() => {
     if (!isMobile) {
@@ -128,21 +137,9 @@ export function AppHeader() {
     }
   }, [isMobile]);
   
-  if (false) {
-    return (
-      <header className="sticky top-0 z-20 bg-background/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
-        <div className="flex h-14 items-center justify-between border-b border-transparent px-4 md:px-6">
-            <Link href="/" className="mr-4">
-              <AppLogo />
-            </Link>
-        </div>
-      </header>
-    );
-  }
-  
   const SourceSwitcher = () => (
      <Select value={activeSourceId || ''} onValueChange={handleSourceChange} disabled={sources.length === 0}>
-        <SelectTrigger className="w-auto min-w-[120px] max-w-[200px] h-9 border-input bg-background/80">
+        <SelectTrigger className="w-auto min-w-[120px] max-w-[200px] h-9 border-border bg-background/50 hover:bg-muted transition-colors rounded-full px-4 text-foreground">
             <SelectValue placeholder="选择内容源" />
         </SelectTrigger>
         <SelectContent>
@@ -156,11 +153,16 @@ export function AppHeader() {
   );
 
   return (
-    <header className="sticky top-0 z-20 bg-background/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
-      <div className="relative flex h-14 items-center justify-between border-b border-transparent px-4 md:px-6 overflow-hidden">
+    <header className={cn(
+      "sticky top-0 z-50 pt-[env(safe-area-inset-top)] transition-all duration-500",
+      isScrolled 
+        ? "bg-background/80 backdrop-blur-2xl border-b border-border/40 shadow-sm"
+        : "bg-gradient-to-b from-background/80 via-background/20 to-transparent border-b border-transparent"
+    )}>
+      <div className="relative flex h-16 items-center justify-between px-4 md:px-8 max-w-screen-3xl mx-auto overflow-hidden">
         {/* --- Desktop View --- */}
-        <div className="hidden w-full items-center gap-4 md:flex">
-          <Link href="/" className="mr-4 flex items-center gap-4">
+        <div className="hidden w-full items-center gap-6 md:flex">
+          <Link href="/" className="flex items-center gap-4 transition-transform hover:scale-105">
             <AppLogo />
           </Link>
           
@@ -171,21 +173,25 @@ export function AppHeader() {
               <SearchBar onSearchSubmit={() => {}} />
             </div>
             
-            {/* 简洁统计信息 */}
+            {/* Stats */}
             {contentStats && contentStats.totalItems > 0 && (
-              <div className="hidden xl:flex items-center text-xs text-muted-foreground bg-muted/30 rounded-full px-3 py-1">
-                <span>{contentStats.loadedCount}/{contentStats.totalItems}</span>
+              <div className="hidden xl:flex items-center text-xs text-muted-foreground bg-muted/50 rounded-full px-3 py-1.5 border border-border shadow-inner">
+                <span className="font-medium text-foreground/80">{contentStats.loadedCount}</span>
+                <span className="mx-1">/</span>
+                <span>{contentStats.totalItems}</span>
                 {contentStats.totalPages > 1 && (
-                  <span className="ml-2 opacity-60">P{contentStats.currentPage}/{contentStats.totalPages}</span>
+                  <span className="ml-3 border-l border-border/50 pl-3 opacity-80">P{contentStats.currentPage}/{contentStats.totalPages}</span>
                 )}
               </div>
             )}
-            <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="切换主题">
-              {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+            
+            <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="切换主题" className="hover:bg-muted rounded-full transition-transform hover:scale-110 active:scale-95">
+              {theme === 'light' ? <Moon className="h-5 w-5 text-foreground" /> : <Sun className="h-5 w-5 text-foreground" />}
             </Button>
-            <Button variant="ghost" size="icon" asChild aria-label="设置">
+            
+            <Button variant="ghost" size="icon" asChild aria-label="设置" className="hover:bg-muted rounded-full transition-transform hover:scale-110 active:scale-95">
               <Link href="/settings">
-                <Settings className="h-5 w-5" />
+                <Settings className="h-5 w-5 text-foreground" />
               </Link>
             </Button>
           </div>
@@ -207,19 +213,18 @@ export function AppHeader() {
                     </Link>
                 </div>
                 
-
                 <div className="absolute left-1/2 -translate-x-1/2">
                     { pathname === '/' ? (
                         <Sheet open={isSelectorSheetOpen} onOpenChange={setIsSelectorSheetOpen}>
                             <SheetTrigger asChild>
-                                <button className="flex items-center gap-1.5 rounded-md px-2 py-1 hover:bg-accent -ml-2 -mr-2">
+                                <button className="flex items-center gap-1.5 rounded-full px-3 py-1.5 bg-muted/50 border border-border hover:bg-muted transition-colors">
                                     <span className="text-sm font-medium text-foreground truncate max-w-[calc(100vw-200px)]">
                                         {pageTitle}
                                     </span>
                                     <ChevronsUpDown className="h-4 w-4 text-muted-foreground shrink-0" />
                                 </button>
                             </SheetTrigger>
-                            <SheetContent side="bottom" className="h-[60svh] flex flex-col">
+                            <SheetContent side="bottom" className="h-[60svh] flex flex-col bg-background backdrop-blur-xl border-t border-border">
                                 <SheetHeader>
                                     <SheetTitle>浏览内容</SheetTitle>
                                 </SheetHeader>
@@ -234,21 +239,24 @@ export function AppHeader() {
                 </div>
 
                 <div className='flex-1 flex justify-end'>
-                    <Button variant="ghost" size="icon" aria-label="打开搜索" onClick={() => setIsMobileSearchVisible(true)}>
-                        <SearchIcon className="h-5 w-5" />
+                    <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="切换主题" className="hover:bg-muted rounded-full mr-1">
+                        {theme === 'light' ? <Moon className="h-5 w-5 text-foreground" /> : <Sun className="h-5 w-5 text-foreground" />}
+                    </Button>
+                    <Button variant="ghost" size="icon" aria-label="打开搜索" onClick={() => setIsMobileSearchVisible(true)} className="hover:bg-muted rounded-full">
+                        <SearchIcon className="h-5 w-5 text-foreground" />
                     </Button>
                 </div>
             </div>
             
             {/* Search View */}
             <div className={cn(
-            "absolute inset-y-0 left-0 right-0 flex h-full items-center gap-2 bg-background px-2 transition-all duration-300 md:hidden",
+            "absolute inset-y-0 left-0 right-0 flex h-full items-center gap-2 bg-transparent px-2 transition-all duration-300 md:hidden",
             {
                 'opacity-100': isMobileSearchVisible,
                 'opacity-0 pointer-events-none translate-x-4': !isMobileSearchVisible,
             }
             )}>
-                <Button variant="ghost" size="icon" aria-label="返回" onClick={() => setIsMobileSearchVisible(false)}>
+                <Button variant="ghost" size="icon" aria-label="返回" onClick={() => setIsMobileSearchVisible(false)} className="hover:bg-white/10 rounded-full">
                     <ArrowLeft className="h-5 w-5" />
                 </Button>
                 <div className='w-full'>

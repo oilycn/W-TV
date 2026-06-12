@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
 
     const response = await fetch(decodedTargetUrl, {
       headers: forwardHeaders,
+      signal: request.signal,
     });
 
     // Handle 304 Not Modified response

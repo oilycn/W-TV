@@ -163,14 +163,15 @@ function mapApiItemToContentItem(apiItem: any): ContentItem | null {
 
 async function fetchViaProxy(
   targetUrl: string,
-  options: { sourceName?: string; revalidate?: number } = {}
+  options: { sourceName?: string; revalidate?: number; signal?: AbortSignal } = {}
 ): Promise<any> {
-  const { sourceName, revalidate } = options;
+  const { sourceName, revalidate, signal } = options;
   const proxyRequestUrl = `${PROXY_API_PATH}?url=${encodeURIComponent(targetUrl)}`;
   
   try {
     const fetchOptions: RequestInit = {
       next: revalidate !== undefined ? { revalidate } : undefined,
+      signal,
     };
     const response = await fetch(proxyRequestUrl, fetchOptions);
 
@@ -239,7 +240,7 @@ export async function fetchApiCategories(sourceUrl: string): Promise<ApiCategory
 
 export async function fetchApiContentList(
   sourceUrl: string,
-  params: { page?: number; categoryId?: string; searchTerm?: string; ids?: string }
+  params: { page?: number; categoryId?: string; searchTerm?: string; ids?: string; signal?: AbortSignal }
 ): Promise<PaginatedContentResponse> {
   const apiUrl = new URL(sourceUrl);
   apiUrl.searchParams.set('ac', 'detail'); 
@@ -258,6 +259,7 @@ export async function fetchApiContentList(
     const actualData = await fetchViaProxy(apiUrl.toString(), {
       sourceName: `content list/item from ${sourceUrl}`,
       revalidate: revalidateDuration,
+      signal: params.signal,
     });
         
     const items = (actualData.list && Array.isArray(actualData.list))

@@ -6,7 +6,7 @@ import {
   MediaPlayer,
   MediaProvider,
   type MediaProviderAdapter,
-  type MediaPlayerElement,
+  type MediaPlayerInstance,
   AirPlayButton,
 } from '@vidstack/react';
 import { AirPlayIcon } from '@vidstack/react/icons';
@@ -57,7 +57,7 @@ interface VideoPlayerProps {
   item?: ContentItem | null;
   src: string;
   onEnded: () => void;
-  onPlayerInit: (player: MediaPlayerElement | null) => void;
+  onPlayerInit: (player: MediaPlayerInstance | null) => void;
   onEnterWebFullscreen: () => void;
   onNextEpisode: () => void;
 }
@@ -83,13 +83,13 @@ export default function VideoPlayer({
         lowLatencyMode: true,                // 开启低延迟直播/点播模式
         
         // 2. 强效容错与纠错：应对弱源环境
-        manifestLoadTimeout: 45000,
-        manifestLoadMaxRetry: 5,
-        levelLoadTimeout: 30000,
-        levelLoadMaxRetry: 5,
-        fragLoadTimeout: 20000,
-        fragLoadMaxRetry: 10,                // 高重试次数，应对源断开
-        fragLoadRetryDelay: 1000,
+        manifestLoadingTimeOut: 45000,
+        manifestLoadingMaxRetry: 5,
+        levelLoadingTimeOut: 30000,
+        levelLoadingMaxRetry: 5,
+        fragLoadingTimeOut: 20000,
+        fragLoadingMaxRetry: 10,                // 高重试次数，应对源断开
+        fragLoadingRetryDelay: 1000,
         
         // 3. 智能生命周期管理
         autoStartLoad: true,
@@ -132,7 +132,6 @@ export default function VideoPlayer({
       crossOrigin="anonymous"
       onProviderChange={onProviderChange}
       onEnded={onEnded}
-      fullscreen={{ strategy: 'always' }} // iOS 原生全屏策略适配
     >
       <MediaProvider />
       <DefaultVideoLayout
