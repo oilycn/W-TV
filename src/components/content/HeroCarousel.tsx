@@ -63,7 +63,7 @@ export function HeroCarousel({ items, sourceId }: HeroCarouselProps) {
       <div className="absolute inset-0 flex items-center justify-between px-6 md:px-12 lg:px-24 py-8 md:py-16 z-20 max-w-[2000px] mx-auto">
         
         {/* Left: Text & Actions */}
-        <div className="flex flex-col justify-center h-full w-full md:w-1/2 lg:w-3/5">
+        <div className="flex flex-col justify-center h-full w-full md:w-1/2 lg:w-3/5 pb-8">
           <div className="animate-in slide-in-from-bottom-8 fade-in duration-700 ease-out fill-mode-both stagger-1">
             <h1 className="text-4xl md:text-5xl lg:text-7xl font-black text-white mb-3 md:mb-4 line-clamp-2 drop-shadow-2xl tracking-tight" title={currentItem.title}>
               {currentItem.title}

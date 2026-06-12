@@ -311,17 +311,16 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                 {/* 1. Player Area */}
                 <div className={cn(
                     "w-full rounded-2xl overflow-hidden shadow-2xl bg-black border border-border/50 ring-1 ring-white/10 transition-all duration-500",
-                    isWebFullscreen && !isMobile && "fixed inset-0 z-[100] w-full h-full rounded-none border-none ring-0",
-                    isWebFullscreen && isMobile && "fixed z-[100] w-[100svh] h-[100svw] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rotate-90 rounded-none border-none ring-0",
+                    isWebFullscreen && "fixed inset-0 z-[100] w-full h-full rounded-none border-none ring-0",
                     !isWebFullscreen && "aspect-video max-h-[85vh] mx-auto"
                 )}>
                     <div
                         className="w-full h-full"
                         style={isWebFullscreen && isMobile ? {
-                            paddingTop: 'env(safe-area-inset-right)',
-                            paddingBottom: 'env(safe-area-inset-left)',
-                            paddingLeft: 'env(safe-area-inset-top)',
-                            paddingRight: 'env(safe-area-inset-bottom)',
+                            paddingTop: 'env(safe-area-inset-top)',
+                            paddingBottom: 'env(safe-area-inset-bottom)',
+                            paddingLeft: 'env(safe-area-inset-left)',
+                            paddingRight: 'env(safe-area-inset-right)',
                         } : {}}
                     >
                         {currentPlayUrl && useIframeFallback ? (

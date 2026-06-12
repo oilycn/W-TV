@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import Link from "next/link";
 import AppLogo from "./AppLogo";
 import { Button } from "@/components/ui/button";
-import { Settings, Sun, Moon, Search as SearchIcon, ArrowLeft, ChevronsUpDown } from "lucide-react";
+import { Settings, Sun, Moon, Search as SearchIcon, ArrowLeft, ChevronsUpDown, History } from "lucide-react";
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCategories } from '@/contexts/CategoryContext';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
@@ -187,6 +187,12 @@ export function AppHeader() {
             
             <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="切换主题" className="hover:bg-muted rounded-full transition-transform hover:scale-110 active:scale-95">
               {theme === 'light' ? <Moon className="h-5 w-5 text-foreground" /> : <Sun className="h-5 w-5 text-foreground" />}
+            </Button>
+            
+            <Button variant="ghost" size="icon" asChild aria-label="观看历史" className="hover:bg-muted rounded-full transition-transform hover:scale-110 active:scale-95">
+              <Link href="/history">
+                <History className="h-5 w-5 text-foreground" />
+              </Link>
             </Button>
             
             <Button variant="ghost" size="icon" asChild aria-label="设置" className="hover:bg-muted rounded-full transition-transform hover:scale-110 active:scale-95">

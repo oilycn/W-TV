@@ -224,7 +224,7 @@ function SearchResults() {
             {/* Results Grid */}
             <main ref={resultsContainerRef} className="flex-1 w-full pb-12">
                 {isLoading && itemsToDisplay.length === 0 ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-6 md:gap-8">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3 sm:gap-4 md:gap-6 lg:gap-8">
                       {Array.from({ length: 14 }).map((_, index) => (
                         <div key={index} className="space-y-2">
                             <Skeleton className="aspect-[3/4] w-full rounded-lg" />
@@ -234,7 +234,7 @@ function SearchResults() {
                       ))}
                     </div>
                 ) : itemsToDisplay.length > 0 ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-6 md:gap-8">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3 sm:gap-4 md:gap-6 lg:gap-8">
                         {itemsToDisplay.map(item => (
                           <ContentCard 
                             key={item.renderKey} 

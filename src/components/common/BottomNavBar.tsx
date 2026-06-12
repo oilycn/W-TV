@@ -48,7 +48,7 @@ export function BottomNavBar() {
 
   return (
     <div className="fixed bottom-0 left-0 z-50 w-full border-t border-white/5 bg-background/70 backdrop-blur-xl md:hidden pb-[env(safe-area-inset-bottom)]" suppressHydrationWarning>
-      <div className="flex h-16 items-center justify-around">
+      <div className="flex h-14 items-center justify-around">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = getIsActive(item.href);
