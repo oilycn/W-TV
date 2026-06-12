@@ -159,6 +159,19 @@ const chineseTranslations = {
       crossOrigin="anonymous"
       onProviderChange={onProviderChange}
       onEnded={onEnded}
+      onPointerEnter={(e) => {
+        const target = e.currentTarget as any;
+        if (target && typeof target.focus === 'function') {
+           target.focus();
+        }
+      }}
+      onPointerMove={(e) => {
+        // Force the player to wake up if it's acting insensitive
+        const target = e.currentTarget as any;
+        if (target && target.remoteControl) {
+           target.remoteControl.changeUserIdle(false);
+        }
+      }}
     >
       <MediaProvider />
       <DefaultVideoLayout
