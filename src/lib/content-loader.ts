@@ -156,7 +156,9 @@ function mapApiItemToContentItem(apiItem: any): ContentItem | null {
     runtime: apiItem.vod_duration || undefined,
     remarks: apiItem.vod_remarks || undefined,
     type: type,
-    availableQualities: apiItem.vod_quality ? String(apiItem.vod_quality).split(',') : (apiItem.vod_remarks && String(apiItem.vod_remarks).match(/[0-9]+[pP]/g) ? String(apiItem.vod_remarks).match(/[0-9]+[pP]/g) : undefined),
+    availableQualities: apiItem.vod_quality
+      ? String(apiItem.vod_quality).split(',')
+      : (String(apiItem.vod_remarks || '').match(/[0-9]+[pP]/g) || undefined),
     playbackSources: playbackSources.length > 0 ? playbackSources : undefined,
   };
 }

@@ -1,0 +1,59 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e5]:
+        - link "晚风TV" [ref=e6] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e7]:
+            - img [ref=e9]
+            - generic [ref=e11]: 晚风TV
+        - generic [ref=e13]:
+          - generic [ref=e14]:
+            - button "全部" [ref=e15] [cursor=pointer]:
+              - img [ref=e16]
+              - generic [ref=e19]: 全部
+            - button "热门电影" [ref=e20] [cursor=pointer]:
+              - img [ref=e21]
+              - generic [ref=e23]: 热门电影
+            - button "最新剧集" [ref=e24] [cursor=pointer]:
+              - img [ref=e25]
+              - generic [ref=e28]: 最新剧集
+            - button "经典动漫" [ref=e29] [cursor=pointer]:
+              - img [ref=e30]
+              - generic [ref=e36]: 经典动漫
+          - button "更多" [ref=e37] [cursor=pointer]:
+            - text: 更多
+            - img
+        - generic [ref=e38]:
+          - generic [ref=e40]:
+            - searchbox "搜索电影、电视剧..." [ref=e41]
+            - button "搜索" [ref=e42] [cursor=pointer]:
+              - img
+          - combobox [disabled] [ref=e44]:
+            - generic: 选择内容源
+            - img [ref=e45]
+          - button "切换主题" [ref=e47] [cursor=pointer]:
+            - img
+          - link "观看历史" [ref=e48] [cursor=pointer]:
+            - /url: /history
+            - img
+          - link "设置" [ref=e49] [cursor=pointer]:
+            - /url: /settings
+            - img
+    - main [ref=e50]:
+      - generic [ref=e52]:
+        - img [ref=e54]
+        - heading "欢迎来到晚风TV" [level=1] [ref=e56]
+        - paragraph [ref=e57]: 添加一个内容源后，就可以开始浏览分类、搜索片名和继续观看历史。
+        - generic [ref=e58]:
+          - link "添加内容源" [ref=e59] [cursor=pointer]:
+            - /url: /settings
+            - img
+            - text: 添加内容源
+          - link "打开设置" [ref=e60] [cursor=pointer]:
+            - /url: /settings
+            - img
+            - text: 打开设置
+  - region "Notifications (F8)":
+    - list
+  - alert [ref=e61]

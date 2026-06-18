@@ -48,7 +48,7 @@ export function SidebarNavigationItems() {
               <SidebarMenuButton
                 asChild
                 tooltip={category.name}
-                variant="ghost"
+                variant="default"
                 size="default" 
                 isActive={effectiveCurrentCategoryId === category.id}
                 className={cn(

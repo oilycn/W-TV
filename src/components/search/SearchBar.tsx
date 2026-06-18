@@ -52,11 +52,11 @@ export function SearchBar({ onSearchSubmit, autoFocus = false }: SearchBarProps)
         ref={inputRef}
         type="search"
         placeholder="搜索电影、电视剧..."
-        className="pr-10 h-9"
+        className="h-10 rounded-full border-border/70 bg-background/80 pl-4 pr-11 shadow-sm backdrop-blur placeholder:text-muted-foreground/70 focus-visible:ring-1"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
-      <Button type="submit" variant="ghost" size="icon" className="absolute right-0 top-0 h-9 w-9" aria-label="搜索">
+      <Button type="submit" variant="ghost" size="icon" className="absolute right-0.5 top-0.5 h-9 w-9 rounded-full" aria-label="搜索">
         <Search className="h-4 w-4" />
       </Button>
     </form>

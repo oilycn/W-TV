@@ -21,9 +21,17 @@ export function CategoryNav({ selectedCategoryId, onCategoryChange }: CategoryNa
   };
 
   return (
-    <div className="w-full relative z-30 mb-6 max-w-screen-3xl mx-auto">
-      <div className="w-full overflow-x-auto styled-scrollbar pb-3">
-        <div className="flex w-max space-x-3 py-1 px-4 md:px-8">
+    <section className="relative z-30 mx-auto mb-5 w-full max-w-screen-3xl px-0 md:px-8">
+      <div className="md:rounded-xl md:border md:border-border/70 md:bg-background/80 md:p-4 md:shadow-sm md:backdrop-blur">
+        <div className="hidden items-end justify-between gap-4 pb-3 md:flex">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">频道 Dock</p>
+            <h2 className="text-xl font-bold text-foreground">快速切换分类</h2>
+          </div>
+          <p className="text-xs text-muted-foreground">共 {globalCategories.length} 个分类</p>
+        </div>
+        <div className="overflow-x-auto scrollbar-none pb-2 md:overflow-visible md:pb-0">
+          <div className="flex w-max gap-2 px-4 py-1 md:w-full md:flex-wrap md:px-0 md:py-0">
           {globalCategories.map((category) => {
             const Icon = getIcon(category.name);
             const isActive = selectedCategoryId === category.id;
@@ -33,19 +41,20 @@ export function CategoryNav({ selectedCategoryId, onCategoryChange }: CategoryNa
                 key={category.id}
                 onClick={() => onCategoryChange(category.id)}
                 className={cn(
-                  "flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-300",
+                  "flex h-10 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors md:rounded-lg",
                   isActive 
-                    ? "bg-foreground text-background shadow-md scale-105" 
-                    : "bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground border border-border/50"
+                    ? "border-foreground bg-foreground text-background shadow-sm" 
+                    : "border-border/70 bg-background/70 text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
-                <Icon className={cn("w-4 h-4", isActive ? "text-background" : "text-muted-foreground")} />
+                <Icon className={cn("h-4 w-4", isActive ? "text-background" : "text-muted-foreground")} />
                 {category.name}
               </button>
             );
           })}
+          </div>
         </div>
       </div>
-    </div>
+    </section>
   );
 }

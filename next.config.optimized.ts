@@ -4,14 +4,6 @@ const nextConfig: NextConfig = {
   // 启用 standalone 输出模式 (Docker 优化)
   output: 'standalone',
   
-  // 优化构建性能
-  experimental: {
-    // 启用 SWC 压缩器 (比 Terser 快)
-    swcMinify: true,
-    // 启用并行构建
-    cpus: Math.max(1, (require('os').cpus().length || 1) - 1),
-  },
-
   // 生产环境优化
   compiler: {
     // 移除 console.log (减少包大小)

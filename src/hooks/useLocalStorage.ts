@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 function getValue<T>(key: string, initialValue: T | (() => T)): T {
   if (typeof window === 'undefined') {
@@ -16,23 +16,26 @@ function getValue<T>(key: string, initialValue: T | (() => T)): T {
 }
 
 export function useLocalStorage<T>(key: string, initialValue: T | (() => T)): [T, React.Dispatch<React.SetStateAction<T>>] {
+  const initialValueRef = useRef(initialValue);
   const [storedValue, setStoredValue] = useState<T>(() => {
-    // Avoid hydration mismatch by always returning initial value on server
-    if (typeof window === 'undefined') {
-      return typeof initialValue === 'function' ? (initialValue as () => T)() : initialValue;
-    }
-    return getValue(key, initialValue);
+    return typeof initialValue === 'function' ? (initialValue as () => T)() : initialValue;
   });
+  const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    setStoredValue(getValue(key, initialValueRef.current));
+    setIsHydrated(true);
+  }, [key]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && isHydrated) {
       try {
         window.localStorage.setItem(key, JSON.stringify(storedValue));
       } catch (error) {
         console.warn(`Error setting localStorage key "${key}":`, error);
       }
     }
-  }, [key, storedValue]);
+  }, [key, storedValue, isHydrated]);
   
   // Effect to update state if localStorage changes in another tab/window
   useEffect(() => {

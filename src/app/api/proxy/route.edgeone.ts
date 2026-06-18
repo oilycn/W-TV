@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(jsonData, {
         headers: responseHeaders,
       });
-    } catch (jsonError) {
+    } catch (_jsonError) {
       console.warn(`Proxy: Response from ${decodedTargetUrl} was not parseable as valid JSON (Content-Type: ${contentType}). Returning as nonJsonData. Data snippet: ${textData.substring(0,200)}...`);
       return NextResponse.json({ nonJsonData: textData }, {
         headers: responseHeaders,

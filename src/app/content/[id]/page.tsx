@@ -237,7 +237,13 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         if (!player) return;
         if (e.key === ' ' || e.key === 'f' || e.key === 'F' || e.key === 'Escape' || e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') e.preventDefault();
         
-        if (e.key === ' ') player.paused ? player.play() : player.pause();
+        if (e.key === ' ') {
+            if (player.paused) {
+                player.play();
+            } else {
+                player.pause();
+            }
+        }
         if (e.key === 'f' || e.key === 'F') handleEnterWebFullscreen();
         if (e.key === 'Escape' && isWebFullscreen) { handleEnterWebFullscreen(); }
         if (!e.altKey && e.key === 'ArrowLeft') { player.currentTime -= 10; displayShortcutHint('快退10秒'); }

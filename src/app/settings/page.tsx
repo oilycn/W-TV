@@ -91,7 +91,7 @@ export default function SettingsPage() {
     }
     try {
       new URL(newSourceUrl); 
-    } catch (_) {
+    } catch (_error) {
       toast({
         title: "错误",
         description: "请输入有效的 URL。",
@@ -146,7 +146,7 @@ export default function SettingsPage() {
     }
     try {
       new URL(currentSubscriptionUrlInput);
-    } catch (_) {
+    } catch (_error) {
       toast({ title: "错误", description: "订阅链接 URL 无效。", variant: "destructive" });
       return;
     }
@@ -176,7 +176,7 @@ export default function SettingsPage() {
       if (typeof proxyResponseData.nonJsonData === 'string') {
         console.warn("Subscription: Proxy returned raw string. Attempting to extract and parse 'sites' array string or individual objects from this content:", proxyResponseData.nonJsonData.substring(0, 300) + "...");
         
-        const sitesRegex = /"sites"\s*:\s*(\[(?:.|\n|\r)*?\])/s;
+        const sitesRegex = /"sites"\s*:\s*(\[[\s\S]*?\])/;
         const match = proxyResponseData.nonJsonData.match(sitesRegex);
 
         if (match && match[1]) {
@@ -188,7 +188,7 @@ export default function SettingsPage() {
           } catch (mainParseError) {
             console.warn("Subscription: Failed to parse the extracted 'sites' array string directly. Error:", (mainParseError as Error).message, "Attempting to parse individual objects within it...");
             
-            const contentInsideBracketsMatch = sitesArrayString.match(/^\s*\[(.*)\]\s*$/s);
+            const contentInsideBracketsMatch = sitesArrayString.match(/^\s*\[([\s\S]*)\]\s*$/);
             if (contentInsideBracketsMatch && contentInsideBracketsMatch[1]) {
                 const contentInsideBrackets = contentInsideBracketsMatch[1];
                 const objectCandidateStrings = [];
