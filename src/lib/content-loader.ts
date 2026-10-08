@@ -1,7 +1,48 @@
 import type { ContentItem, SourceConfig, PlaybackURL, PlaybackSourceGroup, ApiCategory, PaginatedContentResponse } from '@/types';
 
-// Centralized path for the proxy API route
+// Centralized path for proxy and rule API routes
 const PROXY_API_PATH = '/api/proxy';
+const RULE_API_PATH = '/api/rule';
+
+export function isJsRuleSource(url: string): boolean {
+  if (!url) return false;
+  return url.endsWith('.js') || url.includes('/rules/') || url.includes('/js/');
+}
+
+export function encodeIdIfNeeded(id: string): string {
+  if (!id) return '';
+  const str = String(id);
+  if (str.includes('/') || str.includes('?') || str.includes('&') || str.includes(':')) {
+    try {
+      if (typeof window !== 'undefined') {
+        return 'b64_' + btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      } else {
+        return 'b64_' + Buffer.from(str).toString('base64url');
+      }
+    } catch (_e) {
+      return encodeURIComponent(str);
+    }
+  }
+  return str;
+}
+
+export function decodeIdIfNeeded(id: string): string {
+  if (!id) return '';
+  const str = String(id);
+  if (str.startsWith('b64_')) {
+    try {
+      const b64 = str.slice(4).replace(/-/g, '+').replace(/_/g, '/');
+      if (typeof window !== 'undefined') {
+        return decodeURIComponent(escape(atob(b64)));
+      } else {
+        return Buffer.from(b64, 'base64').toString('utf-8');
+      }
+    } catch (_e) {
+      return str;
+    }
+  }
+  return decodeURIComponent(str);
+}
 
 // Mock data to be used if fetching fails or no sources are configured
 const mockCategoriesRaw: ApiCategory[] = [
@@ -143,7 +184,7 @@ function mapApiItemToContentItem(apiItem: any): ContentItem | null {
 
 
   return {
-    id: String(apiItem.vod_id),
+    id: encodeIdIfNeeded(String(apiItem.vod_id)),
     title: apiItem.vod_name || "未知标题",
     description: apiItem.vod_blurb || apiItem.vod_content || '暂无简介',
     posterUrl: posterUrl,
@@ -218,10 +259,19 @@ async function fetchViaProxy(
 
 export async function fetchApiCategories(sourceUrl: string): Promise<ApiCategory[]> {
   try {
-    const data = await fetchViaProxy(sourceUrl, {
-      sourceName: `categories from ${sourceUrl}`,
-      revalidate: 3600, // Cache categories for 1 hour
-    });
+    let data: any;
+    if (isJsRuleSource(sourceUrl)) {
+      const resp = await fetch(`${RULE_API_PATH}?rule=${encodeURIComponent(sourceUrl)}&ac=home`, {
+        cache: 'no-store',
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      data = await resp.json();
+    } else {
+      data = await fetchViaProxy(sourceUrl, {
+        sourceName: `categories from ${sourceUrl}`,
+        revalidate: 3600, // Cache categories for 1 hour
+      });
+    }
     
     if (data && Array.isArray(data.class)) {
       let categories: ApiCategory[] = data.class.map((cat: any) => ({
@@ -244,34 +294,64 @@ export async function fetchApiContentList(
   sourceUrl: string,
   params: { page?: number; categoryId?: string; searchTerm?: string; ids?: string; signal?: AbortSignal }
 ): Promise<PaginatedContentResponse> {
-  const apiUrl = new URL(sourceUrl);
-  apiUrl.searchParams.set('ac', 'detail'); 
-
-  if (params.ids) {
-    apiUrl.searchParams.set('ids', params.ids);
-  } else {
-    if (params.page) apiUrl.searchParams.set('pg', String(params.page));
-    if (params.categoryId && params.categoryId !== 'all') apiUrl.searchParams.set('t', params.categoryId);
-    if (params.searchTerm) apiUrl.searchParams.set('wd', params.searchTerm);
-  }
-
   try {
-    // Cache search results and lists for a shorter duration
-    const revalidateDuration = params.ids ? 86400 : 60; // 1 day for specific items, 1 minute for lists/searches
-    const actualData = await fetchViaProxy(apiUrl.toString(), {
-      sourceName: `content list/item from ${sourceUrl}`,
-      revalidate: revalidateDuration,
-      signal: params.signal,
-    });
+    let actualData: any;
+    const isJs = isJsRuleSource(sourceUrl);
+
+    if (isJs) {
+      const query = new URLSearchParams();
+      query.set('rule', sourceUrl);
+
+      if (params.ids) {
+        query.set('ac', 'detail');
+        query.set('ids', decodeIdIfNeeded(params.ids));
+      } else if (params.searchTerm) {
+        query.set('ac', 'search');
+        query.set('wd', params.searchTerm);
+        if (params.page) query.set('pg', String(params.page));
+      } else {
+        query.set('ac', 'list');
+        if (params.categoryId && params.categoryId !== 'all') {
+          query.set('t', params.categoryId);
+        }
+        if (params.page) query.set('pg', String(params.page));
+      }
+
+      const resp = await fetch(`${RULE_API_PATH}?${query.toString()}`, {
+        signal: params.signal,
+        cache: 'no-store',
+      });
+      if (!resp.ok) throw new Error(`Rule runner HTTP ${resp.status}`);
+      actualData = await resp.json();
+    } else {
+      const apiUrl = new URL(sourceUrl);
+      apiUrl.searchParams.set('ac', 'detail'); 
+
+      if (params.ids) {
+        apiUrl.searchParams.set('ids', decodeIdIfNeeded(params.ids));
+      } else {
+        if (params.page) apiUrl.searchParams.set('pg', String(params.page));
+        if (params.categoryId && params.categoryId !== 'all') apiUrl.searchParams.set('t', params.categoryId);
+        if (params.searchTerm) apiUrl.searchParams.set('wd', params.searchTerm);
+      }
+
+      // Cache search results and lists for a shorter duration
+      const revalidateDuration = params.ids ? 86400 : 60; // 1 day for specific items, 1 minute for lists/searches
+      actualData = await fetchViaProxy(apiUrl.toString(), {
+        sourceName: `content list/item from ${sourceUrl}`,
+        revalidate: revalidateDuration,
+        signal: params.signal,
+      });
+    }
         
-    const items = (actualData.list && Array.isArray(actualData.list))
+    const items = (actualData && actualData.list && Array.isArray(actualData.list))
       ? actualData.list.map(mapApiItemToContentItem).filter((item: ContentItem | null): item is ContentItem => item !== null)
       : [];
     
-    const page = parseInt(String(actualData.page), 10) || 1;
-    const pageCount = parseInt(String(actualData.pagecount || actualData.page_count), 10) || 1;
-    const total = parseInt(String(actualData.total), 10) || (items.length > 0 ? items.length : 0); 
-    const limit = parseInt(String(actualData.limit), 10) || (items.length > 0 ? items.length : 20);
+    const page = parseInt(String(actualData?.page || params.page || 1), 10) || 1;
+    const pageCount = parseInt(String(actualData?.pagecount || actualData?.page_count || 1), 10) || 1;
+    const total = parseInt(String(actualData?.total || (items.length > 0 ? items.length : 0)), 10) || (items.length > 0 ? items.length : 0); 
+    const limit = parseInt(String(actualData?.limit || (items.length > 0 ? items.length : 20)), 10) || (items.length > 0 ? items.length : 20);
 
     return {
       items,
@@ -301,6 +381,38 @@ export async function fetchContentItemById(sourceUrl: string, itemId: string): P
   } catch (error) {
      return null;
   }
+}
+
+export async function resolvePlayUrl(
+  sourceUrl: string,
+  rawUrl: string,
+  flag: string = ''
+): Promise<{ url: string; headers?: Record<string, string>; error?: string }> {
+  const isDirectMedia = /\.(m3u8|mp4|flv|webm|m4v)($|\?)/i.test(rawUrl);
+
+  if (!isJsRuleSource(sourceUrl)) {
+    return { url: rawUrl };
+  }
+  try {
+    const playReqUrl = `${RULE_API_PATH}?rule=${encodeURIComponent(sourceUrl)}&ac=play&url=${encodeURIComponent(rawUrl)}&flag=${encodeURIComponent(flag)}`;
+    const resp = await fetch(playReqUrl, { cache: 'no-store' });
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data && data.url && String(data.url).trim().length > 0) {
+        return { url: data.url, headers: data.headers };
+      }
+      if (data && data.msg) {
+        return { url: '', error: data.msg };
+      }
+    }
+  } catch (err) {
+    console.warn(`Failed to resolve play URL from ${sourceUrl}:`, err);
+  }
+
+  if (isDirectMedia) {
+    return { url: rawUrl };
+  }
+  return { url: '', error: '该线路未能解析到可播放的视频流，请尝试切换线路或刷新重试' };
 }
 
 

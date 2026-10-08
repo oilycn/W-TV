@@ -30,7 +30,8 @@ export interface PlaybackSourceGroup {
 export interface SourceConfig {
   id: string; // Use uuid or simple timestamp for id
   name: string;
-  url: string; // This is the base URL for the API source
+  url: string; // This is the base URL for the API source or JS rule URL
+  type?: 'api' | 'js'; // Type of source: standard CMS API or JS spider rule
 }
 
 export interface ApiCategory {
@@ -49,11 +50,12 @@ export interface PaginatedContentResponse {
 export interface RawSubscriptionSourceItem {
   key?: string;
   name?: string;
-  type: number; // 0 for player, 1 for VOD source
+  type?: number | string; // 0 for player, 1 / 'api' for VOD source, 3 / 'js' for spider rule
   api?: string;
   searchable?: number; // 0 or 1
   quickSearch?: number; // 0 or 1
   changeable?: number; // 0 or 1
+  filterable?: number; // 0 or 1
 }
 
 export interface HistoryEntry {

@@ -6,8 +6,8 @@ import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import type { ContentItem, SourceConfig, HistoryEntry } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { fetchContentItemById, getMockContentItemById } from '@/lib/content-loader';
-import { Loader2, Star } from 'lucide-react';
+import { fetchContentItemById, getMockContentItemById, decodeIdIfNeeded, resolvePlayUrl } from '@/lib/content-loader';
+import { Loader2, Star, AlertCircle, RefreshCw, ExternalLink, Globe, MonitorPlay, ArrowLeft } from 'lucide-react';
 import { useCategories } from '@/contexts/CategoryContext';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -18,8 +18,7 @@ import Image from 'next/image';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-
-export const runtime = 'edge';
+import { Button } from '@/components/ui/button';
 
 // Dynamically import the video player component to code-split its heavy libraries
 const VideoPlayer = dynamic(() => import('@/components/player/VideoPlayer'), {
@@ -58,6 +57,10 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     const [currentPlayUrl, setCurrentPlayUrl] = useState<string | null>(null);
     const [currentSourceGroupIndex, setCurrentSourceGroupIndex] = useState<number | null>(null);
     const [currentUrlIndex, setCurrentUrlIndex] = useState<number | null>(null);
+    const [rawEpisodeUrl, setRawEpisodeUrl] = useState<string>('');
+    const [currentEpisodeInfo, setCurrentEpisodeInfo] = useState<{ name: string; source: string } | null>(null);
+    const [playbackError, setPlaybackError] = useState<string | null>(null);
+    const [isResolvingPlay, setIsResolvingPlay] = useState<boolean>(false);
         
     const [shortcutText, setShortcutText] = useState('');
     const shortcutHintTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -90,9 +93,10 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
 
     useEffect(() => {
         if (resolvedParams && resolvedParams.id) {
-            setPageId(resolvedParams.id);
+            setPageId(decodeIdIfNeeded(resolvedParams.id));
             setCurrentPlayUrl(null); 
             setError(null);
+            setPlaybackError(null);
             setCurrentSourceGroupIndex(null);
             setCurrentUrlIndex(null);
         } else {
@@ -100,15 +104,52 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         }
     }, [resolvedParams]);
 
-    const handlePlayVideo = useCallback((url: string, sourceName: string, episodeName: string, sourceGroupIndex: number, urlIndex: number, overrideSourceId?: string) => {
-        setCurrentPlayUrl(url);
+    const handlePlayVideo = useCallback(async (url: string, sourceName: string, episodeName: string, sourceGroupIndex: number, urlIndex: number, overrideSourceId?: string) => {
         setCurrentSourceGroupIndex(sourceGroupIndex);
         setCurrentUrlIndex(urlIndex);
         setUseIframeFallback(false);
+        setPlaybackError(null);
+        setIsResolvingPlay(true);
+        setRawEpisodeUrl(url);
+        setCurrentEpisodeInfo({ name: episodeName, source: sourceName });
 
         const sourceIdToUse = overrideSourceId || activeSourceId;
-        const currentItem = itemRef.current;
+        const currentSource = sources.find(s => s.id === sourceIdToUse);
 
+        let finalUrl = url;
+        if (currentSource) {
+            try {
+                const resolved = await resolvePlayUrl(currentSource.url, url, sourceName);
+                if (resolved && resolved.url && resolved.url.trim().length > 0) {
+                    finalUrl = resolved.url.trim();
+                } else if (resolved?.error) {
+                    setPlaybackError(resolved.error);
+                    setCurrentPlayUrl(null);
+                    setIsResolvingPlay(false);
+                    return;
+                }
+            } catch (err: any) {
+                console.warn('Play URL resolve error:', err);
+                setPlaybackError(err?.message || '视频解析出错，请尝试切换线路');
+                setCurrentPlayUrl(null);
+                setIsResolvingPlay(false);
+                return;
+            }
+        }
+
+        // 严格检查：如果依然是普通网页链接（如 .html 或非直接媒体流），提示解析失败，禁止把网页传给播放器
+        const isLikelyStream = /\.(m3u8|mp4|flv|webm|m4v)($|\?)/i.test(finalUrl) || (!finalUrl.endsWith('.html') && finalUrl.startsWith('http'));
+        if (!finalUrl || finalUrl.endsWith('.html') || !isLikelyStream) {
+            setPlaybackError('未能获取到可播放的视频直链，请尝试切换其它线路');
+            setCurrentPlayUrl(null);
+            setIsResolvingPlay(false);
+            return;
+        }
+
+        setCurrentPlayUrl(finalUrl);
+        setIsResolvingPlay(false);
+
+        const currentItem = itemRef.current;
         if (currentItem && sourceIdToUse) {
             setHistory(prevHistory => {
                 const otherHistory = prevHistory.filter(entry => entry.item.id !== currentItem.id);
@@ -118,12 +159,12 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                     sourceId: sourceIdToUse,
                     episodeName: episodeName,
                     sourceName: sourceName,
-                    episodeUrl: url,
+                    episodeUrl: finalUrl,
                 };
                 return [newEntry, ...otherHistory];
             });
         }
-    }, [activeSourceId, setHistory]);
+    }, [activeSourceId, sources, setHistory]);
 
     useEffect(() => {
         const sourceIdFromQuery = searchParams.get('sourceId');
@@ -140,28 +181,43 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             let itemFound: ContentItem | null | undefined = undefined;
             let sourceUsedToFind: SourceConfig | null = null;
             
-            const sourceIdToTryFirst = sourceIdFromQuery || activeSourceId;
-            const sourcesToSearch = [...sources];
-            if (sourceIdToTryFirst) {
-                const idx = sourcesToSearch.findIndex(s => s.id === sourceIdToTryFirst);
-                if (idx > 0) {
-                    const primary = sourcesToSearch.splice(idx, 1)[0];
-                    sourcesToSearch.unshift(primary);
+            let sourceToUse: SourceConfig | null = null;
+            if (sourceIdFromQuery) {
+                sourceToUse = sources.find(s => s.id === sourceIdFromQuery) || null;
+            }
+            if (!sourceToUse && activeSourceId) {
+                sourceToUse = sources.find(s => s.id === activeSourceId) || null;
+            }
+            if (!sourceToUse && sources.length > 0) {
+                sourceToUse = sources[0];
+            }
+
+            if (sourceToUse) {
+                if (sourceToUse.id !== activeSourceId) {
+                    setActiveSourceId(sourceToUse.id);
+                }
+                try {
+                    itemFound = await fetchContentItemById(sourceToUse.url, pageId);
+                    if (itemFound) {
+                        sourceUsedToFind = sourceToUse;
+                    }
+                } catch (e) {
+                    console.warn(`Failed to fetch item from ${sourceToUse.name}:`, e);
                 }
             }
 
-            for (const source of sourcesToSearch) {
-                try {
-                    itemFound = await fetchContentItemById(source.url, pageId);
-                    if (itemFound) {
-                        sourceUsedToFind = source;
-                        if (source.id !== activeSourceId) {
-                           setActiveSourceId(source.id);
+            // Fallback: If not found and user didn't specify sourceIdFromQuery, try other sources
+            if (!itemFound && !sourceIdFromQuery) {
+                for (const altSource of sources) {
+                    if (altSource.id === sourceToUse?.id) continue;
+                    try {
+                        itemFound = await fetchContentItemById(altSource.url, pageId);
+                        if (itemFound) {
+                            sourceUsedToFind = altSource;
+                            setActiveSourceId(altSource.id);
+                            break;
                         }
-                        break;
-                    }
-                } catch (e) {
-                    // silently fail and try next source
+                    } catch (_e) {}
                 }
             }
             
@@ -257,12 +313,13 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
         return () => document.removeEventListener('keydown', handleKeyboardShortcuts);
     }, [handleKeyboardShortcuts]);
 
-    // Player error listener for iframe fallback
+    // Player error listener (do not auto fallback to iframe)
     useEffect(() => {
         if (!player) return;
 
         const onError = (event: any) => {
-            setUseIframeFallback(true);
+            console.warn('Player error event:', event);
+            setPlaybackError('视频解码或播放出错，可能是当前线路直链已过期或限制跨域');
         };
 
         const unsubscribe = player.listen('error', onError);
@@ -329,16 +386,104 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                             paddingRight: 'env(safe-area-inset-right)',
                         } : {}}
                     >
-                        {currentPlayUrl && useIframeFallback ? (
-                            <iframe
-                                key={currentPlayUrl}
-                                src={currentPlayUrl}
-                                title="Playback Frame"
-                                className="w-full h-full"
-                                allow="autoplay; encrypted-media; picture-in-picture"
-                                allowFullScreen
-                                sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
-                            />
+                        {useIframeFallback && rawEpisodeUrl ? (
+                            <div className="relative w-full h-full flex flex-col bg-black">
+                                <div className="flex items-center justify-between px-3 md:px-4 py-2 bg-zinc-900/90 backdrop-blur-sm border-b border-white/10 text-xs text-muted-foreground z-10 shrink-0">
+                                    <span className="flex items-center gap-1.5 text-zinc-300 truncate max-w-[200px] sm:max-w-xs">
+                                        <Globe className="h-3.5 w-3.5 text-primary shrink-0" />
+                                        <span className="truncate">网页内嵌模式（如遇广告建议外部打开）</span>
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-7 px-2 text-xs text-zinc-300 hover:text-white hover:bg-white/10"
+                                            onClick={() => setUseIframeFallback(false)}
+                                        >
+                                            <ArrowLeft className="h-3 w-3 mr-1" /> 原生播放器
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-7 px-2 text-xs bg-white/5 border-white/10 text-zinc-300 hover:text-white hover:bg-white/10"
+                                            onClick={() => window.open(rawEpisodeUrl, '_blank')}
+                                        >
+                                            <ExternalLink className="h-3 w-3 mr-1" /> 新窗口
+                                        </Button>
+                                    </div>
+                                </div>
+                                <iframe
+                                    key={rawEpisodeUrl}
+                                    src={rawEpisodeUrl}
+                                    title="Playback Frame"
+                                    className="w-full flex-1 border-0"
+                                    allow="autoplay; encrypted-media; picture-in-picture"
+                                    allowFullScreen
+                                    sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
+                                />
+                            </div>
+                        ) : isResolvingPlay ? (
+                            <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-950 text-white gap-3 p-6 text-center">
+                                <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                                <div className="space-y-1">
+                                    <p className="text-sm font-medium text-zinc-200">正在解析视频秒播直链...</p>
+                                    {currentEpisodeInfo && (
+                                        <p className="text-xs text-muted-foreground font-mono">{currentEpisodeInfo.source} · {currentEpisodeInfo.name}</p>
+                                    )}
+                                </div>
+                            </div>
+                        ) : playbackError ? (
+                            <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-950/95 text-white gap-4 p-6 text-center">
+                                <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center text-destructive ring-1 ring-destructive/30">
+                                    <AlertCircle className="h-6 w-6" />
+                                </div>
+                                <div className="space-y-1.5 max-w-md">
+                                    <h3 className="text-base font-semibold text-foreground">视频加载失败</h3>
+                                    <p className="text-xs text-muted-foreground leading-relaxed">{playbackError}</p>
+                                    {currentEpisodeInfo && (
+                                        <p className="text-xs text-primary/80 pt-1 font-mono">线路：{currentEpisodeInfo.source} · {currentEpisodeInfo.name}</p>
+                                    )}
+                                </div>
+                                <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="gap-1.5 bg-white/5 border-white/10 hover:bg-white/10 text-xs"
+                                        onClick={() => {
+                                            if (currentSourceGroupIndex !== null && currentUrlIndex !== null && item?.playbackSources) {
+                                                const group = item.playbackSources[currentSourceGroupIndex];
+                                                const ep = group?.urls?.[currentUrlIndex];
+                                                if (ep) handlePlayVideo(ep.url, group.sourceName, ep.name, currentSourceGroupIndex, currentUrlIndex);
+                                            }
+                                        }}
+                                    >
+                                        <RefreshCw className="h-3.5 w-3.5" /> 重新解析
+                                    </Button>
+                                    {rawEpisodeUrl && (rawEpisodeUrl.startsWith('http://') || rawEpisodeUrl.startsWith('https://')) && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="gap-1.5 bg-white/5 border-white/10 hover:bg-white/10 text-xs"
+                                            onClick={() => window.open(rawEpisodeUrl, '_blank')}
+                                        >
+                                            <ExternalLink className="h-3.5 w-3.5" /> 外部打开
+                                        </Button>
+                                    )}
+                                    {rawEpisodeUrl && (rawEpisodeUrl.startsWith('http://') || rawEpisodeUrl.startsWith('https://')) && (
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="text-xs text-muted-foreground hover:text-white"
+                                            onClick={() => {
+                                                setUseIframeFallback(true);
+                                                setPlaybackError(null);
+                                            }}
+                                        >
+                                            <Globe className="h-3.5 w-3.5 mr-1" /> 内嵌播放
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
                         ) : currentPlayUrl ? (
                             <VideoPlayer
                                 item={item}
@@ -351,7 +496,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                             />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center bg-black">
-                                <p className="text-muted-foreground">请选择一集开始播放</p>
+                                <p className="text-muted-foreground text-sm">请选择一集开始播放</p>
                             </div>
                         )}
                     </div>

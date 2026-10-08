@@ -99,7 +99,13 @@ export default function SettingsPage() {
       });
       return;
     }
-    const newSource = { id: Date.now().toString(), name: newSourceName, url: newSourceUrl };
+    const isJs = newSourceUrl.endsWith('.js') || newSourceUrl.includes('/rules/') || newSourceUrl.includes('/js/');
+    const newSource: SourceConfig = {
+      id: Date.now().toString(),
+      name: newSourceName.trim(),
+      url: newSourceUrl.trim(),
+      type: isJs ? 'js' : 'api',
+    };
     const updatedSources = [...sources, newSource];
     setSources(updatedSources);
     if (sources.length === 0) { // if this is the first source being added
@@ -261,14 +267,34 @@ export default function SettingsPage() {
       }
       
       const newSubscribedSources: SourceConfig[] = (rawItems || [])
-        .filter(item => item && typeof item === 'object' && item.type === 1 && item.api && (item.name || item.key))
-        .map(item => ({
-          id: `sub-${item.api}-${item.name || item.key}-${Math.random().toString(36).substring(2, 9)}`,
-          name: (item.name || item.key)!,
-          url: item.api!,
-        }));
+        .filter(item => {
+          if (!item || typeof item !== 'object' || !item.api || (!item.name && !item.key)) return false;
+          const t = item.type;
+          return (
+            t === 1 ||
+            t === '1' ||
+            t === 'api' ||
+            t === 3 ||
+            t === '3' ||
+            t === 'js' ||
+            String(item.api).endsWith('.js')
+          );
+        })
+        .map(item => {
+          const isJs =
+            item.type === 'js' ||
+            item.type === 3 ||
+            item.type === '3' ||
+            String(item.api).endsWith('.js');
+          return {
+            id: `sub-${item.api}-${item.name || item.key}-${Math.random().toString(36).substring(2, 9)}`,
+            name: (item.name || item.key)!,
+            url: item.api!,
+            type: isJs ? ('js' as const) : ('api' as const),
+          };
+        });
       
-      console.log(`Subscription: Filtered down to ${newSubscribedSources.length} sources of type 1.`);
+      console.log(`Subscription: Loaded ${newSubscribedSources.length} sources (JS & API).`);
 
       if (newSubscribedSources.length > 0) {
         setSources(newSubscribedSources);
@@ -279,10 +305,8 @@ export default function SettingsPage() {
       } else {
         setSources([]); // Clear existing sources if subscription yields none
         setActiveSourceId(null);
-        // Keep subscriptionUrl if user entered one, even if it yields no sources
-        // setSubscriptionUrl(currentSubscriptionUrlInput); 
         localStorage.removeItem(DEFAULT_SOURCE_PROCESSED_FLAG_KEY); // No valid sources from subscription, can add default later
-        toast({ title: "提示", description: "订阅链接中未找到有效的内容源 (类型为1)。现有内容源已清空。", variant: "default" });
+        toast({ title: "提示", description: "订阅链接中未找到有效的内容源。现有内容源已清空。", variant: "default" });
       }
 
     } catch (error) {
@@ -364,6 +388,11 @@ export default function SettingsPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <h4 className="text-sm font-semibold text-foreground truncate">{source.name}</h4>
+                    {source.type === 'js' && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                        JS
+                      </span>
+                    )}
                     {source.id === activeSourceId && (
                       <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
                         当前使用
@@ -376,7 +405,9 @@ export default function SettingsPage() {
                   <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                     <span>源 #{index + 1}</span>
                     <span>•</span>
-                    <span>API 接口</span>
+                    <span className={source.type === 'js' ? 'text-amber-500 font-medium' : ''}>
+                      {source.type === 'js' ? 'JS 规则爬虫' : 'CMS API 接口'}
+                    </span>
                   </div>
                 </div>
               </div>
