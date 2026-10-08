@@ -3,7 +3,7 @@ import path from 'path';
 import os from 'os';
 import vm from 'vm';
 import * as cheerio from 'cheerio';
-import { spawnSync, spawn } from 'child_process';
+import { spawnSync } from 'child_process';
 
 interface RuleCacheEntry {
   code: string;
@@ -12,6 +12,22 @@ interface RuleCacheEntry {
 
 const ruleCache = new Map<string, RuleCacheEntry>();
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+// Persistent cookie jar file path for curl environments
+const COOKIE_JAR_PATH = path.join(os.tmpdir(), 'wftv_curl_cookies.txt');
+
+// Test if curl binary actually exists in the runtime environment (Vercel Lambda does NOT have curl)
+let hasCurlBinary: boolean | null = null;
+function checkHasCurl(): boolean {
+  if (hasCurlBinary !== null) return hasCurlBinary;
+  try {
+    const res = spawnSync('curl', ['--version'], { encoding: 'utf-8' });
+    hasCurlBinary = res.status === 0;
+  } catch (_e) {
+    hasCurlBinary = false;
+  }
+  return hasCurlBinary;
+}
 
 /**
  * Resolves a URL against host/origin
@@ -59,53 +75,54 @@ export function pdfa(html: any, parse: string): any[] {
   return result;
 }
 
-function parseSinglePdfh($: any, itemStr: string): string {
-  const parts = itemStr.split('&&');
-  const sel = parts[0]?.trim();
-  const attr = parts[1]?.trim();
+/**
+ * Parses single field via pdfh rule
+ */
+function parseSinglePdfh($: any, singleParse: string): string {
+  const parts = singleParse.split('&&');
+  let current: any = $;
 
-  if (parts.length === 1) {
-    if (sel.toLowerCase() === 'text') return $.root ? $.root().text().trim() : (typeof $.text === 'function' ? $.text().trim() : '');
-    if (sel.toLowerCase() === 'html') return $.root ? $.root().html() || '' : (typeof $.html === 'function' ? $.html() || '' : '');
-    return typeof $(sel)?.text === 'function' ? $(sel).text().trim() : '';
-  }
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i].trim();
+    if (!part) continue;
 
-  let target: any;
-  if (sel === 'body') {
-    target = $('body');
-    if (!target || target.length === 0) {
-      if (attr && attr.toLowerCase() === 'html') {
-        return typeof $.html === 'function' ? $.html() : '';
+    if (i === parts.length - 1) {
+      if (/^text$/i.test(part)) {
+        return (typeof current.text === 'function' ? current.text() : '').trim();
       }
-      if (!attr || attr.toLowerCase() === 'text') {
-        return $.root ? $.root().text().trim() : (typeof $.text === 'function' ? $.text().trim() : '');
+      if (/^html$/i.test(part)) {
+        return (typeof current.html === 'function' ? current.html() : '').trim();
       }
-      target = $.root ? $.root() : $;
+      return (typeof current.attr === 'function' ? (current.attr(part) || '') : '').trim();
     }
-  } else {
-    const eqMatch = sel.match(/:eq\((\d+)\)/);
+
+    const eqMatch = part.match(/:eq\((\d+)\)/);
     if (eqMatch) {
       const idx = parseInt(eqMatch[1], 10);
-      const baseSel = sel.replace(/:eq\(\d+\)/, '');
-      target = $(baseSel).eq(idx);
+      const baseSel = part.replace(/:eq\(\d+\)/, '').trim();
+      if (typeof current === 'function') {
+        current = baseSel ? current(baseSel).eq(idx) : current('*').eq(idx);
+      } else if (typeof current.find === 'function') {
+        current = baseSel ? current.find(baseSel).eq(idx) : current.eq(idx);
+      } else {
+        current = $(baseSel).eq(idx);
+      }
     } else {
-      target = $(sel);
+      if (typeof current === 'function') {
+        current = current(part);
+      } else if (typeof current.find === 'function') {
+        current = current.find(part);
+      } else {
+        current = $(part);
+      }
     }
   }
 
-  if (!target || target.length === 0) return '';
-
-  if (!attr || attr.toLowerCase() === 'text') {
-    return target.text().trim();
-  }
-  if (attr.toLowerCase() === 'html') {
-    return target.html() || (typeof $.html === 'function' ? $.html() : '');
-  }
-  return target.attr(attr) || '';
+  return (typeof current.text === 'function' ? current.text() : '').trim();
 }
 
 /**
- * Parses DOM html/text/attribute based on parse string (supporting &&, :eq(n), and fallback selectors with ;)
+ * Standard pdfh parser for DRpy
  */
 export function pdfh(html: any, parse: string): string {
   if (!html || !parse) return '';
@@ -162,9 +179,7 @@ export function cyDecrypt(encryptedBase64: string, key: string): string {
       const tmp = s[i];
       s[i] = s[j];
       s[j] = tmp;
-      const t = (s[i] + s[j]) % 256;
-      const cipherByte = encrypted.charCodeAt(k);
-      decrypted += String.fromCharCode(cipherByte ^ s[t]);
+      decrypted += String.fromCharCode(encrypted.charCodeAt(k) ^ s[(s[i] + s[j]) % 256]);
     }
     return decrypted;
   } catch (_e) {
@@ -172,19 +187,17 @@ export function cyDecrypt(encryptedBase64: string, key: string): string {
   }
 }
 
-function decodeBufferToText(buf: Buffer | string | null | undefined, optEncoding?: string): string {
+/**
+ * Decodes Buffer to string supporting GBK/UTF-8
+ */
+function decodeBufferToText(buf: Buffer, optEncoding?: string): string {
   if (!buf) return '';
-  if (typeof buf === 'string') {
-    // If it was already decoded as utf-8 but contains gbk html meta, try re-encoding if needed
-    return buf;
-  }
   const encoding = optEncoding?.toLowerCase();
   if (encoding && (encoding.includes('gbk') || encoding.includes('gb2312') || encoding.includes('gb18030'))) {
     try {
       return new TextDecoder('gbk').decode(buf);
     } catch (_e) {}
   }
-  // Detect HTML charset meta in the first 2KB
   const sample = buf.subarray(0, 2048).toString('binary').toLowerCase();
   if (/charset\s*=\s*['"]?\s*(gb2312|gbk|gb18030)/i.test(sample)) {
     try {
@@ -199,37 +212,32 @@ function decodeBufferToText(buf: Buffer | string | null | undefined, optEncoding
 }
 
 /**
- * Synchronous HTTP request runner inside Node.js
+ * Universal Synchronous HTTP request runner inside Node.js
+ * Works on Mac, Linux, Docker, and Vercel Serverless (without curl dependency)
  */
 export function syncRequest(url: string, opt: any = {}) {
   const method = (opt.method || 'GET').toUpperCase();
   const headers = opt.headers || {};
-  const timeout = Math.min(Number(opt.timeout) || 3, 3);
+  const timeout = Math.min(Math.max(Number(opt.timeout) || 10, 3), 20);
 
-  // Directly use Node fetch for 4kcz.com to bypass SafeLine WAF instantly without curl delay
   const isSafeLineTarget = url.includes('4kcz.com') || url.includes('cz4k.com') || url.includes('czzy.top');
-  let needNodeFallback = isSafeLineTarget;
+  const canUseCurl = !isSafeLineTarget && checkHasCurl();
 
-  // 1. First priority: curl (very fast, supports arbitrary headers, redirects, cookies)
-  if (!isSafeLineTarget) {
+  // 1. Try curl if available in system and not SafeLine protected
+  if (canUseCurl) {
     try {
-      const cookieJarPath = path.join(os.tmpdir(), 'wftv_curl_cookies.txt');
       const proxy = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || process.env.ALL_PROXY || '';
       const args = [
         '-s',
         '-L',
-        '--connect-timeout', '2',
+        '--connect-timeout', '4',
         '--max-time', String(timeout),
         '--retry', '0',
-        '-c', cookieJarPath,
-        '-b', cookieJarPath,
+        '-c', COOKIE_JAR_PATH,
+        '-b', COOKIE_JAR_PATH,
       ];
-      if (proxy) {
-        args.push('--proxy', proxy);
-      }
-      if (method !== 'GET') {
-        args.push('-X', method);
-      }
+      if (proxy) args.push('--proxy', proxy);
+      if (method !== 'GET') args.push('-X', method);
       for (const [k, v] of Object.entries(headers)) {
         args.push('-H', `${k}: ${v}`);
       }
@@ -237,103 +245,94 @@ export function syncRequest(url: string, opt: any = {}) {
         args.push('--data', typeof opt.body === 'string' ? opt.body : JSON.stringify(opt.body));
       }
       args.push(url);
-      const res = spawnSync('curl', args, { encoding: null as any, maxBuffer: 15 * 1024 * 1024 });
-      
-      // If curl succeeded (HTTP connected)
+
+      const res = spawnSync('curl', args, { encoding: null as any, maxBuffer: 20 * 1024 * 1024 });
       if (res.status === 0 && res.stdout && res.stdout.length > 0) {
         let text = decodeBufferToText(res.stdout, opt.encoding);
-        // Auto-bypass 403 cookie challenge (e.g. Set-Cookie then window.location.href reload)
+
         if (text && text.includes('window.location.href') && text.includes('<title></title>')) {
-          const res2 = spawnSync('curl', args, { encoding: null as any, maxBuffer: 15 * 1024 * 1024 });
+          const res2 = spawnSync('curl', args, { encoding: null as any, maxBuffer: 20 * 1024 * 1024 });
           if (res2.status === 0 && res2.stdout && res2.stdout.length > 0) {
             text = decodeBufferToText(res2.stdout, opt.encoding);
           }
         }
 
-        const isWafBlocked = text.includes('SafeLine') || text.includes('雷池') || text.includes('slg-box') || text.includes('slg-warning');
-        if (!isWafBlocked) {
+        const isWaf = text.includes('SafeLine') || text.includes('雷池') || text.includes('slg-box') || text.includes('slg-warning');
+        if (!isWaf) {
           return {
             code: 200,
             status: 200,
             text,
             body: text,
+            headers: {},
             toString() {
               return text;
             },
           };
-        } else {
-          needNodeFallback = true;
         }
-      } else {
-        // Network connection error / timeout in domestic network: fail fast, DO NOT freeze event loop with second attempt!
-        return {
-          code: 500,
-          status: 500,
-          text: '',
-          body: '',
-          toString() {
-            return '';
-          },
-        };
       }
     } catch (_err) {
-      return {
-        code: 500,
-        status: 500,
-        text: '',
-        body: '',
-        toString() {
-          return '';
-        },
-      };
+      // Fallback to pure Node fetch
     }
   }
 
-  // 2. Second priority: Modern Node.js fetch process fallback (browser-like TLS fingerprint, bypasses SafeLine WAF only)
-  if (needNodeFallback) {
-    try {
-      const payload = JSON.stringify({ url, method, headers, body: opt.body, timeout: timeout * 1000 });
-      const script = `
-        (async () => {
-          try {
-            const input = JSON.parse(process.argv[1]);
-            const controller = new AbortController();
-            const timeoutMs = Math.min(Number(input.timeout) || 3000, 3000);
-            const timer = setTimeout(() => controller.abort(), timeoutMs);
-            const resp = await fetch(input.url, {
-              method: input.method || 'GET',
-              headers: input.headers || {},
-              body: input.body ? (typeof input.body === 'string' ? input.body : JSON.stringify(input.body)) : undefined,
-              redirect: 'follow',
-              signal: controller.signal
-            });
-            clearTimeout(timer);
-            const buf = Buffer.from(await resp.arrayBuffer());
-            process.stdout.write(buf);
-          } catch (e) {
-            process.exit(1);
+  // 2. Pure Node.js fetch process (100% universal across Vercel, AWS Lambda, Docker, Local)
+  try {
+    const payload = JSON.stringify({ url, method, headers, body: opt.body, timeout: timeout * 1000 });
+    const script = `
+      (async () => {
+        try {
+          const input = JSON.parse(process.argv[1]);
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), input.timeout || 10000);
+          const resp = await fetch(input.url, {
+            method: input.method || 'GET',
+            headers: input.headers || {},
+            body: input.body ? (typeof input.body === 'string' ? input.body : JSON.stringify(input.body)) : undefined,
+            redirect: 'follow',
+            signal: controller.signal
+          });
+          clearTimeout(timer);
+          let text = await resp.text();
+          if (text && text.includes('window.location.href') && text.includes('<title></title>')) {
+            const setCookie = resp.headers.get('set-cookie');
+            const h = { ...input.headers };
+            if (setCookie) h['cookie'] = setCookie;
+            const resp2 = await fetch(input.url, { method: input.method || 'GET', headers: h, redirect: 'follow' });
+            text = await resp2.text();
           }
-        })();
-      `;
-      const res = spawnSync(process.execPath, ['-e', script, payload], { encoding: null as any, maxBuffer: 15 * 1024 * 1024 });
-      const text = decodeBufferToText(res.stdout, opt.encoding);
-      return {
-        code: res.status === 0 ? 200 : 500,
-        status: res.status === 0 ? 200 : 500,
-        text,
-        body: text,
-        toString() {
-          return text;
-        },
-      };
-    } catch (_e) {}
-  }
+          process.stdout.write(JSON.stringify({ status: resp.status, text }));
+        } catch (e) {
+          process.stdout.write(JSON.stringify({ status: 500, text: '' }));
+        }
+      })();
+    `;
+
+    const res = spawnSync(process.execPath, ['-e', script, payload], { encoding: 'utf-8', maxBuffer: 20 * 1024 * 1024 });
+    if (res.status === 0 && res.stdout) {
+      try {
+        const parsed = JSON.parse(res.stdout);
+        const text = parsed.text || '';
+        return {
+          code: parsed.status || 200,
+          status: parsed.status || 200,
+          text,
+          body: text,
+          headers: {},
+          toString() {
+            return text;
+          },
+        };
+      } catch (_e) {}
+    }
+  } catch (_e) {}
 
   return {
     code: 500,
     status: 500,
     text: '',
     body: '',
+    headers: {},
     toString() {
       return '';
     },
@@ -365,6 +364,7 @@ export async function loadRuleCode(ruleUrl: string): Promise<string> {
     } catch (_e) {}
   }
 
+  // Priority 2: Remote URL fetch
   if (ruleUrl.startsWith('http://') || ruleUrl.startsWith('https://')) {
     const resp = await fetch(ruleUrl, {
       headers: {
@@ -403,15 +403,9 @@ export async function loadRuleCode(ruleUrl: string): Promise<string> {
 export function smartSniffStreamUrl(
   targetUrl: string,
   host?: string,
-  customHeaders?: any
+  customHeaders?: Record<string, string>
 ): { url: string; headers?: Record<string, string> } | null {
-  if (!targetUrl || typeof targetUrl !== 'string') return null;
-  targetUrl = targetUrl.trim();
-
-  // If already a direct stream
-  if (targetUrl.includes('.m3u8') || targetUrl.includes('.mp4') || targetUrl.includes('.flv')) {
-    return { url: targetUrl, headers: customHeaders };
-  }
+  if (!targetUrl || !targetUrl.startsWith('http')) return null;
 
   // 1. Specialized: jisuzhuiju.com
   const jm = targetUrl.match(/\/vodplay\/(\d+)-([^-]+)-(\d+)\.html/i);
@@ -470,13 +464,13 @@ export function smartSniffStreamUrl(
   const html = pageRes.text || '';
   if (!html) return null;
 
-  // 3.1 Direct stream link inside HTML
+  // Direct m3u8 / mp4 link inside HTML
   const directM = html.match(/(https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*)/i) || html.match(/(https?:\/\/[^\s"'<>]+\.mp4[^\s"'<>]*)/i);
   if (directM) {
     return { url: directM[1].replace(/\\/g, ''), headers: pageHeaders };
   }
 
-  // 3.2 MacPlayer player_aaaa JSON
+  // MacPlayer player_aaaa JSON
   const macM = html.match(/var\s+player_aaaa\s*=\s*({[\s\S]*?});/i);
   if (macM) {
     try {
@@ -494,7 +488,7 @@ export function smartSniffStreamUrl(
     } catch (_e) {}
   }
 
-  // 3.3 ddcloud (DDYS / 低端影视)
+  // ddcloud
   const ddMatch = html.match(/ddcloud\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']/i);
   if (ddMatch) {
     const realUrl = cyDecrypt(ddMatch[1], ddMatch[2]);
@@ -503,7 +497,7 @@ export function smartSniffStreamUrl(
     }
   }
 
-  // 3.4 ArtPlayer Url & Sign (e.g. qiyou, lekanzyw)
+  // ArtPlayer Url & Sign
   const urlM = html.match(/const\s+Url\s*=\s*["']([^"']+)["']/i) || html.match(/var\s+url\s*=\s*["']([^"']+)["']/i);
   const signM = html.match(/const\s+Sign\s*=\s*["']([^"']+)["']/i) || html.match(/var\s+sign\s*=\s*["']([^"']+)["']/i);
   const fromM = html.match(/const\s+From\s*=\s*["']([^"']+)["']/i) || html.match(/var\s+from\s*=\s*["']([^"']+)["']/i);
@@ -519,56 +513,375 @@ export function smartSniffStreamUrl(
     } catch (_e) {}
   }
 
-  // 3.5 iframe recursion (1 level depth)
-  const ifmM = html.match(/<iframe\b[^>]*src=["']?([^"'>]+)/i);
-  if (ifmM) {
-    let ifr = ifmM[1].trim();
-    if (ifr.startsWith('//')) ifr = 'https:' + ifr;
-    else if (!ifr.startsWith('http')) {
-      try {
-        const u = new URL(targetUrl);
-        ifr = u.origin + (ifr.startsWith('/') ? '' : '/') + ifr;
-      } catch (_e) {}
+  return null;
+}
+
+function parseDeclarativeYiji(rule: any, tid: string, pg: number | string) {
+  const host = rule.host || '';
+  let url = rule.url || '';
+  url = url.replace(/fyclass/g, encodeURIComponent(tid)).replace(/fypage/g, String(pg));
+  if (!url.startsWith('http')) {
+    url = host + (url.startsWith('/') ? '' : '/') + url;
+  }
+  const resp = syncRequest(url, { headers: rule.headers, timeout: 15 });
+  const html = resp.text || '';
+  const parts = String(rule['一级']).split(';');
+  const items = pdfa(html, parts[0]?.trim());
+
+  const list: any[] = [];
+  for (const item of items) {
+    const title = parts[1] ? pdfh(item, parts[1].trim()) : '';
+    const pic = parts[2] ? pd(item, parts[2].trim(), host) : '';
+    const desc = parts[3] ? pdfh(item, parts[3].trim()) : '';
+    const link = parts[4] ? pd(item, parts[4].trim(), host) : '';
+
+    if (title && link) {
+      list.push({
+        vod_id: link,
+        vod_name: title,
+        vod_pic: pic,
+        vod_remarks: desc,
+      });
     }
+  }
 
-    // Check if url=http is in query param
-    const upm = ifr.match(/[?&]url=([^&]+)/i);
-    if (upm) {
-      const dec = decodeURIComponent(upm[1]);
-      if (dec.startsWith('http') && (dec.includes('.m3u8') || dec.includes('.mp4'))) {
-        return { url: dec, headers: pageHeaders };
+  return {
+    code: 1,
+    page: parseInt(String(pg), 10),
+    pagecount: list.length ? parseInt(String(pg), 10) + 1 : parseInt(String(pg), 10),
+    limit: list.length || 20,
+    total: 1000,
+    list,
+  };
+}
+
+function parseDeclarativeErji(rule: any, vid: string) {
+  const host = rule.host || '';
+  const detailUrl = fixUrl(vid, host);
+  const resp = syncRequest(detailUrl, { headers: rule.headers, timeout: 15 });
+  const html = resp.text || '';
+  if (!html) return null;
+
+  const erji = rule['二级'];
+  if (typeof erji !== 'object') return null;
+
+  const title = erji.title ? pdfh(html, erji.title) : '';
+  const img = erji.img ? pd(html, erji.img, host) : '';
+  const desc = erji.desc ? pdfh(html, erji.desc) : '';
+  const content = erji.content ? pdfh(html, erji.content) : '';
+
+  let tabs: string[] = [];
+  if (erji.tabs) {
+    const tabEls = pdfa(html, erji.tabs);
+    tabs = tabEls.map(t => pdfh(t, 'body&&Text')).filter(Boolean);
+  }
+  if (!tabs.length) tabs = ['默认线路'];
+
+  const playFrom: string[] = [];
+  const playUrls: string[] = [];
+
+  if (erji.lists) {
+    const listStr = String(erji.lists).trim();
+    if (listStr.includes('#id')) {
+      const tabCount = Math.max(tabs.length, 1);
+      for (let i = 0; i < tabCount; i++) {
+        const sel = listStr.replace(/#id/g, String(i));
+        const epEls = pdfa(html, sel);
+        const eps: string[] = [];
+        for (const ep of epEls) {
+          const epName = pdfh(ep, 'body&&Text') || pdfh(ep, 'a&&title') || '正片';
+          const epLink = pd(ep, 'a&&href', host) || pd(ep, 'body&&href', host);
+          if (epLink) eps.push(`${epName}$${epLink}`);
+        }
+        if (eps.length) {
+          playFrom.push(tabs[i] || `线路${i + 1}`);
+          playUrls.push(eps.join('#'));
+        }
       }
-    }
-
-    // Sniff the iframe content
-    const ifRes = syncRequest(ifr, { headers: { 'User-Agent': pageHeaders['User-Agent'], 'Referer': targetUrl }, timeout: 8 });
-    const ifHtml = ifRes.text || '';
-    if (ifHtml) {
-      // direct m3u8 in iframe
-      const ifDirect = ifHtml.match(/(https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*)/i) || ifHtml.match(/(https?:\/\/[^\s"'<>]+\.mp4[^\s"'<>]*)/i);
-      if (ifDirect) {
-        return { url: ifDirect[1].replace(/\\/g, ''), headers: { 'User-Agent': pageHeaders['User-Agent'], 'Referer': ifr } };
-      }
-
-      // ArtPlayer in iframe
-      const ifUrlM = ifHtml.match(/const\s+Url\s*=\s*["']([^"']+)["']/i) || ifHtml.match(/var\s+url\s*=\s*["']([^"']+)["']/i);
-      const ifSignM = ifHtml.match(/const\s+Sign\s*=\s*["']([^"']+)["']/i) || ifHtml.match(/var\s+sign\s*=\s*["']([^"']+)["']/i);
-      const ifFromM = ifHtml.match(/const\s+From\s*=\s*["']([^"']+)["']/i) || ifHtml.match(/var\s+from\s*=\s*["']([^"']+)["']/i);
-      if (ifUrlM && ifSignM) {
-        try {
-          const origin = new URL(ifr).origin;
-          const api = `${origin}/player/api.php?url=${encodeURIComponent(ifUrlM[1])}&sign=${encodeURIComponent(ifSignM[1])}&t=${encodeURIComponent(ifFromM ? ifFromM[1] : 'm3u8')}`;
-          const apiRes = syncRequest(api, { headers: { 'User-Agent': pageHeaders['User-Agent'], 'Referer': ifr }, timeout: 8 });
-          const apiJson = JSON.parse(apiRes.text);
-          if (apiJson && apiJson.url && apiJson.url.startsWith('http')) {
-            return { url: apiJson.url, headers: { 'User-Agent': pageHeaders['User-Agent'], 'Referer': ifr } };
-          }
-        } catch (_e) {}
+    } else {
+      const listEls = pdfa(html, listStr);
+      for (let i = 0; i < listEls.length; i++) {
+        const epEls = pdfa(listEls[i], 'a');
+        const eps: string[] = [];
+        for (const ep of epEls) {
+          const epName = pdfh(ep, 'body&&Text') || pdfh(ep, 'a&&title') || '正片';
+          const epLink = pd(ep, 'a&&href', host) || pd(ep, 'body&&href', host);
+          if (epLink) eps.push(`${epName}$${epLink}`);
+        }
+        if (eps.length) {
+          playFrom.push(tabs[i] || `线路${i + 1}`);
+          playUrls.push(eps.join('#'));
+        }
       }
     }
   }
 
-  return null;
+  return {
+    vod_id: vid,
+    vod_name: title || '未知视频',
+    vod_pic: img,
+    vod_remarks: desc,
+    vod_content: content,
+    vod_play_from: playFrom.join('$$$'),
+    vod_play_url: playUrls.join('$$$'),
+  };
+}
+
+/**
+ * Executes a rule code in-process using isolated V8 Context
+ */
+function runRuleInContext(code: string, action: string, params: any, ruleUrl: string): any {
+  const safeConsole = {
+    log: (...args: any[]) => console.warn(...args),
+    warn: (...args: any[]) => console.warn(...args),
+    error: (...args: any[]) => console.error(...args),
+    info: (...args: any[]) => console.info(...args),
+  };
+
+  const context: any = {
+    console: safeConsole,
+    request: syncRequest,
+    req: syncRequest,
+    fetchHtml: (url: string, ref?: string) => syncRequest(url, { headers: { Referer: ref } }).text,
+    pdfa,
+    pdfh,
+    pd,
+    cyDecrypt,
+    atob: (s: string) => Buffer.from(s, 'base64').toString('binary'),
+    btoa: (s: string) => Buffer.from(s, 'binary').toString('base64'),
+    encodeURIComponent,
+    decodeURIComponent,
+    parseInt,
+    parseFloat,
+    JSON,
+    String,
+    Object,
+    Array,
+    RegExp,
+    Date,
+    Math,
+  };
+
+  vm.createContext(context);
+  vm.runInContext(code, context);
+
+  const rule = context.rule || context.spider || {};
+
+  // Build categories from class_name & class_url
+  const categories: Array<{ type_id: string; type_name: string }> = [];
+  if (rule.class_name && rule.class_url) {
+    const names = String(rule.class_name).split('&');
+    const urls = String(rule.class_url).split('&');
+    for (let i = 0; i < names.length; i++) {
+      if (names[i] && urls[i]) {
+        categories.push({ type_id: urls[i].trim(), type_name: names[i].trim() });
+      }
+    }
+  }
+
+  // 1. HOME ACTION
+  if (action === 'home') {
+    if (typeof rule.home === 'function') {
+      try {
+        const homeRes = rule.home();
+        if (!homeRes.class && categories.length > 0) {
+          homeRes.class = categories;
+        }
+        return {
+          code: 1,
+          msg: '数据列表',
+          class: homeRes.class || categories,
+          list: homeRes.list || [],
+        };
+      } catch (err) {
+        console.error(`Rule home() error for ${ruleUrl}:`, err);
+      }
+    }
+
+    const firstCat = categories[0]?.type_id || '1';
+    let firstList: any[] = [];
+    try {
+      if (typeof rule.category === 'function') {
+        const catRes = rule.category(firstCat, 1);
+        firstList = catRes?.list || [];
+      } else if (rule['一级']) {
+        const catRes = parseDeclarativeYiji(rule, firstCat, 1);
+        firstList = catRes?.list || [];
+      }
+    } catch (_err) {}
+
+    return {
+      code: 1,
+      msg: '数据列表',
+      class: categories,
+      list: firstList,
+    };
+  }
+
+  // 2. CATEGORY ACTION
+  if (action === 'category') {
+    const tid = String(params.tid || categories[0]?.type_id || '1');
+    const pg = parseInt(String(params.pg || 1), 10) || 1;
+
+    if (typeof rule.category === 'function') {
+      try {
+        const res = rule.category(tid, pg, params.filter, params.extend);
+        return {
+          code: 1,
+          page: res?.page || pg,
+          pagecount: res?.pagecount || (res?.list?.length ? pg + 1 : pg),
+          limit: res?.limit || res?.list?.length || 20,
+          total: res?.total || 1000,
+          class: categories,
+          list: res?.list || [],
+        };
+      } catch (err) {
+        console.error(`Rule category() error for ${ruleUrl}:`, err);
+        return { code: 0, msg: String(err), list: [] };
+      }
+    }
+
+    if (rule['一级']) {
+      return parseDeclarativeYiji(rule, tid, pg);
+    }
+
+    return { code: 1, page: pg, pagecount: pg, total: 0, list: [] };
+  }
+
+  // 3. DETAIL ACTION
+  if (action === 'detail') {
+    const vid = String(params.vid || '').trim();
+    let detailItem: any = null;
+
+    if (typeof rule.detail === 'function') {
+      try {
+        detailItem = rule.detail(vid);
+        if (Array.isArray(detailItem)) {
+          detailItem = detailItem[0];
+        } else if (detailItem && Array.isArray(detailItem.list)) {
+          detailItem = detailItem.list[0];
+        }
+      } catch (err) {
+        console.error(`Rule detail() error for ${ruleUrl}:`, err);
+      }
+    } else if (rule['二级']) {
+      detailItem = parseDeclarativeErji(rule, vid);
+    }
+
+    if (detailItem) {
+      return {
+        code: 1,
+        list: [detailItem],
+      };
+    }
+
+    return { code: 0, msg: '未找到视频详情', list: [] };
+  }
+
+  // 4. PLAY ACTION
+  if (action === 'play') {
+    const flag = String(params.flag || '').trim();
+    const playUrl = String(params.playUrl || '').trim();
+    let candidateUrl = playUrl;
+    let candidateHeaders: any = rule.headers;
+
+    if (typeof rule.play === 'function') {
+      try {
+        const playRes = rule.play(flag || rule.title || '默认', playUrl || flag, []);
+        if (typeof playRes === 'string') {
+          candidateUrl = playRes;
+        } else if (playRes && playRes.url) {
+          candidateUrl = playRes.url;
+          if (playRes.headers) candidateHeaders = playRes.headers;
+        }
+      } catch (err) {
+        console.error(`Rule play() error for ${ruleUrl}:`, err);
+      }
+    } else if (rule.play_url) {
+      let templ = String(rule.play_url);
+      templ = templ.replace('{vodId}', params.vid || '');
+      templ = templ.replace('{playFrom}', encodeURIComponent(flag));
+      templ = templ.replace('{index}', playUrl);
+      if (!templ.startsWith('http')) {
+        templ = (rule.host || '') + (templ.startsWith('/') ? '' : '/') + templ;
+      }
+      candidateUrl = templ;
+    }
+
+    if (candidateUrl.includes('.m3u8') || candidateUrl.includes('.mp4') || candidateUrl.includes('.flv')) {
+      return { code: 1, url: candidateUrl, headers: candidateHeaders };
+    }
+
+    const sniffed =
+      smartSniffStreamUrl(candidateUrl, rule.host, candidateHeaders) ||
+      smartSniffStreamUrl(playUrl, rule.host, candidateHeaders);
+
+    if (sniffed && sniffed.url) {
+      return { code: 1, url: sniffed.url, headers: sniffed.headers || candidateHeaders };
+    }
+
+    return { code: 0, url: '', msg: '未能解析到可用的视频流，请尝试更换线路或刷新重试' };
+  }
+
+  // 5. SEARCH ACTION
+  if (action === 'search') {
+    const wd = String(params.wd || '').trim();
+    const pg = parseInt(String(params.pg || 1), 10) || 1;
+
+    if (typeof rule.search === 'function') {
+      try {
+        const res = rule.search(wd, pg);
+        return {
+          code: 1,
+          page: pg,
+          pagecount: 999,
+          list: res?.list || [],
+        };
+      } catch (err) {
+        console.error(`Rule search() error for ${ruleUrl}:`, err);
+      }
+    }
+
+    if (rule['搜索'] && rule.searchUrl) {
+      try {
+        let sUrl = String(rule.searchUrl)
+          .replace(/\*\*/g, encodeURIComponent(wd))
+          .replace(/fypage/g, String(pg));
+        if (!sUrl.startsWith('http')) {
+          sUrl = (rule.host || '') + (sUrl.startsWith('/') ? '' : '/') + sUrl;
+        }
+
+        const resp = syncRequest(sUrl, { headers: rule.headers, timeout: 15 });
+        const html = resp.text || '';
+        const parts = String(rule['搜索']).split(';');
+        const items = pdfa(html, parts[0]?.trim());
+
+        const list: any[] = [];
+        for (const item of items) {
+          const title = parts[1] ? pdfh(item, parts[1].trim()) : '';
+          const pic = parts[2] ? pd(item, parts[2].trim(), rule.host) : '';
+          const desc = parts[3] ? pdfh(item, parts[3].trim()) : '';
+          const link = parts[4] ? pd(item, parts[4].trim(), rule.host) : '';
+
+          if (title && link) {
+            list.push({
+              vod_id: link,
+              vod_name: title,
+              vod_pic: pic,
+              vod_remarks: desc,
+            });
+          }
+        }
+        return { code: 1, page: pg, pagecount: 999, list };
+      } catch (err) {
+        console.error(`Rule declarative search error for ${ruleUrl}:`, err);
+      }
+    }
+
+    return { code: 1, page: pg, pagecount: pg, list: [] };
+  }
+
+  return { code: 0, msg: `Unknown action: ${action}`, list: [] };
 }
 
 export interface RuleExecutionParams {
@@ -583,7 +896,8 @@ export interface RuleExecutionParams {
 }
 
 /**
- * Executes a rule and returns standard CMS-compatible format
+ * Universal Rule Executor
+ * Self-contained, fully compatible with Vercel Serverless, Docker, and Local
  */
 export async function executeRule(
   ruleUrl: string,
@@ -591,168 +905,5 @@ export async function executeRule(
   params: RuleExecutionParams = {}
 ): Promise<any> {
   const code = await loadRuleCode(ruleUrl);
-  const workerPath = path.join(process.cwd(), 'src', 'lib', 'rule-worker.cjs');
-
-  return new Promise((resolve) => {
-    try {
-      const child = spawn(process.execPath, [workerPath], {
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-
-      let stdout = '';
-      let stderr = '';
-
-      // Generous 25s budget for multi-step handshakes without freezing Next.js
-      const timer = setTimeout(() => {
-        try {
-          child.kill('SIGKILL');
-        } catch (_e) {}
-        console.warn(`[RuleWorker] Timeout (25s) for ${ruleUrl} ${action}`);
-        resolve({ code: 0, msg: 'Rule execution timeout', list: [] });
-      }, 25000);
-
-      child.stdout.on('data', chunk => {
-        stdout += chunk;
-      });
-
-      child.stderr.on('data', chunk => {
-        stderr += chunk;
-      });
-
-      child.on('close', () => {
-        clearTimeout(timer);
-        if (stderr) {
-          // Keep stderr non-fatal for worker debugging
-        }
-        try {
-          const res = JSON.parse(stdout);
-          resolve(res);
-        } catch (err) {
-          console.error(`[RuleWorker] Failed to parse worker output for ${ruleUrl} ${action}:`, err, 'Raw:', stdout.substring(0, 200));
-          resolve({ code: 0, msg: 'Worker JSON parse error', list: [] });
-        }
-      });
-
-      child.on('error', err => {
-        clearTimeout(timer);
-        console.error(`[RuleWorker] Process spawn error for ${ruleUrl} ${action}:`, err);
-        resolve({ code: 0, msg: err.message, list: [] });
-      });
-
-      const payload = JSON.stringify({ code, action, params, ruleUrl });
-      child.stdin.write(payload);
-      child.stdin.end();
-    } catch (e: any) {
-      console.error(`[RuleWorker] Synchronous error launching worker for ${ruleUrl} ${action}:`, e);
-      resolve({ code: 0, msg: e.message || 'Worker launch failed', list: [] });
-    }
-  });
-}
-
-
-
-
-
-
-function parseDeclarativeYiji(rule: any, tid: string, pg: number | string) {
-  const host = rule.host || '';
-  let url = rule.url || '';
-  url = url.replace(/fyclass/g, tid).replace(/fypage/g, String(pg));
-  if (!url.startsWith('http')) {
-    url = host + (url.startsWith('/') ? '' : '/') + url;
-  }
-  const resp = syncRequest(url, { headers: rule.headers, timeout: 15 });
-  const html = resp.text || '';
-  if (!html) return { code: 1, list: [] };
-
-  const parts = String(rule['一级']).split(';');
-  const itemSel = parts[0]?.trim();
-  const titleSel = parts[1]?.trim();
-  const imgSel = parts[2]?.trim();
-  const remSel = parts[3]?.trim();
-  const hrefSel = parts[4]?.trim();
-
-  const items = pdfa(html, itemSel);
-  const list: any[] = [];
-  for (const it of items) {
-    const title = titleSel ? pdfh(it, titleSel) : '';
-    const img = imgSel ? pd(it, imgSel, host) : '';
-    const rem = remSel ? pdfh(it, remSel) : '';
-    const href = hrefSel ? pd(it, hrefSel, host) : '';
-    if (title || href) {
-      list.push({
-        vod_id: href,
-        vod_name: title || '未知片名',
-        vod_pic: img,
-        vod_remarks: rem,
-      });
-    }
-  }
-  return { code: 1, page: parseInt(String(pg), 10), pagecount: 999, limit: list.length, total: 1000, list };
-}
-
-function parseDeclarativeErji(rule: any, vid: string) {
-  const host = rule.host || '';
-  let detailUrl = String(vid).trim();
-  if (!detailUrl.startsWith('http')) {
-    detailUrl = host + (detailUrl.startsWith('/') ? '' : '/') + detailUrl;
-  }
-  const resp = syncRequest(detailUrl, { headers: rule.headers, timeout: 15 });
-  const html = resp.text || '';
-  if (!html) return { vod_id: vid, vod_name: '', vod_play_url: '' };
-
-  const erji = rule['二级'] || {};
-  let title = erji.title ? pdfh(html, erji.title) : '';
-  if (!title) {
-    const rawT = pdfh(html, 'h1.detail-title&&Text;h1&&Text;meta[property="og:title"]&&content;title&&Text');
-    const m = rawT.match(/《([^》]+)》/);
-    title = m ? m[1] : (rawT.replace(/[-_].*$/, '').trim() || '视频详情');
-  }
-  let img = erji.img ? pd(html, erji.img, host) : '';
-  if (!img) {
-    img = pd(html, 'meta[property="og:image"]&&content;.detail-cover&&src;img&&src', host);
-  }
-  const desc = erji.desc ? pdfh(html, erji.desc) : pdfh(html, 'meta[name="description"]&&content;.detail-intro&&Text');
-  const content = erji.content ? pdfh(html, erji.content) : desc;
-
-  const tabs = erji.tabs ? pdfa(html, erji.tabs) : [];
-  const tabNames: string[] = [];
-  for (let i = 0; i < tabs.length; i++) {
-    const tn = pdfh(tabs[i], 'Text');
-    tabNames.push(tn || `线路${i + 1}`);
-  }
-  if (tabNames.length === 0) tabNames.push('默认线路');
-
-  const playFromList: string[] = [];
-  const playUrlList: string[] = [];
-  const listSel = erji.lists || '';
-
-  for (let t = 0; t < tabNames.length; t++) {
-    const curSel = listSel.replace('#id', String(t));
-    let items = pdfa(html, curSel);
-    if ((!items || items.length === 0) && curSel.includes(':eq(')) {
-      items = pdfa(html, curSel.replace(/:eq\(\d+\)/, ''));
-    }
-    const eps: string[] = [];
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i];
-      const epName = pdfh(it, 'Text') || `第${i + 1}集`;
-      const epHref = pd(it, 'a&&href', host) || pdfh(it, 'a&&href');
-      if (epHref) eps.push(`${epName.trim()}$${epHref.trim()}`);
-    }
-    if (eps.length > 0) {
-      playFromList.push(tabNames[t]);
-      playUrlList.push(eps.join('#'));
-    }
-  }
-
-  return {
-    vod_id: vid,
-    vod_name: title,
-    vod_pic: img,
-    vod_remarks: desc,
-    vod_content: content || desc,
-    vod_play_from: playFromList.join('$$$'),
-    vod_play_url: playUrlList.join('$$$'),
-  };
+  return runRuleInContext(code, action, params, ruleUrl);
 }
