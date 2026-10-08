@@ -573,8 +573,15 @@ function parseDeclarativeErji(rule, vid) {
 }
 
 function runRule(code, action, params, ruleUrl) {
+  const safeConsole = {
+    log: (...args) => console.error(...args),
+    warn: (...args) => console.error(...args),
+    error: (...args) => console.error(...args),
+    info: (...args) => console.error(...args),
+  };
+
   const context = {
-    console,
+    console: safeConsole,
     request: syncRequest,
     req: syncRequest,
     fetchHtml: (url, ref) => syncRequest(url, { headers: { Referer: ref } }).text,
@@ -835,10 +842,14 @@ process.stdin.on('end', () => {
     const inputStr = Buffer.concat(inputChunks).toString('utf-8');
     const input = JSON.parse(inputStr);
     const result = runRule(input.code, input.action, input.params, input.ruleUrl);
-    process.stdout.write(JSON.stringify(result));
-    process.exit(0);
+    const out = JSON.stringify(result);
+    process.stdout.write(out, () => {
+      process.exit(0);
+    });
   } catch (err) {
-    process.stdout.write(JSON.stringify({ code: 0, msg: err.message || 'Worker execution failed', list: [] }));
-    process.exit(1);
+    const errOut = JSON.stringify({ code: 0, msg: err.message || 'Worker execution failed', list: [] });
+    process.stdout.write(errOut, () => {
+      process.exit(1);
+    });
   }
 });
