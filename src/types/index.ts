@@ -31,7 +31,8 @@ export interface SourceConfig {
   id: string; // Use uuid or simple timestamp for id
   name: string;
   url: string; // This is the base URL for the API source or JS rule URL
-  type?: 'api' | 'js'; // Type of source: standard CMS API or JS spider rule
+  type?: 'api' | 'js' | 'rule'; // Type of source: standard CMS API, JS spider rule, or legacy rule
+  enabled?: boolean;
 }
 
 export interface ApiCategory {

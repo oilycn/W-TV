@@ -43,11 +43,11 @@ var rule = {
         var listUrl = pg <= 1 ? baseUrl : (baseUrl + '?from=' + pg);
         var resp = null;
         try {
-            resp = request(listUrl, { headers: rule.headers, timeout: 5 });
+            resp = request(listUrl, { headers: rule.headers, timeout: 15 });
         } catch (e) {}
         var html = (resp && resp.text) ? resp.text : (typeof resp === 'string' ? resp : '');
         var vodList = [];
-        var cardRegex = /<div\b[^>]*class="[^"]*video-img-box[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/g;
+        var cardRegex = /<div\b[^>]*class="[^"]*(?:video-img-box|img-box)[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/g;
         var match;
         while ((match = cardRegex.exec(html)) !== null) {
             var block = match[1];
@@ -58,7 +58,7 @@ var rule = {
                              block.match(/class="[^"]*title[^"]*"[^>]*>[\s\S]*?<a[^>]*>([^<]+)/i) ||
                              block.match(/alt=["']([^"']+)["']/);
             var title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '').trim() : vid;
-            var picMatch = block.match(/data-src=["']([^"']+)["']/) || block.match(/src=["']([^"']+)["']/);
+            var picMatch = block.match(/data-src=["']([^"']+)["']/) || block.match(/data-original=["']([^"']+)["']/) || block.match(/src=["']([^"']+)["']/);
             var labelMatch = block.match(/class="[^"]*label[^"]*"[^>]*>([^<]+)<\/div>/i);
             vodList.push({
                 vod_id: vid,

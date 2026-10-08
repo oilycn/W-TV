@@ -11,7 +11,7 @@ interface UseContentListParams {
 export function useContentList({ sourceUrl, categoryId, searchTerm }: UseContentListParams) {
   return useInfiniteQuery<PaginatedContentResponse, Error>({
     queryKey: ['contentList', sourceUrl, categoryId, searchTerm],
-    queryFn: async ({ pageParam = 1 }) => {
+    queryFn: async ({ pageParam = 1, signal }) => {
       if (!sourceUrl) {
         return { items: [], page: 1, pageCount: 1, limit: 20, total: 0 };
       }
@@ -19,6 +19,7 @@ export function useContentList({ sourceUrl, categoryId, searchTerm }: UseContent
         page: pageParam as number,
         categoryId: categoryId === 'all' ? undefined : categoryId,
         searchTerm: searchTerm || undefined,
+        signal,
       });
     },
     getNextPageParam: (lastPage) => {
@@ -27,7 +28,8 @@ export function useContentList({ sourceUrl, categoryId, searchTerm }: UseContent
       }
       return undefined;
     },
-    enabled: !!sourceUrl, // Only run the query if sourceUrl is present
+    enabled: !!sourceUrl,
     initialPageParam: 1,
+    staleTime: 1000 * 60 * 2, // 2分钟内不重复发起请求
   });
 }

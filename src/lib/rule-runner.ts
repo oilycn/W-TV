@@ -198,10 +198,12 @@ export function cyDecrypt(encryptedBase64: string, key: string): string {
 }
 
 /**
- * Decodes Buffer to string supporting GBK/UTF-8
+ * Decodes Buffer or string to string supporting GBK/UTF-8
  */
-function decodeBufferToText(buf: Buffer, optEncoding?: string): string {
-  if (!buf) return '';
+function decodeBufferToText(input: Buffer | string | null | undefined, optEncoding?: string): string {
+  if (!input) return '';
+  if (typeof input === 'string') return input;
+  const buf = Buffer.isBuffer(input) ? input : Buffer.from(input);
   const encoding = optEncoding?.toLowerCase();
   if (encoding && (encoding.includes('gbk') || encoding.includes('gb2312') || encoding.includes('gb18030'))) {
     try {

@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic';
 import type { ContentItem, SourceConfig, HistoryEntry } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, getMockContentItemById, decodeIdIfNeeded, resolvePlayUrl } from '@/lib/content-loader';
-import { Loader2, Star, AlertCircle, RefreshCw, ExternalLink, Globe, MonitorPlay, ArrowLeft, ArrowUpDown, Copy, Check, Download } from 'lucide-react';
+import { Loader2, Star, AlertCircle, RefreshCw, ExternalLink, Globe, MonitorPlay, ArrowLeft, ArrowUpDown, Copy, Check, Download, Play, Keyboard } from 'lucide-react';
 import { useCategories } from '@/contexts/CategoryContext';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -542,11 +542,16 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                                                 variant="ghost"
                                                 className="text-xs text-muted-foreground hover:text-white"
                                                 onClick={() => {
-                                                    setUseIframeFallback(true);
-                                                    setPlaybackError(null);
+                                                    const isAntiEmbed = /4kcz|czzy|cz4k|jable|netflix/i.test(rawEpisodeUrl);
+                                                    if (isAntiEmbed) {
+                                                        window.open(rawEpisodeUrl, '_blank');
+                                                    } else {
+                                                        setUseIframeFallback(true);
+                                                        setPlaybackError(null);
+                                                    }
                                                 }}
                                             >
-                                                <Globe className="h-3.5 w-3.5 mr-1" /> 内嵌播放
+                                                <Globe className="h-3.5 w-3.5 mr-1" /> 网页播放
                                             </Button>
                                         )}
                                     </div>
@@ -657,13 +662,16 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                                                                     key={`${playUrl.name}-${originalUrlIdx}`}
                                                                     onClick={() => handlePlayVideo(playUrl.url, sourceGroup.sourceName, playUrl.name, groupIdx, originalUrlIdx)}
                                                                     className={cn(
-                                                                        "px-2.5 py-2.5 text-xs sm:text-sm font-medium rounded-xl transition-all border text-center relative overflow-hidden group select-none truncate",
+                                                                        "px-2.5 py-2.5 text-xs sm:text-sm font-medium rounded-xl transition-all border text-center relative overflow-hidden group select-none truncate flex items-center justify-center gap-1.5",
                                                                         isPlaying 
                                                                         ? "bg-primary text-primary-foreground border-primary shadow-md font-semibold ring-2 ring-primary/20 scale-[1.02]" 
                                                                         : "bg-background/80 text-muted-foreground border-border/60 hover:border-primary/40 hover:text-foreground hover:bg-muted/60"
                                                                     )}
                                                                     title={playUrl.name}
                                                                 >
+                                                                    {isPlaying && (
+                                                                        <span className="flex h-2 w-2 shrink-0 rounded-full bg-primary-foreground animate-pulse" />
+                                                                    )}
                                                                     <span className="block truncate">{playUrl.name}</span>
                                                                 </button>
                                                             );
@@ -679,6 +687,21 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                                     <p className="text-muted-foreground">暂无可用播放源，请尝试切换内容源或联系管理员。</p>
                                 </div>
                             )}
+
+                            {/* 快捷键操作指引卡片 */}
+                            <div className="mt-5 pt-4 border-t border-border/40 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+                                <div className="flex items-center gap-1.5 font-medium text-foreground/80">
+                                    <Keyboard className="h-3.5 w-3.5 text-primary" />
+                                    <span>播放快捷键</span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="bg-muted px-2 py-0.5 rounded border border-border/60 font-mono text-[11px]">空格 暂停</span>
+                                    <span className="bg-muted px-2 py-0.5 rounded border border-border/60 font-mono text-[11px]">← → 快退/快进</span>
+                                    <span className="bg-muted px-2 py-0.5 rounded border border-border/60 font-mono text-[11px]">↑ ↓ 音量</span>
+                                    <span className="bg-muted px-2 py-0.5 rounded border border-border/60 font-mono text-[11px]">F 全屏</span>
+                                    <span className="bg-muted px-2 py-0.5 rounded border border-border/60 font-mono text-[11px]">Alt+→ 下一集</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

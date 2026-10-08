@@ -44,11 +44,7 @@ function SourceAndCategorySelector({ onSelection }: { onSelection: () => void })
 
   const handleSourceChange = (newSourceId: string) => {
     setActiveSourceId(newSourceId);
-    if (pathname !== '/') {
-      try {
-        router.push('/');
-      } catch (_e) {}
-    }
+    router.push('/');
   };
 
   const handleCategoryClick = (categoryId: string) => {
@@ -145,11 +141,7 @@ export function AppHeader() {
   
   const handleSourceChange = (newSourceId: string) => {
     setActiveSourceId(newSourceId);
-    if (pathname !== '/') {
-      try {
-        router.push('/');
-      } catch (_e) {}
-    }
+    router.push('/');
   };
 
   const getCategoryIcon = (name: string) => {

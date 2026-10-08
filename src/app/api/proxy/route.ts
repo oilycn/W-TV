@@ -80,7 +80,8 @@ export async function GET(request: NextRequest) {
 
     // Forward conditional request headers for proper caching
     const forwardHeaders: Record<string, string> = {
-      'User-Agent': 'CinemaViewApp/1.0 (NextJS Proxy)',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+      'Referer': parsedTarget.origin + '/',
     };
     
     // Forward conditional request headers
@@ -131,9 +132,41 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const contentLength = response.headers.get('content-length');
-    if (contentLength && Number(contentLength) > MAX_RESPONSE_BYTES) {
-      return NextResponse.json({ error: 'Target response is too large' }, { status: 413 });
+    const contentType = response.headers.get('content-type') || '';
+    const isImageOrMedia = 
+      contentType.startsWith('image/') ||
+      contentType.includes('octet-stream') ||
+      /\.(jpe?g|png|webp|gif|svg|ico|bmp|avif)(\?|$)/i.test(parsedTarget.pathname);
+
+    // Prepare cache-related and CORS headers to forward
+    const responseHeaders = new Headers();
+    const cacheControl = response.headers.get('cache-control') || 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800';
+    const etag = response.headers.get('etag');
+    const lastModified = response.headers.get('last-modified');
+    const expires = response.headers.get('expires');
+    
+    responseHeaders.set('cache-control', cacheControl);
+    responseHeaders.set('access-control-allow-origin', '*');
+    if (etag) responseHeaders.set('etag', etag);
+    if (lastModified) responseHeaders.set('last-modified', lastModified);
+    if (expires) responseHeaders.set('expires', expires);
+
+    // If target is an image or media stream, stream response.body directly with correct image content-type
+    if (isImageOrMedia) {
+      let finalContentType = contentType;
+      if (!finalContentType || finalContentType.includes('octet-stream')) {
+        const lowerPath = parsedTarget.pathname.toLowerCase();
+        if (lowerPath.endsWith('.png')) finalContentType = 'image/png';
+        else if (lowerPath.endsWith('.webp')) finalContentType = 'image/webp';
+        else if (lowerPath.endsWith('.gif')) finalContentType = 'image/gif';
+        else if (lowerPath.endsWith('.svg')) finalContentType = 'image/svg+xml';
+        else finalContentType = 'image/jpeg';
+      }
+      responseHeaders.set('content-type', finalContentType);
+      return new NextResponse(response.body, {
+        status: response.status,
+        headers: responseHeaders,
+      });
     }
 
     // Try to get the raw text first to attempt JSON parsing
@@ -142,32 +175,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Target response is too large' }, { status: 413 });
     }
 
-    const contentType = response.headers.get('content-type');
-
-    // Prepare cache-related headers to forward
-    const responseHeaders = new Headers();
-    const cacheControl = response.headers.get('cache-control');
-    const etag = response.headers.get('etag');
-    const lastModified = response.headers.get('last-modified');
-    const expires = response.headers.get('expires');
-    
-    if (cacheControl) responseHeaders.set('cache-control', cacheControl);
-    if (etag) responseHeaders.set('etag', etag);
-    if (lastModified) responseHeaders.set('last-modified', lastModified);
-    if (expires) responseHeaders.set('expires', expires);
-
     try {
       // Attempt to parse as JSON 
       const jsonData = JSON.parse(textData);
-      // If parsing succeeds, return the JSON data directly
       return NextResponse.json(jsonData, {
         headers: responseHeaders,
       });
     } catch (_jsonError) {
-      // If JSON parsing fails, it means the upstream source provided invalid JSON
-      // or non-JSON data. The proxy should indicate this.
-      console.warn(`Proxy: Response from ${parsedTarget.toString()} was not parseable as valid JSON (Content-Type: ${contentType}). Returning as nonJsonData. Data snippet: ${textData.substring(0,200)}...`);
-      // Return the raw textData wrapped in a nonJsonData field
       return NextResponse.json({ nonJsonData: textData }, {
         headers: responseHeaders,
       });

@@ -5,26 +5,10 @@
 
 var DEFAULT_HOST = "https://www.4kcz.com";
 var NAV_HOST = "https://cz01.vip";
-var cachedHost = "";
+var cachedHost = "https://www.4kcz.com";
 
 function getHost() {
-    if (cachedHost) return cachedHost;
-    try {
-        var resp = request(NAV_HOST + "/", { headers: { "User-Agent": "Mozilla/5.0" }, timeout: 5 });
-        var text = (resp && resp.text) ? resp.text : (typeof resp === "string" ? resp : "");
-        var m = text.match(/<h3>(?:<li>)?(?:推荐访问)?<a\b[^>]*href="([^"]+)"/i) ||
-                text.match(/href="((?:https?:)?\/\/[^"]*(?:4kcz|cz4k|czzy)[^"]*)"/i);
-        if (m && m[1]) {
-            var h = m[1].trim();
-            if (h.indexOf("//") === 0) h = "https:" + h;
-            if (h.indexOf("http") === 0) {
-                cachedHost = h.replace(/\/+$/, "");
-                return cachedHost;
-            }
-        }
-    } catch (e) {}
-    cachedHost = DEFAULT_HOST;
-    return cachedHost;
+    return cachedHost || DEFAULT_HOST;
 }
 
 var rule = {

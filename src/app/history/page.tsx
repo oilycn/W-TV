@@ -55,6 +55,16 @@ export default function HistoryPage() {
     });
   };
 
+  const handleDeleteItem = (itemId: string, watchedAt: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setHistory((prev) => prev.filter(entry => !(entry.item.id === itemId && entry.watchedAt === watchedAt)));
+    toast({
+      title: "已移除",
+      description: "已从观看历史中删除该条记录。",
+    });
+  };
+
   const sortedHistory = [...history].sort((a, b) => b.watchedAt - a.watchedAt);
 
   return (
@@ -70,7 +80,7 @@ export default function HistoryPage() {
             观看历史
           </h1>
           <p className="text-muted-foreground ml-14">
-            随时随地，接着看。
+            随时随地，接着看。共 {history.length} 条播放记录。
           </p>
         </div>
         
@@ -79,7 +89,7 @@ export default function HistoryPage() {
             <AlertDialogTrigger asChild>
               <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10 hover:text-destructive shrink-0">
                 <Trash2 className="mr-2 h-4 w-4" />
-                清空历史
+                清空全部历史
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -112,7 +122,7 @@ export default function HistoryPage() {
               <Link 
                 key={`${item.id}-${watchedAt}`} 
                 href={linkHref}
-                className="group relative flex flex-col sm:flex-row gap-4 sm:gap-6 p-3 sm:p-4 rounded-2xl bg-card hover:bg-muted/30 border border-border/40 hover:border-primary/20 hover:shadow-[0_8px_30px_rgba(0,0,0,0.05)] dark:hover:shadow-[0_8px_30px_rgba(255,255,255,0.02)] transition-all duration-300 overflow-hidden"
+                className="group relative flex flex-col sm:flex-row gap-4 sm:gap-6 p-3 sm:p-4 rounded-2xl bg-card hover:bg-muted/40 border border-border/40 hover:border-primary/30 hover:shadow-lg transition-all duration-300 overflow-hidden"
               >
                 {/* Thumbnail */}
                 <div className="relative w-full sm:w-56 md:w-64 aspect-video shrink-0 rounded-xl overflow-hidden bg-muted/30 border border-border/20">
@@ -121,13 +131,13 @@ export default function HistoryPage() {
                     alt={item.title}
                     fill
                     className="object-cover transition-transform duration-700 group-hover:scale-105"
-                    unoptimized={item.backdropUrl?.startsWith('https://placehold.co') || item.posterUrl.startsWith('https://placehold.co')}
+                    unoptimized={item.backdropUrl?.startsWith('https://placehold.co') || item.posterUrl.startsWith('https://placehold.co') || !item.posterUrl.startsWith('/')}
                   />
-                  <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors duration-500" />
+                  <div className="absolute inset-0 bg-black/25 group-hover:bg-transparent transition-colors duration-500" />
                   
                   {/* Play Overlay */}
                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 scale-90 group-hover:scale-100">
-                    <div className="w-12 h-12 bg-primary text-primary-foreground rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(var(--primary),0.4)] backdrop-blur-md transform transition-transform hover:scale-110">
+                    <div className="w-12 h-12 bg-primary text-primary-foreground rounded-full flex items-center justify-center shadow-lg backdrop-blur-md transform transition-transform hover:scale-110">
                        <Play className="w-5 h-5 ml-1" fill="currentColor" />
                     </div>
                   </div>
@@ -139,6 +149,16 @@ export default function HistoryPage() {
                     <h3 className="text-lg sm:text-xl font-bold truncate text-foreground group-hover:text-primary transition-colors duration-300">
                       {item.title}
                     </h3>
+                    
+                    {/* 单条删除按钮 */}
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeleteItem(item.id, watchedAt, e)}
+                      className="p-1.5 rounded-lg text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                      title="删除此记录"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                   
                   {episodeName && (
@@ -160,7 +180,7 @@ export default function HistoryPage() {
                   </div>
                 </div>
               </Link>
-            )
+            );
           })}
         </div>
       ) : (
