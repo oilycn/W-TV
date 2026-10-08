@@ -52,7 +52,7 @@ jobs:
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/duoduo' }} # 当在 master 分支时，额外打上 'latest' 标签
 
       - name: Build and push Docker image # 步骤4: 构建并推送镜像
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: . # Dockerfile 的上下文路径
           file: ./Dockerfile # Dockerfile 路径

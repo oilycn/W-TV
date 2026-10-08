@@ -161,6 +161,32 @@ export function cyDecrypt(encryptedBase64: string, key: string): string {
   }
 }
 
+function decodeBufferToText(buf: Buffer | string | null | undefined, optEncoding?: string): string {
+  if (!buf) return '';
+  if (typeof buf === 'string') {
+    // If it was already decoded as utf-8 but contains gbk html meta, try re-encoding if needed
+    return buf;
+  }
+  const encoding = optEncoding?.toLowerCase();
+  if (encoding && (encoding.includes('gbk') || encoding.includes('gb2312') || encoding.includes('gb18030'))) {
+    try {
+      return new TextDecoder('gbk').decode(buf);
+    } catch (_e) {}
+  }
+  // Detect HTML charset meta in the first 2KB
+  const sample = buf.subarray(0, 2048).toString('binary').toLowerCase();
+  if (/charset\s*=\s*['"]?\s*(gb2312|gbk|gb18030)/i.test(sample)) {
+    try {
+      return new TextDecoder('gbk').decode(buf);
+    } catch (_e) {}
+  }
+  try {
+    return new TextDecoder('utf-8').decode(buf);
+  } catch (_e) {
+    return buf.toString('utf-8');
+  }
+}
+
 /**
  * Synchronous HTTP request runner inside Node.js
  */
@@ -179,9 +205,9 @@ export function syncRequest(url: string, opt: any = {}) {
       args.push('--data', typeof opt.body === 'string' ? opt.body : JSON.stringify(opt.body));
     }
     args.push(url);
-    const res = spawnSync('curl', args, { encoding: 'utf-8', maxBuffer: 15 * 1024 * 1024 });
+    const res = spawnSync('curl', args, { encoding: null as any, maxBuffer: 15 * 1024 * 1024 });
     if (res.status === 0 || (res.stdout && res.stdout.length > 0)) {
-      const text = res.stdout || '';
+      const text = decodeBufferToText(res.stdout, opt.encoding);
       return {
         code: 200,
         status: 200,
@@ -222,8 +248,8 @@ export function syncRequest(url: string, opt: any = {}) {
       if (input.body) req.write(typeof input.body === 'string' ? input.body : JSON.stringify(input.body));
       req.end();
     `;
-    const res = spawnSync(process.execPath, ['-e', script, payload], { encoding: 'utf-8', maxBuffer: 15 * 1024 * 1024 });
-    const text = res.stdout || '';
+    const res = spawnSync(process.execPath, ['-e', script, payload], { encoding: null as any, maxBuffer: 15 * 1024 * 1024 });
+    const text = decodeBufferToText(res.stdout, opt.encoding);
     return {
       code: res.status === 0 ? 200 : 500,
       status: res.status === 0 ? 200 : 500,

@@ -17,12 +17,34 @@ var rule = {
     },
     class_name: '最新更新&热门影片&中文字幕&无码破解&FC2精选&素人专区&巨乳美胸&熟女人妻&制服诱惑&角色扮演&潮吹内射',
     class_url: 'latest-updates&hot&categories/chinese-subtitle&categories/mosaic-removed&categories/fc2&categories/amateur&categories/big-tits&categories/milf&categories/uniform&categories/cosplay&categories/creampie',
+    home: function() {
+        var names = rule.class_name.split('&');
+        var urls = rule.class_url.split('&');
+        var cats = [];
+        for (var i = 0; i < names.length; i++) {
+            if (names[i] && urls[i]) cats.push({ type_id: urls[i], type_name: names[i] });
+        }
+        var firstList = [];
+        try {
+            var res = this.category('latest-updates', 1);
+            firstList = (res && res.list) ? res.list : [];
+        } catch (e) {}
+        return {
+            code: 1,
+            msg: '数据列表',
+            class: cats,
+            list: firstList
+        };
+    },
     category: function(tid, pg) {
         tid = (tid || 'latest-updates').replace(/^\/+|\/+$/g, '');
         pg = parseInt(pg) || 1;
         var baseUrl = rule.host + '/' + tid + '/';
         var listUrl = pg <= 1 ? baseUrl : (baseUrl + '?from=' + pg);
-        var resp = request(listUrl, { headers: rule.headers, timeout: 12 });
+        var resp = null;
+        try {
+            resp = request(listUrl, { headers: rule.headers, timeout: 5 });
+        } catch (e) {}
         var html = (resp && resp.text) ? resp.text : (typeof resp === 'string' ? resp : '');
         var vodList = [];
         var cardRegex = /<div\b[^>]*class="[^"]*video-img-box[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/g;

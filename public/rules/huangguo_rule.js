@@ -20,19 +20,23 @@ var rule = {
         var resp = request(listUrl, { headers: rule.headers, timeout: 10 });
         var html = (resp && resp.text) ? resp.text : (typeof resp === 'string' ? resp : '');
         var vodList = [];
-        var cardRegex = /<div\b[^>]*class="[^"]*hg-drama-card[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/g;
-        var match;
-        while ((match = cardRegex.exec(html)) !== null) {
-            var block = match[1];
-            var idMatch = block.match(/\/video\/(\d+)\//);
+        var cards = pdfa(html, '.hg-drama-card');
+        for (var i = 0; i < cards.length; i++) {
+            var c = cards[i];
+            var href = pdfh(c, '.hg-drama-card__cover-link&&href') || pdfh(c, '.hg-drama-card__title a&&href');
+            var idMatch = (href || '').match(/\/video\/(\d+)/);
             if (!idMatch) continue;
             var vid = idMatch[1];
-            var titleMatch = block.match(/class="hg-drama-card__title"[^>]*><a[^>]*>([^<]+)/) || block.match(/title=["']([^"']+)["']/);
-            var title = titleMatch ? titleMatch[1].trim() : ('短剧 ' + vid);
-            var picMatch = block.match(/data-src=["']([^"']+)["']/) || block.match(/src=["']([^"']+)["']/);
-            var pic = picMatch ? picMatch[1] : '';
-            var descMatch = block.match(/class="hg-drama-card__desc">([^<]+)/);
-            vodList.push({ vod_id: vid, vod_name: title, vod_pic: pic, vod_remarks: descMatch ? descMatch[1].substring(0, 15) : '全集短剧' });
+            var title = pdfh(c, '.hg-drama-card__title a&&Text') || pdfh(c, 'img&&alt') || ('短剧 ' + vid);
+            title = title.replace(/全集在线观看.*$/, '').trim();
+            var pic = pdfh(c, 'img&&data-src') || pdfh(c, 'img&&src');
+            var desc = pdfh(c, '.hg-drama-card__desc&&Text') || pdfh(c, '.hg-drama-card__episode&&Text') || '全集短剧';
+            vodList.push({ 
+                vod_id: vid, 
+                vod_name: title, 
+                vod_pic: pic, 
+                vod_remarks: desc.substring(0, 15) 
+            });
         }
         return { code: 1, msg: '数据列表', page: pg, pagecount: 50, limit: vodList.length, total: 1000, list: vodList };
     },

@@ -33,18 +33,18 @@ var rule = {
         var pic = id ? (rule.host + '/simg/' + id + '.jpg') : '';
         var content = pdfh(html, 'meta[name=description]&&content') || '';
         
-        var eps = pdfa(html, '.play-btn').reverse();
         var urls = [];
-        for (var j = 0; j < eps.length; j++) {
-            var epIt = eps[j];
-            var epHtml = pdfh(epIt, 'body&&Html') || '';
-            var epMatch = epHtml.match(/ep_slug="([^"]+)"/);
-            var ep = epMatch ? epMatch[1] : '';
-            var name = pdfh(epIt, 'body&&Text') || ('第' + (j + 1) + '集');
-            if (ep && name) {
-                urls.push(name.trim() + '$' + id + '-' + ep);
+        var reg = /ep_slug="([^"]+)"[^>]*>([^<]+)</g;
+        var m;
+        while ((m = reg.exec(html)) !== null) {
+            var epSlug = m[1].trim();
+            var epTitle = m[2].trim();
+            if (epSlug && epTitle && epTitle !== '其他版本') {
+                urls.push(epTitle + '$' + id + '-' + epSlug);
             }
         }
+        urls.reverse();
+
         return {
             vod_id: vid,
             vod_name: title || '视频详情',
@@ -56,16 +56,29 @@ var rule = {
     },
     play: function(flag, id, flags) {
         var playUrl = String(id || flag || '');
+        if (playUrl.startsWith('http')) return { url: playUrl };
         var resp = request(rule.host + '/tea/' + playUrl, {
-            headers: rule.headers,
+            headers: {
+                'User-Agent': rule.headers['User-Agent'],
+                'Referer': rule.host + '/'
+            },
             timeout: 15
         });
         var text = (resp && resp.text) ? resp.text : (typeof resp === 'string' ? resp : '');
         try {
             var data = JSON.parse(text);
             var plays = (data && data.video_plays) ? data.video_plays : [];
-            var url = plays.length ? plays[0].play_data : '';
-            if (url) return { url: url, headers: { 'User-Agent': rule.headers['User-Agent'], 'Referer': rule.host + '/' } };
+            for (var i = 0; i < plays.length; i++) {
+                if (plays[i] && plays[i].play_data) {
+                    return { 
+                        url: plays[i].play_data, 
+                        headers: { 
+                            'User-Agent': rule.headers['User-Agent'], 
+                            'Referer': rule.host + '/' 
+                        } 
+                    };
+                }
+            }
         } catch (e) {}
         return { url: '', headers: {} };
     },

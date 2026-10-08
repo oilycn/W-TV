@@ -42,13 +42,32 @@ var rule = {
     },
     class_name: '最新更新&国产剧&美剧&韩剧&日剧&海外剧&番剧&剧场版&最新电影&豆瓣Top250&高分影视&华语电影&欧美电影&日本电影&韩国电影&印度电影&俄罗斯电影&加拿大电影',
     class_url: 'movie_bt&gcj&meijutt&hanjutv&movie_bt/movie_bt_series/rj&movie_bt/movie_bt_series/hwj&fanju&dongmanjuchangban&zuixindianying&dbtop250&gaofenyingshi&huayudianying&oumeidianying&ribendianying&hanguodianying&yindudianying&eluosidianying&jianadadianying',
+    home: function() {
+        var names = rule.class_name.split('&');
+        var urls = rule.class_url.split('&');
+        var cats = [];
+        for (var i = 0; i < names.length; i++) {
+            if (names[i] && urls[i]) cats.push({ type_id: urls[i], type_name: names[i] });
+        }
+        var firstList = [];
+        try {
+            var res = this.category('movie_bt', 1);
+            firstList = (res && res.list) ? res.list : [];
+        } catch (e) {}
+        return {
+            code: 1,
+            msg: '数据列表',
+            class: cats,
+            list: firstList
+        };
+    },
     category: function(tid, pg) {
         tid = String(tid || "movie_bt").trim();
         pg = parseInt(pg) || 1;
         var host = getHost();
         var cleanPath = tid.replace(/^\/+|\/+$/g, "");
         var listUrl = (pg > 1) ? (host + "/" + cleanPath + "/page/" + pg) : (host + "/" + cleanPath);
-        var resp = request(listUrl, { headers: rule.headers, timeout: 15 });
+        var resp = request(listUrl, { headers: rule.headers, timeout: 6 });
         var html = (resp && resp.text) ? resp.text : (typeof resp === "string" ? resp : "");
         var list = [];
         var liRegex = /<li\b[^>]*>([\s\S]*?)<\/li>/gi;

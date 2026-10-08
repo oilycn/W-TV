@@ -19,28 +19,41 @@ var HEADERS = {
 };
 
 function getHost() {
-    if (cachedHost) return cachedHost;
-    try {
-        var resp = request(NAV_HOST, { headers: { "User-Agent": HEADERS["User-Agent"] }, timeout: 6 });
-        var text = (resp && resp.text) ? resp.text : (typeof resp === "string" ? resp : "");
-        if (text) {
-            var matches = text.match(/href=["']((?:https?:)?\/\/[^"']*(?:juzong|jz)\d*\.(?:me|com|cc|top|tv)[^"']*)["']/gi);
-            if (matches && matches.length > 0) {
-                for (var i = 0; i < matches.length; i++) {
-                    var u = matches[i].replace(/^href=["']|["']$/gi, "").trim();
-                    if (u.indexOf("juzong.vip") === -1 && u.indexOf("t.me") === -1) {
-                        if (u.indexOf("//") === 0) u = "https:" + u;
-                        if (u.indexOf("http") === 0) {
-                            cachedHost = u.replace(/\/+$/, "");
-                            return cachedHost;
-                        }
-                    }
-                }
-            }
+    return DEFAULT_HOST;
+}
+
+function parseCards(html, host) {
+    var list = [];
+    var seen = {};
+    var cardRegex = /<li\b[^>]*class=["'][^"']*(?:col-md-7|col-xs-3|stui-vodlist__item)[^"']*["'][^>]*>([\s\S]*?)<\/li>/gi;
+    var match;
+
+    while ((match = cardRegex.exec(html)) !== null) {
+        var block = match[1];
+        var hrefM = block.match(/href=["']([^"']*(?:\/voddetail\/)[^"']*)["']/i) ||
+                    block.match(/href=["']([^"']+\.html|\/voddetail\/[^"']+)["']/i);
+        var titleM = block.match(/title=["']([^"']+)["']/i) ||
+                     block.match(/alt=["']([^"']+)["']/i) ||
+                     block.match(/<h\d\b[^>]*><a[^>]*>([^<]+)<\/a>/i);
+        var picM = block.match(/data-original=["']([^"']+)["']/i) ||
+                   block.match(/data-src=["']([^"']+)["']/i) ||
+                   block.match(/src=["']([^"']+)["']/i);
+        var remM = block.match(/class=["'][^"']*(?:pic-text|remarks|badge)[^"']*["'][^>]*>([^<]+)<\//i);
+
+        if (hrefM && titleM) {
+            var link = fixUrl(hrefM[1], host);
+            if (seen[link]) continue;
+            seen[link] = true;
+
+            list.push({
+                vod_id: link,
+                vod_name: titleM[1].trim(),
+                vod_pic: picM ? fixUrl(picM[1], host) : "",
+                vod_remarks: remM ? remM[1].trim() : ""
+            });
         }
-    } catch (e) {}
-    cachedHost = DEFAULT_HOST;
-    return cachedHost;
+    }
+    return list;
 }
 
 function fixUrl(u, base) {
@@ -71,11 +84,10 @@ function buildPlayHeaders(realUrl, host) {
 
 function fetchWithCookieBypass(url) {
     var host = getHost();
-    var resp = request(url, { headers: { "User-Agent": HEADERS["User-Agent"], "Referer": host + "/" }, timeout: 12 });
+    var resp = request(url, { headers: { "User-Agent": HEADERS["User-Agent"], "Referer": host + "/" }, timeout: 8 });
     var html = (resp && resp.text) ? resp.text : (typeof resp === "string" ? resp : "");
-    // 如果命中 403 挑战重定向页面，HTTPCookieStorage 此时已记录 Set-Cookie，重发一次即可成功
     if (html && html.indexOf("window.location.href") !== -1 && html.indexOf("<title></title>") !== -1) {
-        var resp2 = request(url, { headers: { "User-Agent": HEADERS["User-Agent"], "Referer": host + "/" }, timeout: 12 });
+        var resp2 = request(url, { headers: { "User-Agent": HEADERS["User-Agent"], "Referer": host + "/" }, timeout: 8 });
         var html2 = (resp2 && resp2.text) ? resp2.text : (typeof resp2 === "string" ? resp2 : "");
         if (html2) html = html2;
     }
@@ -101,37 +113,19 @@ var rule = {
         var host = getHost();
         var html = fetchWithCookieBypass(host + "/");
         
-        var categories = [];
-        if (html) {
-            var navReg = /<a\b[^>]*href=["']([^"']*(?:\/vodtype\/|\/type\/)([^"'\/]+)(?:\/|\.html)?)["'][^>]*>([\s\S]*?)<\/a>/gi;
-            var nm;
-            var seenCat = {};
-            while ((nm = navReg.exec(html)) !== null) {
-                var cId = nm[2].replace(/-+/g, "").trim();
-                var cName = nm[3].replace(/<[^>]+>/g, "").trim();
-                if (cName && cName.length <= 4 && cName !== "首页" && cName !== "热榜" && cName !== "留言" && !seenCat[cName]) {
-                    seenCat[cName] = true;
-                    categories.push({ type_id: cId, type_name: cName });
-                }
-            }
-        }
+        var categories = [
+            { type_id: "1", type_name: "电影" },
+            { type_id: "2", type_name: "电视剧" },
+            { type_id: "3", type_name: "综艺" },
+            { type_id: "4", type_name: "动漫" }
+        ];
 
-        if (categories.length === 0) {
-            categories = [
-                { type_id: "1", type_name: "电影" },
-                { type_id: "2", type_name: "电视剧" },
-                { type_id: "3", type_name: "综艺" },
-                { type_id: "4", type_name: "动漫" }
-            ];
-        }
-
-        var firstId = categories[0].type_id;
-        var firstPage = this.category(firstId, 1);
+        var list = parseCards(html, host);
         return {
             code: 1,
             msg: "数据列表",
             class: categories,
-            list: firstPage.list || []
+            list: list
         };
     },
 
