@@ -44,8 +44,10 @@ function SourceAndCategorySelector({ onSelection }: { onSelection: () => void })
 
   const handleSourceChange = (newSourceId: string) => {
     setActiveSourceId(newSourceId);
-    if (pathname === '/') {
+    if (pathname !== '/') {
+      try {
         router.push('/');
+      } catch (_e) {}
     }
   };
 
@@ -143,7 +145,11 @@ export function AppHeader() {
   
   const handleSourceChange = (newSourceId: string) => {
     setActiveSourceId(newSourceId);
-    router.push('/'); 
+    if (pathname !== '/') {
+      try {
+        router.push('/');
+      } catch (_e) {}
+    }
   };
 
   const getCategoryIcon = (name: string) => {

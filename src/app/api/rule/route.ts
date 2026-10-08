@@ -39,14 +39,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(result);
     }
 
-    // 4. Category list request
-    if (tid || ac === 'list' || (ac === 'detail' && tid)) {
+    // 4. Category list request (when explicit category tid is provided)
+    if (tid && tid !== '0' && tid !== 'all') {
       const result = await executeRule(ruleUrl, 'category', { tid, pg });
       return NextResponse.json(result);
     }
 
-    // 5. Default / Home request
-    const result = await executeRule(ruleUrl, 'home');
+    // 5. Default / Home request (for "all" categories or initial home)
+    const result = await executeRule(ruleUrl, 'home', { pg });
     return NextResponse.json(result);
   } catch (error: any) {
     console.error(`Error in /api/rule for ${ruleUrl}:`, error);

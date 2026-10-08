@@ -1,8 +1,9 @@
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import vm from 'vm';
 import * as cheerio from 'cheerio';
-import { spawnSync } from 'child_process';
+import { spawnSync, spawn } from 'child_process';
 
 interface RuleCacheEntry {
   code: string;
@@ -52,7 +53,8 @@ export function pdfa(html: any, parse: string): any[] {
 
   const result: any[] = [];
   elements.each((_: any, el: any) => {
-    result.push(cheerio.load(el));
+    const outer = $(el).prop('outerHTML') || (typeof $.html === 'function' ? $.html(el) : '');
+    result.push(outer ? cheerio.load(outer) : cheerio.load(el));
   });
   return result;
 }
@@ -71,6 +73,15 @@ function parseSinglePdfh($: any, itemStr: string): string {
   let target: any;
   if (sel === 'body') {
     target = $('body');
+    if (!target || target.length === 0) {
+      if (attr && attr.toLowerCase() === 'html') {
+        return typeof $.html === 'function' ? $.html() : '';
+      }
+      if (!attr || attr.toLowerCase() === 'text') {
+        return $.root ? $.root().text().trim() : (typeof $.text === 'function' ? $.text().trim() : '');
+      }
+      target = $.root ? $.root() : $;
+    }
   } else {
     const eqMatch = sel.match(/:eq\((\d+)\)/);
     if (eqMatch) {
@@ -88,7 +99,7 @@ function parseSinglePdfh($: any, itemStr: string): string {
     return target.text().trim();
   }
   if (attr.toLowerCase() === 'html') {
-    return target.html() || '';
+    return target.html() || (typeof $.html === 'function' ? $.html() : '');
   }
   return target.attr(attr) || '';
 }
@@ -193,83 +204,140 @@ function decodeBufferToText(buf: Buffer | string | null | undefined, optEncoding
 export function syncRequest(url: string, opt: any = {}) {
   const method = (opt.method || 'GET').toUpperCase();
   const headers = opt.headers || {};
-  const timeout = opt.timeout || 12;
+  const timeout = Math.min(Number(opt.timeout) || 3, 3);
+
+  // Directly use Node fetch for 4kcz.com to bypass SafeLine WAF instantly without curl delay
+  const isSafeLineTarget = url.includes('4kcz.com') || url.includes('cz4k.com') || url.includes('czzy.top');
+  let needNodeFallback = isSafeLineTarget;
 
   // 1. First priority: curl (very fast, supports arbitrary headers, redirects, cookies)
-  try {
-    const args = ['-s', '-L', '--max-time', String(timeout), '-X', method];
-    for (const [k, v] of Object.entries(headers)) {
-      args.push('-H', `${k}: ${v}`);
+  if (!isSafeLineTarget) {
+    try {
+      const cookieJarPath = path.join(os.tmpdir(), 'wftv_curl_cookies.txt');
+      const proxy = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || process.env.ALL_PROXY || '';
+      const args = [
+        '-s',
+        '-L',
+        '--connect-timeout', '2',
+        '--max-time', String(timeout),
+        '--retry', '0',
+        '-c', cookieJarPath,
+        '-b', cookieJarPath,
+      ];
+      if (proxy) {
+        args.push('--proxy', proxy);
+      }
+      if (method !== 'GET') {
+        args.push('-X', method);
+      }
+      for (const [k, v] of Object.entries(headers)) {
+        args.push('-H', `${k}: ${v}`);
+      }
+      if (opt.body) {
+        args.push('--data', typeof opt.body === 'string' ? opt.body : JSON.stringify(opt.body));
+      }
+      args.push(url);
+      const res = spawnSync('curl', args, { encoding: null as any, maxBuffer: 15 * 1024 * 1024 });
+      
+      // If curl succeeded (HTTP connected)
+      if (res.status === 0 && res.stdout && res.stdout.length > 0) {
+        let text = decodeBufferToText(res.stdout, opt.encoding);
+        // Auto-bypass 403 cookie challenge (e.g. Set-Cookie then window.location.href reload)
+        if (text && text.includes('window.location.href') && text.includes('<title></title>')) {
+          const res2 = spawnSync('curl', args, { encoding: null as any, maxBuffer: 15 * 1024 * 1024 });
+          if (res2.status === 0 && res2.stdout && res2.stdout.length > 0) {
+            text = decodeBufferToText(res2.stdout, opt.encoding);
+          }
+        }
+
+        const isWafBlocked = text.includes('SafeLine') || text.includes('雷池') || text.includes('slg-box') || text.includes('slg-warning');
+        if (!isWafBlocked) {
+          return {
+            code: 200,
+            status: 200,
+            text,
+            body: text,
+            toString() {
+              return text;
+            },
+          };
+        } else {
+          needNodeFallback = true;
+        }
+      } else {
+        // Network connection error / timeout in domestic network: fail fast, DO NOT freeze event loop with second attempt!
+        return {
+          code: 500,
+          status: 500,
+          text: '',
+          body: '',
+          toString() {
+            return '';
+          },
+        };
+      }
+    } catch (_err) {
+      return {
+        code: 500,
+        status: 500,
+        text: '',
+        body: '',
+        toString() {
+          return '';
+        },
+      };
     }
-    if (opt.body) {
-      args.push('--data', typeof opt.body === 'string' ? opt.body : JSON.stringify(opt.body));
-    }
-    args.push(url);
-    const res = spawnSync('curl', args, { encoding: null as any, maxBuffer: 15 * 1024 * 1024 });
-    if (res.status === 0 || (res.stdout && res.stdout.length > 0)) {
+  }
+
+  // 2. Second priority: Modern Node.js fetch process fallback (browser-like TLS fingerprint, bypasses SafeLine WAF only)
+  if (needNodeFallback) {
+    try {
+      const payload = JSON.stringify({ url, method, headers, body: opt.body, timeout: timeout * 1000 });
+      const script = `
+        (async () => {
+          try {
+            const input = JSON.parse(process.argv[1]);
+            const controller = new AbortController();
+            const timeoutMs = Math.min(Number(input.timeout) || 3000, 3000);
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
+            const resp = await fetch(input.url, {
+              method: input.method || 'GET',
+              headers: input.headers || {},
+              body: input.body ? (typeof input.body === 'string' ? input.body : JSON.stringify(input.body)) : undefined,
+              redirect: 'follow',
+              signal: controller.signal
+            });
+            clearTimeout(timer);
+            const buf = Buffer.from(await resp.arrayBuffer());
+            process.stdout.write(buf);
+          } catch (e) {
+            process.exit(1);
+          }
+        })();
+      `;
+      const res = spawnSync(process.execPath, ['-e', script, payload], { encoding: null as any, maxBuffer: 15 * 1024 * 1024 });
       const text = decodeBufferToText(res.stdout, opt.encoding);
       return {
-        code: 200,
-        status: 200,
+        code: res.status === 0 ? 200 : 500,
+        status: res.status === 0 ? 200 : 500,
         text,
         body: text,
         toString() {
           return text;
         },
       };
-    }
-  } catch (_err) {
-    // curl failed, fallback to Node fetch
+    } catch (_e) {}
   }
 
-  // 2. Second priority: Node.js process fallback
-  try {
-    const payload = JSON.stringify({ url, method, headers, body: opt.body, timeout: timeout * 1000 });
-    const script = `
-      const https = require('https');
-      const http = require('http');
-      const input = JSON.parse(process.argv[1]);
-      const client = input.url.startsWith('https') ? https : http;
-      const parsed = new URL(input.url);
-      const req = client.request(parsed, {
-        method: input.method,
-        headers: input.headers,
-        timeout: input.timeout,
-        rejectUnauthorized: false
-      }, (res) => {
-        let chunks = [];
-        res.on('data', d => chunks.push(d));
-        res.on('end', () => {
-          process.stdout.write(Buffer.concat(chunks));
-        });
-      });
-      req.on('error', () => { process.exit(1); });
-      req.on('timeout', () => { req.destroy(); process.exit(1); });
-      if (input.body) req.write(typeof input.body === 'string' ? input.body : JSON.stringify(input.body));
-      req.end();
-    `;
-    const res = spawnSync(process.execPath, ['-e', script, payload], { encoding: null as any, maxBuffer: 15 * 1024 * 1024 });
-    const text = decodeBufferToText(res.stdout, opt.encoding);
-    return {
-      code: res.status === 0 ? 200 : 500,
-      status: res.status === 0 ? 200 : 500,
-      text,
-      body: text,
-      toString() {
-        return text;
-      },
-    };
-  } catch (_e) {
-    return {
-      code: 500,
-      status: 500,
-      text: '',
-      body: '',
-      toString() {
-        return '';
-      },
-    };
-  }
+  return {
+    code: 500,
+    status: 500,
+    text: '',
+    body: '',
+    toString() {
+      return '';
+    },
+  };
 }
 
 /**
@@ -523,260 +591,68 @@ export async function executeRule(
   params: RuleExecutionParams = {}
 ): Promise<any> {
   const code = await loadRuleCode(ruleUrl);
+  const workerPath = path.join(process.cwd(), 'src', 'lib', 'rule-worker.cjs');
 
-  const context: any = {
-    console,
-    request: syncRequest,
-    req: syncRequest,
-    fetchHtml: (url: string, ref?: string) => syncRequest(url, { headers: { Referer: ref } }).text,
-    pdfa,
-    pdfh,
-    pd,
-    cyDecrypt,
-    atob: (s: string) => Buffer.from(s, 'base64').toString('binary'),
-    btoa: (s: string) => Buffer.from(s, 'binary').toString('base64'),
-    encodeURIComponent,
-    decodeURIComponent,
-    parseInt,
-    parseFloat,
-    JSON,
-    String,
-    Object,
-    Array,
-    RegExp,
-    Date,
-    Math,
-  };
-
-  vm.createContext(context);
-  vm.runInContext(code, context);
-
-  const rule = context.rule || context.spider || {};
-
-  // Build categories from class_name & class_url
-  const categories: Array<{ type_id: string; type_name: string }> = [];
-  if (rule.class_name && rule.class_url) {
-    const names = String(rule.class_name).split('&');
-    const urls = String(rule.class_url).split('&');
-    for (let i = 0; i < names.length; i++) {
-      if (names[i] && urls[i]) {
-        categories.push({ type_id: urls[i].trim(), type_name: names[i].trim() });
-      }
-    }
-  }
-
-  // 1. HOME ACTION
-  if (action === 'home') {
-    if (typeof rule.home === 'function') {
-      try {
-        const homeRes = rule.home();
-        if (!homeRes.class && categories.length > 0) {
-          homeRes.class = categories;
-        }
-        return {
-          code: 1,
-          msg: '数据列表',
-          class: homeRes.class || categories,
-          list: homeRes.list || [],
-        };
-      } catch (err) {
-        console.error(`Rule home() error for ${ruleUrl}:`, err);
-      }
-    }
-
-    // Fallback: return categories and fetch first category items
-    const firstCat = categories[0]?.type_id || '1';
-    let firstList: any[] = [];
+  return new Promise((resolve) => {
     try {
-      if (typeof rule.category === 'function') {
-        const catRes = rule.category(firstCat, 1);
-        firstList = catRes?.list || [];
-      } else if (rule['一级']) {
-        const catRes = parseDeclarativeYiji(rule, firstCat, 1);
-        firstList = catRes?.list || [];
-      }
-    } catch (_err) {
-      // Continue even if first category fails
-    }
+      const child = spawn(process.execPath, [workerPath], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
 
-    return {
-      code: 1,
-      msg: '数据列表',
-      class: categories,
-      list: firstList,
-    };
-  }
+      let stdout = '';
+      let stderr = '';
 
-  // 2. CATEGORY ACTION
-  if (action === 'category') {
-    const tid = String(params.tid || categories[0]?.type_id || '1');
-    const pg = parseInt(String(params.pg || 1), 10) || 1;
+      // Generous 25s budget for multi-step handshakes without freezing Next.js
+      const timer = setTimeout(() => {
+        try {
+          child.kill('SIGKILL');
+        } catch (_e) {}
+        console.warn(`[RuleWorker] Timeout (25s) for ${ruleUrl} ${action}`);
+        resolve({ code: 0, msg: 'Rule execution timeout', list: [] });
+      }, 25000);
 
-    if (typeof rule.category === 'function') {
-      try {
-        const res = rule.category(tid, pg, params.filter, params.extend);
-        return {
-          code: 1,
-          page: res?.page || pg,
-          pagecount: res?.pagecount || (res?.list?.length ? pg + 1 : pg),
-          limit: res?.limit || res?.list?.length || 20,
-          total: res?.total || 1000,
-          class: categories,
-          list: res?.list || [],
-        };
-      } catch (err) {
-        console.error(`Rule category() error for ${ruleUrl}:`, err);
-        return { code: 0, msg: String(err), list: [] };
-      }
-    }
+      child.stdout.on('data', chunk => {
+        stdout += chunk;
+      });
 
-    if (rule['一级']) {
-      return parseDeclarativeYiji(rule, tid, pg);
-    }
+      child.stderr.on('data', chunk => {
+        stderr += chunk;
+      });
 
-    return { code: 1, page: pg, pagecount: pg, total: 0, list: [] };
-  }
-
-  // 3. DETAIL ACTION
-  if (action === 'detail') {
-    const vid = String(params.vid || '').trim();
-    let detailItem: any = null;
-
-    if (typeof rule.detail === 'function') {
-      try {
-        detailItem = rule.detail(vid);
-        // Normalize if detail returns an array or single object
-        if (Array.isArray(detailItem)) {
-          detailItem = detailItem[0];
-        } else if (detailItem && Array.isArray(detailItem.list)) {
-          detailItem = detailItem.list[0];
+      child.on('close', () => {
+        clearTimeout(timer);
+        if (stderr) {
+          // Keep stderr non-fatal for worker debugging
         }
-      } catch (err) {
-        console.error(`Rule detail() error for ${ruleUrl}:`, err);
-      }
-    } else if (rule['二级']) {
-      detailItem = parseDeclarativeErji(rule, vid);
-    }
-
-    if (detailItem) {
-      return {
-        code: 1,
-        list: [detailItem],
-      };
-    }
-
-    return { code: 0, msg: '未找到视频详情', list: [] };
-  }
-
-
-
-  // 4. PLAY ACTION
-  if (action === 'play') {
-    const flag = String(params.flag || '').trim();
-    const playUrl = String(params.playUrl || '').trim();
-    let candidateUrl = playUrl;
-    let candidateHeaders: any = rule.headers;
-
-    if (typeof rule.play === 'function') {
-      try {
-        const playRes = rule.play(flag, playUrl);
-        if (typeof playRes === 'string') {
-          candidateUrl = playRes;
-        } else if (playRes && playRes.url) {
-          candidateUrl = playRes.url;
-          if (playRes.headers) candidateHeaders = playRes.headers;
+        try {
+          const res = JSON.parse(stdout);
+          resolve(res);
+        } catch (err) {
+          console.error(`[RuleWorker] Failed to parse worker output for ${ruleUrl} ${action}:`, err, 'Raw:', stdout.substring(0, 200));
+          resolve({ code: 0, msg: 'Worker JSON parse error', list: [] });
         }
-      } catch (err) {
-        console.error(`Rule play() error for ${ruleUrl}:`, err);
-      }
-    } else if (rule.play_url) {
-      let templ = String(rule.play_url);
-      templ = templ.replace('{vodId}', params.vid || '');
-      templ = templ.replace('{playFrom}', encodeURIComponent(flag));
-      templ = templ.replace('{index}', playUrl);
-      if (!templ.startsWith('http')) {
-        templ = (rule.host || '') + (templ.startsWith('/') ? '' : '/') + templ;
-      }
-      candidateUrl = templ;
+      });
+
+      child.on('error', err => {
+        clearTimeout(timer);
+        console.error(`[RuleWorker] Process spawn error for ${ruleUrl} ${action}:`, err);
+        resolve({ code: 0, msg: err.message, list: [] });
+      });
+
+      const payload = JSON.stringify({ code, action, params, ruleUrl });
+      child.stdin.write(payload);
+      child.stdin.end();
+    } catch (e: any) {
+      console.error(`[RuleWorker] Synchronous error launching worker for ${ruleUrl} ${action}:`, e);
+      resolve({ code: 0, msg: e.message || 'Worker launch failed', list: [] });
     }
-
-    // Direct stream check
-    if (candidateUrl.includes('.m3u8') || candidateUrl.includes('.mp4') || candidateUrl.includes('.flv')) {
-      return { code: 1, url: candidateUrl, headers: candidateHeaders };
-    }
-
-    // Run smart sniffer on candidateUrl or original playUrl
-    const sniffed =
-      smartSniffStreamUrl(candidateUrl, rule.host, candidateHeaders) ||
-      smartSniffStreamUrl(playUrl, rule.host, candidateHeaders);
-
-    if (sniffed && sniffed.url) {
-      return { code: 1, url: sniffed.url, headers: sniffed.headers || candidateHeaders };
-    }
-
-    // If not a direct stream and cannot be sniffed to a stream, do not return web page
-    return { code: 0, url: '', msg: '未能解析到可用的视频流，请尝试更换线路或刷新重试' };
-  }
-
-  // 5. SEARCH ACTION
-  if (action === 'search') {
-    const wd = String(params.wd || '').trim();
-    const pg = parseInt(String(params.pg || 1), 10) || 1;
-
-    if (typeof rule.search === 'function') {
-      try {
-        const res = rule.search(wd, pg);
-        return {
-          code: 1,
-          page: pg,
-          pagecount: 999,
-          list: res?.list || [],
-        };
-      } catch (err) {
-        console.error(`Rule search() error for ${ruleUrl}:`, err);
-      }
-    }
-
-    if (rule['搜索'] && rule.searchUrl) {
-      try {
-        let sUrl = String(rule.searchUrl)
-          .replace(/\*\*/g, encodeURIComponent(wd))
-          .replace(/fypage/g, String(pg));
-        if (!sUrl.startsWith('http')) {
-          sUrl = (rule.host || '') + (sUrl.startsWith('/') ? '' : '/') + sUrl;
-        }
-
-        const resp = syncRequest(sUrl, { headers: rule.headers, timeout: 15 });
-        const html = resp.text || '';
-        const parts = String(rule['搜索']).split(';');
-        const items = pdfa(html, parts[0]?.trim());
-        const list: any[] = [];
-
-        for (const it of items) {
-          const title = parts[1] ? pdfh(it, parts[1].trim()) : '';
-          const img = parts[2] ? pd(it, parts[2].trim(), rule.host) : '';
-          const rem = parts[3] ? pdfh(it, parts[3].trim()) : '';
-          const href = parts[4] ? pd(it, parts[4].trim(), rule.host) : '';
-          if (title || href) {
-            list.push({
-              vod_id: href,
-              vod_name: title || '未知片名',
-              vod_pic: img,
-              vod_remarks: rem,
-            });
-          }
-        }
-        return { code: 1, page: pg, list };
-      } catch (err) {
-        console.error(`Rule search selector error for ${ruleUrl}:`, err);
-      }
-    }
-
-    return { code: 1, list: [] };
-  }
-
-  return { code: 0, msg: `Unknown action: ${action}` };
+  });
 }
+
+
+
+
+
 
 function parseDeclarativeYiji(rule: any, tid: string, pg: number | string) {
   const host = rule.host || '';
