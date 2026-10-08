@@ -50,6 +50,27 @@ export function fixUrl(url: string, host?: string): string {
 }
 
 /**
+ * Scoped query supporting :eq(n) in selectors (e.g. '.source-panel:eq(0) a')
+ */
+export function selectWithEq($: any, selector: string): any {
+  if (!selector) return $('');
+  if (!selector.includes(':eq(')) {
+    return $(selector);
+  }
+  const parts = selector.split(/:eq\((\d+)\)/);
+  let current = $(parts[0].trim());
+  for (let i = 1; i < parts.length; i += 2) {
+    const idx = parseInt(parts[i], 10);
+    const subSel = parts[i + 1]?.trim();
+    current = current.eq(idx);
+    if (subSel) {
+      current = current.find(subSel);
+    }
+  }
+  return current;
+}
+
+/**
  * Parses DOM array based on CSS selector (supporting :eq(n))
  */
 export function pdfa(html: any, parse: string): any[] {
@@ -57,15 +78,7 @@ export function pdfa(html: any, parse: string): any[] {
   const $ = typeof html === 'string' ? cheerio.load(html) : html;
 
   const selector = String(parse).trim();
-  const eqMatch = selector.match(/:eq\((\d+)\)/);
-  let elements: any;
-  if (eqMatch) {
-    const idx = parseInt(eqMatch[1], 10);
-    const baseSel = selector.replace(/:eq\(\d+\)/, '');
-    elements = $(baseSel).eq(idx);
-  } else {
-    elements = $(selector);
-  }
+  const elements = selectWithEq($, selector);
 
   const result: any[] = [];
   elements.each((_: any, el: any) => {
@@ -96,16 +109,13 @@ function parseSinglePdfh($: any, singleParse: string): string {
       return (typeof current.attr === 'function' ? (current.attr(part) || '') : '').trim();
     }
 
-    const eqMatch = part.match(/:eq\((\d+)\)/);
-    if (eqMatch) {
-      const idx = parseInt(eqMatch[1], 10);
-      const baseSel = part.replace(/:eq\(\d+\)/, '').trim();
-      if (typeof current === 'function') {
-        current = baseSel ? current(baseSel).eq(idx) : current('*').eq(idx);
+    if (part.includes(':eq(')) {
+      if (typeof current === 'function' && current !== $) {
+        current = selectWithEq(current, part);
       } else if (typeof current.find === 'function') {
-        current = baseSel ? current.find(baseSel).eq(idx) : current.eq(idx);
+        current = selectWithEq((sel: string) => current.find(sel), part);
       } else {
-        current = $(baseSel).eq(idx);
+        current = selectWithEq($, part);
       }
     } else {
       if (typeof current === 'function') {
@@ -600,17 +610,31 @@ function parseDeclarativeErji(rule: any, vid: string) {
       }
     } else {
       const listEls = pdfa(html, listStr);
-      for (let i = 0; i < listEls.length; i++) {
-        const epEls = pdfa(listEls[i], 'a');
+      const sampleHasSubA = listEls[0] ? pdfa(listEls[0], 'a').length > 0 : false;
+      if (!sampleHasSubA && listEls.length > 0) {
         const eps: string[] = [];
-        for (const ep of epEls) {
+        for (const ep of listEls) {
           const epName = pdfh(ep, 'body&&Text') || pdfh(ep, 'a&&title') || '正片';
           const epLink = pd(ep, 'a&&href', host) || pd(ep, 'body&&href', host);
           if (epLink) eps.push(`${epName}$${epLink}`);
         }
         if (eps.length) {
-          playFrom.push(tabs[i] || `线路${i + 1}`);
+          playFrom.push(tabs[0] || '默认线路');
           playUrls.push(eps.join('#'));
+        }
+      } else {
+        for (let i = 0; i < listEls.length; i++) {
+          const epEls = pdfa(listEls[i], 'a');
+          const eps: string[] = [];
+          for (const ep of epEls) {
+            const epName = pdfh(ep, 'body&&Text') || pdfh(ep, 'a&&title') || '正片';
+            const epLink = pd(ep, 'a&&href', host) || pd(ep, 'body&&href', host);
+            if (epLink) eps.push(`${epName}$${epLink}`);
+          }
+          if (eps.length) {
+            playFrom.push(tabs[i] || `线路${i + 1}`);
+            playUrls.push(eps.join('#'));
+          }
         }
       }
     }
@@ -810,6 +834,10 @@ function runRuleInContext(code: string, action: string, params: any, ruleUrl: st
 
     if (candidateUrl.includes('.m3u8') || candidateUrl.includes('.mp4') || candidateUrl.includes('.flv')) {
       return { code: 1, url: candidateUrl, headers: candidateHeaders };
+    }
+
+    if (/^(magnet:|thunder:|ftp:|ed2k:)/i.test(candidateUrl) || /^(magnet:|thunder:|ftp:|ed2k:)/i.test(playUrl)) {
+      return { code: 1, url: candidateUrl || playUrl, headers: candidateHeaders };
     }
 
     const sniffed =

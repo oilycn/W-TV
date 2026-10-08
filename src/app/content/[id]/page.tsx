@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic';
 import type { ContentItem, SourceConfig, HistoryEntry } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { fetchContentItemById, getMockContentItemById, decodeIdIfNeeded, resolvePlayUrl } from '@/lib/content-loader';
-import { Loader2, Star, AlertCircle, RefreshCw, ExternalLink, Globe, MonitorPlay, ArrowLeft } from 'lucide-react';
+import { Loader2, Star, AlertCircle, RefreshCw, ExternalLink, Globe, MonitorPlay, ArrowLeft, ArrowUpDown, Copy, Check, Download } from 'lucide-react';
 import { useCategories } from '@/contexts/CategoryContext';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -70,6 +70,9 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
     const [history, setHistory] = useLocalStorage<HistoryEntry[]>('cinemaViewHistory', []);
     
     const [isWebFullscreen, setIsWebFullscreen] = useState(false);
+    const [activeTab, setActiveTab] = useState<string>("0");
+    const [isDescOrder, setIsDescOrder] = useState<boolean>(false);
+    const [copiedLink, setCopiedLink] = useState(false);
 
     useEffect(() => {
         if (isWebFullscreen) {
@@ -137,6 +140,14 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             }
         }
 
+        const isDownloadProtocol = /^(magnet:|thunder:|ftp:|ed2k:)/i.test(finalUrl);
+        if (isDownloadProtocol) {
+            setPlaybackError('DOWNLOAD_PROTOCOL:' + finalUrl);
+            setCurrentPlayUrl(null);
+            setIsResolvingPlay(false);
+            return;
+        }
+
         // 严格检查：如果依然是普通网页链接（如 .html 或非直接媒体流），提示解析失败，禁止把网页传给播放器
         const isLikelyStream = /\.(m3u8|mp4|flv|webm|m4v)($|\?)/i.test(finalUrl) || (!finalUrl.endsWith('.html') && finalUrl.startsWith('http'));
         if (!finalUrl || finalUrl.endsWith('.html') || !isLikelyStream) {
@@ -184,6 +195,18 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             let sourceToUse: SourceConfig | null = null;
             if (sourceIdFromQuery) {
                 sourceToUse = sources.find(s => s.id === sourceIdFromQuery) || null;
+                if (!sourceToUse && sourceIdFromQuery.startsWith('sub-')) {
+                    const match = sourceIdFromQuery.match(/^sub-(https?:\/\/[^\s]+?\.js)/i);
+                    if (match) {
+                        sourceToUse = {
+                            id: sourceIdFromQuery,
+                            name: '规则线路',
+                            url: match[1],
+                            type: 'rule',
+                            enabled: true
+                        };
+                    }
+                }
             }
             if (!sourceToUse && activeSourceId) {
                 sourceToUse = sources.find(s => s.id === activeSourceId) || null;
@@ -228,6 +251,7 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
             setItem(itemFound || null);
             
             if(itemFound && sourceUsedToFind) {
+              setActiveTab("0");
               const firstSourceGroup = itemFound.playbackSources?.[0];
               const firstUrl = firstSourceGroup?.urls?.[0];
               if (firstUrl) {
@@ -433,57 +457,101 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                                 </div>
                             </div>
                         ) : playbackError ? (
-                            <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-950/95 text-white gap-4 p-6 text-center">
-                                <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center text-destructive ring-1 ring-destructive/30">
-                                    <AlertCircle className="h-6 w-6" />
-                                </div>
-                                <div className="space-y-1.5 max-w-md">
-                                    <h3 className="text-base font-semibold text-foreground">视频加载失败</h3>
-                                    <p className="text-xs text-muted-foreground leading-relaxed">{playbackError}</p>
-                                    {currentEpisodeInfo && (
-                                        <p className="text-xs text-primary/80 pt-1 font-mono">线路：{currentEpisodeInfo.source} · {currentEpisodeInfo.name}</p>
-                                    )}
-                                </div>
-                                <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="gap-1.5 bg-white/5 border-white/10 hover:bg-white/10 text-xs"
-                                        onClick={() => {
-                                            if (currentSourceGroupIndex !== null && currentUrlIndex !== null && item?.playbackSources) {
-                                                const group = item.playbackSources[currentSourceGroupIndex];
-                                                const ep = group?.urls?.[currentUrlIndex];
-                                                if (ep) handlePlayVideo(ep.url, group.sourceName, ep.name, currentSourceGroupIndex, currentUrlIndex);
-                                            }
-                                        }}
-                                    >
-                                        <RefreshCw className="h-3.5 w-3.5" /> 重新解析
-                                    </Button>
-                                    {rawEpisodeUrl && (rawEpisodeUrl.startsWith('http://') || rawEpisodeUrl.startsWith('https://')) && (
+                            playbackError.startsWith('DOWNLOAD_PROTOCOL:') ? (
+                                <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-950/95 text-white gap-4 p-6 text-center">
+                                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary ring-1 ring-primary/30">
+                                        <Download className="h-6 w-6" />
+                                    </div>
+                                    <div className="space-y-1.5 max-w-md">
+                                        <h3 className="text-base font-semibold text-foreground">外部下载 / P2P 媒体源</h3>
+                                        <p className="text-xs text-muted-foreground leading-relaxed">
+                                            该资源为磁力/迅雷/P2P下载链接，浏览器网页无法直接在线播放。您可以点击下方按钮一键复制链接，或调用本地应用（如迅雷/夸克/PotPlayer）下载或播放。
+                                        </p>
+                                        {currentEpisodeInfo && (
+                                            <p className="text-xs text-primary/80 pt-1 font-mono">线路：{currentEpisodeInfo.source} · {currentEpisodeInfo.name}</p>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                                        <Button
+                                            size="sm"
+                                            variant="default"
+                                            className="gap-1.5 text-xs shadow-md"
+                                            onClick={() => {
+                                                const link = playbackError.replace('DOWNLOAD_PROTOCOL:', '');
+                                                navigator.clipboard.writeText(link);
+                                                setCopiedLink(true);
+                                                setTimeout(() => setCopiedLink(false), 2000);
+                                            }}
+                                        >
+                                            {copiedLink ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                                            {copiedLink ? '已复制下载链接' : '复制下载链接'}
+                                        </Button>
                                         <Button
                                             size="sm"
                                             variant="outline"
                                             className="gap-1.5 bg-white/5 border-white/10 hover:bg-white/10 text-xs"
-                                            onClick={() => window.open(rawEpisodeUrl, '_blank')}
-                                        >
-                                            <ExternalLink className="h-3.5 w-3.5" /> 外部打开
-                                        </Button>
-                                    )}
-                                    {rawEpisodeUrl && (rawEpisodeUrl.startsWith('http://') || rawEpisodeUrl.startsWith('https://')) && (
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            className="text-xs text-muted-foreground hover:text-white"
                                             onClick={() => {
-                                                setUseIframeFallback(true);
-                                                setPlaybackError(null);
+                                                const link = playbackError.replace('DOWNLOAD_PROTOCOL:', '');
+                                                window.open(link, '_blank');
                                             }}
                                         >
-                                            <Globe className="h-3.5 w-3.5 mr-1" /> 内嵌播放
+                                            <ExternalLink className="h-3.5 w-3.5" /> 调用外部客户端打开
                                         </Button>
-                                    )}
+                                    </div>
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-950/95 text-white gap-4 p-6 text-center">
+                                    <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center text-destructive ring-1 ring-destructive/30">
+                                        <AlertCircle className="h-6 w-6" />
+                                    </div>
+                                    <div className="space-y-1.5 max-w-md">
+                                        <h3 className="text-base font-semibold text-foreground">视频加载失败</h3>
+                                        <p className="text-xs text-muted-foreground leading-relaxed">{playbackError}</p>
+                                        {currentEpisodeInfo && (
+                                            <p className="text-xs text-primary/80 pt-1 font-mono">线路：{currentEpisodeInfo.source} · {currentEpisodeInfo.name}</p>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="gap-1.5 bg-white/5 border-white/10 hover:bg-white/10 text-xs"
+                                            onClick={() => {
+                                                if (currentSourceGroupIndex !== null && currentUrlIndex !== null && item?.playbackSources) {
+                                                    const group = item.playbackSources[currentSourceGroupIndex];
+                                                    const ep = group?.urls?.[currentUrlIndex];
+                                                    if (ep) handlePlayVideo(ep.url, group.sourceName, ep.name, currentSourceGroupIndex, currentUrlIndex);
+                                                }
+                                            }}
+                                        >
+                                            <RefreshCw className="h-3.5 w-3.5" /> 重新解析
+                                        </Button>
+                                        {rawEpisodeUrl && (rawEpisodeUrl.startsWith('http://') || rawEpisodeUrl.startsWith('https://')) && (
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="gap-1.5 bg-white/5 border-white/10 hover:bg-white/10 text-xs"
+                                                onClick={() => window.open(rawEpisodeUrl, '_blank')}
+                                            >
+                                                <ExternalLink className="h-3.5 w-3.5" /> 外部打开
+                                            </Button>
+                                        )}
+                                        {rawEpisodeUrl && (rawEpisodeUrl.startsWith('http://') || rawEpisodeUrl.startsWith('https://')) && (
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className="text-xs text-muted-foreground hover:text-white"
+                                                onClick={() => {
+                                                    setUseIframeFallback(true);
+                                                    setPlaybackError(null);
+                                                }}
+                                            >
+                                                <Globe className="h-3.5 w-3.5 mr-1" /> 内嵌播放
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                            )
                         ) : currentPlayUrl ? (
                             <VideoPlayer
                                 item={item}
@@ -536,49 +604,75 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                     {/* Right: Episodes Panel */}
                     <div className="lg:col-span-2">
                         <div className="bg-muted/10 backdrop-blur-md rounded-2xl border border-border/50 p-4 md:p-6 shadow-sm">
-                            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                                <div className="w-1 h-5 bg-primary rounded-full"></div>
-                                播放列表
-                            </h3>
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-semibold flex items-center gap-2">
+                                    <div className="w-1 h-5 bg-primary rounded-full"></div>
+                                    <span>播放列表</span>
+                                    {item.playbackSources && item.playbackSources[parseInt(activeTab, 10)] && (
+                                        <span className="text-xs font-normal text-muted-foreground ml-1">
+                                            (共 {item.playbackSources[parseInt(activeTab, 10)]?.urls?.length || 0} 集)
+                                        </span>
+                                    )}
+                                </h3>
+                                {item.playbackSources && item.playbackSources.length > 0 && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setIsDescOrder(prev => !prev)}
+                                        className="h-8 px-2.5 text-xs gap-1.5 bg-background/50 border-border/60 hover:bg-muted/60"
+                                        title={isDescOrder ? "切换为正序排列" : "切换为倒序排列"}
+                                    >
+                                        <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                        <span>{isDescOrder ? '倒序' : '正序'}</span>
+                                    </Button>
+                                )}
+                            </div>
                             {item.playbackSources && item.playbackSources.length > 0 ? (
-                                <Tabs defaultValue={item.playbackSources[0].sourceName} className="w-full">
-                                    <TabsList className="mb-6 flex flex-wrap h-auto bg-transparent border-b border-border/50 w-full justify-start rounded-none p-0 gap-6">
-                                        {item.playbackSources.map((sourceGroup) => (
+                                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                                    <TabsList className="mb-5 flex flex-wrap h-auto bg-transparent border-b border-border/50 w-full justify-start rounded-none p-0 gap-3 sm:gap-6">
+                                        {item.playbackSources.map((sourceGroup, groupIdx) => (
                                             <TabsTrigger 
-                                                key={sourceGroup.sourceName} 
-                                                value={sourceGroup.sourceName}
-                                                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-2 py-3 text-base"
+                                                key={`tab-${groupIdx}`} 
+                                                value={String(groupIdx)}
+                                                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-2.5 py-2.5 text-sm md:text-base font-medium flex items-center gap-1.5 transition-colors"
                                             >
-                                                {sourceGroup.sourceName}
+                                                <span>{sourceGroup.sourceName}</span>
+                                                <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-muted/60 text-muted-foreground font-normal">
+                                                    {sourceGroup.urls.length}
+                                                </span>
                                             </TabsTrigger>
                                         ))}
                                     </TabsList>
-                                    {item.playbackSources.map((sourceGroup, groupIdx) => (
-                                        <TabsContent key={sourceGroup.sourceName} value={sourceGroup.sourceName} className="mt-0 outline-none">
-                                            <ScrollArea className="h-[40vh] min-h-[300px] w-full pr-4">
-                                                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-4 xl:grid-cols-6 gap-3 pb-4">
-                                                    {sourceGroup.urls.map((playUrl, urlIdx) => {
-                                                        const isPlaying = groupIdx === currentSourceGroupIndex && urlIdx === currentUrlIndex;
-                                                        return (
-                                                            <button
-                                                                key={`${playUrl.url}-${urlIdx}`}
-                                                                onClick={() => handlePlayVideo(playUrl.url, sourceGroup.sourceName, playUrl.name, groupIdx, urlIdx)}
-                                                                className={cn(
-                                                                    "px-3 py-2.5 text-sm font-medium rounded-xl transition-all truncate border",
-                                                                    isPlaying 
-                                                                    ? "bg-primary text-primary-foreground border-primary shadow-md scale-[1.02] ring-2 ring-primary/20" 
-                                                                    : "bg-background text-muted-foreground border-border/60 hover:border-primary/40 hover:text-foreground hover:bg-muted/50"
-                                                                )}
-                                                                title={playUrl.name}
-                                                            >
-                                                                {playUrl.name}
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </ScrollArea>
-                                        </TabsContent>
-                                    ))}
+                                    {item.playbackSources.map((sourceGroup, groupIdx) => {
+                                        const urlsToDisplay = isDescOrder ? [...sourceGroup.urls].reverse() : sourceGroup.urls;
+                                        return (
+                                            <TabsContent key={`content-${groupIdx}`} value={String(groupIdx)} className="mt-0 outline-none">
+                                                <ScrollArea className="h-[42vh] min-h-[300px] w-full pr-3">
+                                                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-4 xl:grid-cols-6 gap-2.5 pb-4 pt-1">
+                                                        {urlsToDisplay.map((playUrl, displayIdx) => {
+                                                            const originalUrlIdx = isDescOrder ? (sourceGroup.urls.length - 1 - displayIdx) : displayIdx;
+                                                            const isPlaying = groupIdx === currentSourceGroupIndex && originalUrlIdx === currentUrlIndex;
+                                                            return (
+                                                                <button
+                                                                    key={`${playUrl.name}-${originalUrlIdx}`}
+                                                                    onClick={() => handlePlayVideo(playUrl.url, sourceGroup.sourceName, playUrl.name, groupIdx, originalUrlIdx)}
+                                                                    className={cn(
+                                                                        "px-2.5 py-2.5 text-xs sm:text-sm font-medium rounded-xl transition-all border text-center relative overflow-hidden group select-none truncate",
+                                                                        isPlaying 
+                                                                        ? "bg-primary text-primary-foreground border-primary shadow-md font-semibold ring-2 ring-primary/20 scale-[1.02]" 
+                                                                        : "bg-background/80 text-muted-foreground border-border/60 hover:border-primary/40 hover:text-foreground hover:bg-muted/60"
+                                                                    )}
+                                                                    title={playUrl.name}
+                                                                >
+                                                                    <span className="block truncate">{playUrl.name}</span>
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </ScrollArea>
+                                            </TabsContent>
+                                        );
+                                    })}
                                 </Tabs>
                             ) : (
                                 <div className="py-12 text-center">

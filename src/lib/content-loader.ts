@@ -118,50 +118,54 @@ function mapApiItemToContentItem(apiItem: any): ContentItem | null {
   if (apiItem.vod_play_from && apiItem.vod_play_url) {
     const sourceNames = String(apiItem.vod_play_from).split('$$$');
     const urlGroups = String(apiItem.vod_play_url).split('$$$');
+    const maxGroups = Math.max(sourceNames.length, urlGroups.length);
 
-    sourceNames.forEach((sourceNameRaw: string, groupIndex: number) => {
-      const sourceName = sourceNameRaw.trim();
-      if (urlGroups[groupIndex] && sourceName) {
-        const urlsString = urlGroups[groupIndex];
-        const parsedUrls: PlaybackURL[] = [];
+    for (let groupIndex = 0; groupIndex < maxGroups; groupIndex++) {
+      const urlsString = urlGroups[groupIndex]?.trim();
+      if (!urlsString) continue;
 
-        if (urlsString) {
-            const rawEpisodes = urlsString.split('#');
-            rawEpisodes.forEach((episodeStr, urlIdx) => {
-                const parts = episodeStr.split('$');
-                let name: string | undefined;
-                let url: string | undefined;
-
-                if (parts.length >= 2) {
-                    name = parts[0]?.trim();
-                    url = parts[1]?.trim();
-                } else if (parts.length === 1) {
-                    const singlePart = parts[0]?.trim();
-                    if (singlePart && (singlePart.startsWith('http://') || singlePart.startsWith('https://') || singlePart.includes('.m3u8') || singlePart.includes('.mp4') || singlePart.includes('.mpd'))) {
-                        url = singlePart;
-                    }
-                }
-                
-                if (url && !name) { // Ensure a name if URL is valid but name wasn't parsed
-                    name = `播放 ${urlIdx + 1}`;
-                }
-
-                if (name && url && (url.startsWith('http://') || url.startsWith('https://') || url.includes('.m3u8') || url.includes('.mp4') || url.includes('.mpd'))) {
-                    parsedUrls.push({ name, url });
-                } else if (url && (url.startsWith('http://') || url.startsWith('https://') || url.includes('.m3u8') || url.includes('.mp4') || url.includes('.mpd'))){
-                    // Fallback for URLs without explicit names
-                    parsedUrls.push({ name: `播放 ${urlIdx + 1}`, url });
-                } else {
-                    // console.warn(`Skipping invalid episode string part: "${episodeStr}" in group "${sourceName}" for item "${apiItem.vod_name}"`);
-                }
-            });
-        }
-
-        if (parsedUrls.length > 0) {
-          playbackSources.push({ sourceName, urls: parsedUrls });
-        }
+      let sourceName = (sourceNames[groupIndex] || '').trim();
+      if (!sourceName) {
+        sourceName = `线路 ${groupIndex + 1}`;
       }
-    });
+
+      const parsedUrls: PlaybackURL[] = [];
+      const rawEpisodes = urlsString.split('#');
+
+      rawEpisodes.forEach((episodeStr, urlIdx) => {
+        const trimmedEp = episodeStr.trim();
+        if (!trimmedEp) return;
+
+        const parts = trimmedEp.split('$');
+        let name: string | undefined;
+        let url: string | undefined;
+
+        if (parts.length >= 2) {
+          name = parts[0]?.trim();
+          url = parts.slice(1).join('$').trim();
+        } else if (parts.length === 1) {
+          url = parts[0]?.trim();
+        }
+
+        if (!name) {
+          name = `第${urlIdx + 1}集`;
+        }
+
+        if (url && url.length > 0) {
+          parsedUrls.push({ name, url });
+        }
+      });
+
+      if (parsedUrls.length > 0) {
+        let uniqueName = sourceName;
+        let dupCounter = 2;
+        while (playbackSources.some(s => s.sourceName === uniqueName)) {
+          uniqueName = `${sourceName} (${dupCounter})`;
+          dupCounter++;
+        }
+        playbackSources.push({ sourceName: uniqueName, urls: parsedUrls });
+      }
+    }
   }
 
   let type: 'movie' | 'tv_show' = 'movie';
@@ -389,6 +393,11 @@ export async function resolvePlayUrl(
   flag: string = ''
 ): Promise<{ url: string; headers?: Record<string, string>; error?: string }> {
   const isDirectMedia = /\.(m3u8|mp4|flv|webm|m4v)($|\?)/i.test(rawUrl);
+  const isDownloadProtocol = /^(magnet:|thunder:|ftp:|ed2k:)/i.test(rawUrl);
+
+  if (isDownloadProtocol) {
+    return { url: rawUrl };
+  }
 
   if (!isJsRuleSource(sourceUrl)) {
     return { url: rawUrl };
