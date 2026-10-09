@@ -193,22 +193,104 @@
   .stagger-12 { animation-delay: 600ms; }
 }
 
-/* Vidstack Player Theme Overrides */
+/* Vidstack Player Theme - YouTube Style Controls */
 .vds-player {
-  --video-brand: hsl(var(--primary));
+  --video-brand: #ff0000;
+  --media-brand: #ff0000;
+  --slider-fill-color: #ff0000;
+  --slider-thumb-bg: #ff0000;
+}
+
+/* YouTube 风格平滑自适应进度条 */
+.vds-time-slider {
+  --slider-height: 4px;
+  --slider-thumb-size: 13px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.vds-time-slider:hover,
+.vds-time-slider[data-dragging] {
+  --slider-height: 6px;
+}
+
+/* 底轨与缓冲轨 */
+.vds-time-slider .vds-slider-track {
+  background-color: rgba(255, 255, 255, 0.25) !important;
+  border-radius: 2px;
+  transition: height 0.15s ease;
+}
+
+.vds-time-slider .vds-slider-progress {
+  background-color: rgba(255, 255, 255, 0.45) !important;
+  border-radius: 2px;
+}
+
+.vds-time-slider .vds-slider-track-fill {
+  background-color: #ff0000 !important;
+  border-radius: 2px;
+}
+
+/* YouTube 经典动态圆点 Thumb：平时收缩隐藏，Hover/拖拽时弹出 */
+.vds-time-slider .vds-slider-thumb {
+  width: var(--slider-thumb-size) !important;
+  height: var(--slider-thumb-size) !important;
+  background-color: #ff0000 !important;
+  border-radius: 50% !important;
+  box-shadow: 0 0 6px rgba(255, 0, 0, 0.5);
+  transform: scale(0);
+  opacity: 0;
+  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.12s ease !important;
+}
+
+.vds-time-slider:hover .vds-slider-thumb,
+.vds-time-slider[data-dragging] .vds-slider-thumb,
+.vds-time-slider:focus-visible .vds-slider-thumb {
+  transform: scale(1) !important;
+  opacity: 1 !important;
+}
+
+/* YouTube 风格时间预览气泡 */
+.vds-time-slider .vds-slider-preview {
+  background-color: rgba(15, 15, 15, 0.95) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 6px !important;
+  padding: 4px 8px !important;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+
+.vds-time-slider .vds-slider-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #ffffff !important;
+}
+
+/* 按钮微质感交互与图标 */
+.vds-button {
+  transition: all 0.15s ease;
+  border-radius: 6px;
+}
+
+.vds-button:hover {
+  background-color: rgba(255, 255, 255, 0.15) !important;
 }
 
 /* 优化移动端触控进度条：扩大点击与拖拽热区，防止滑动手势冲突卡顿 */
 @media (pointer: coarse) {
   .vds-time-slider {
     --slider-thumb-size: 16px;
-    --slider-track-height: 6px;
-    padding-top: 10px;
-    padding-bottom: 10px;
+    --slider-height: 6px;
+    padding-top: 12px;
+    padding-bottom: 12px;
     touch-action: none;
   }
   .vds-time-slider .vds-slider-thumb {
     opacity: 1 !important;
+    transform: scale(1) !important;
   }
 }
 

@@ -446,6 +446,65 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                                     sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
                                 />
                             </div>
+                        ) : currentPlayUrl ? (
+                            /* 关键优化：已加载过直链时常驻 VideoPlayer，切集时不卸载播放器实例，彻底解决切集退出全屏的问题 */
+                            <div className="relative w-full h-full">
+                                <VideoPlayer
+                                    item={item}
+                                    src={currentPlayUrl}
+                                    onPlayerInit={setPlayer}
+                                    onEnded={handleNextEpisode}
+                                    onEnterWebFullscreen={handleEnterWebFullscreen}
+                                    isWebFullscreen={isWebFullscreen}
+                                    onNextEpisode={handleNextEpisode}
+                                    playbackSources={item?.playbackSources}
+                                    currentSourceGroupIndex={currentSourceGroupIndex}
+                                    currentUrlIndex={currentUrlIndex}
+                                    onSelectEpisode={(groupIndex, urlIndex) => {
+                                        if (!item?.playbackSources) return;
+                                        const group = item.playbackSources[groupIndex];
+                                        const ep = group?.urls?.[urlIndex];
+                                        if (ep) {
+                                            handlePlayVideo(ep.url, group.sourceName, ep.name, groupIndex, urlIndex);
+                                        }
+                                    }}
+                                    isResolvingPlay={isResolvingPlay}
+                                    currentEpisodeInfo={currentEpisodeInfo}
+                                />
+                                {playbackError && (
+                                    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/85 backdrop-blur-md p-6 text-center text-white">
+                                        <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center text-destructive ring-1 ring-destructive/30 mb-3">
+                                            <AlertCircle className="h-6 w-6" />
+                                        </div>
+                                        <h3 className="text-base font-semibold text-foreground mb-1">播放遇到问题</h3>
+                                        <p className="text-xs text-muted-foreground max-w-md mb-4">{playbackError}</p>
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="gap-1.5 bg-white/10 hover:bg-white/20 text-xs"
+                                                onClick={() => {
+                                                    if (currentSourceGroupIndex !== null && currentUrlIndex !== null && item?.playbackSources) {
+                                                        const group = item.playbackSources[currentSourceGroupIndex];
+                                                        const ep = group?.urls?.[currentUrlIndex];
+                                                        if (ep) handlePlayVideo(ep.url, group.sourceName, ep.name, currentSourceGroupIndex, currentUrlIndex);
+                                                    }
+                                                }}
+                                            >
+                                                <RefreshCw className="h-3.5 w-3.5" /> 重新解析
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                variant="default"
+                                                className="gap-1.5 text-xs"
+                                                onClick={handleNextEpisode}
+                                            >
+                                                播放下一集
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         ) : isResolvingPlay ? (
                             <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-950 text-white gap-3 p-6 text-center">
                                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
@@ -456,117 +515,6 @@ function ContentDetailDisplay({ params: paramsProp }: ContentDetailPageProps) {
                                     )}
                                 </div>
                             </div>
-                        ) : playbackError ? (
-                            playbackError.startsWith('DOWNLOAD_PROTOCOL:') ? (
-                                <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-950/95 text-white gap-4 p-6 text-center">
-                                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary ring-1 ring-primary/30">
-                                        <Download className="h-6 w-6" />
-                                    </div>
-                                    <div className="space-y-1.5 max-w-md">
-                                        <h3 className="text-base font-semibold text-foreground">外部下载 / P2P 媒体源</h3>
-                                        <p className="text-xs text-muted-foreground leading-relaxed">
-                                            该资源为磁力/迅雷/P2P下载链接，浏览器网页无法直接在线播放。您可以点击下方按钮一键复制链接，或调用本地应用（如迅雷/夸克/PotPlayer）下载或播放。
-                                        </p>
-                                        {currentEpisodeInfo && (
-                                            <p className="text-xs text-primary/80 pt-1 font-mono">线路：{currentEpisodeInfo.source} · {currentEpisodeInfo.name}</p>
-                                        )}
-                                    </div>
-                                    <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-                                        <Button
-                                            size="sm"
-                                            variant="default"
-                                            className="gap-1.5 text-xs shadow-md"
-                                            onClick={() => {
-                                                const link = playbackError.replace('DOWNLOAD_PROTOCOL:', '');
-                                                navigator.clipboard.writeText(link);
-                                                setCopiedLink(true);
-                                                setTimeout(() => setCopiedLink(false), 2000);
-                                            }}
-                                        >
-                                            {copiedLink ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                                            {copiedLink ? '已复制下载链接' : '复制下载链接'}
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="gap-1.5 bg-white/5 border-white/10 hover:bg-white/10 text-xs"
-                                            onClick={() => {
-                                                const link = playbackError.replace('DOWNLOAD_PROTOCOL:', '');
-                                                window.open(link, '_blank');
-                                            }}
-                                        >
-                                            <ExternalLink className="h-3.5 w-3.5" /> 调用外部客户端打开
-                                        </Button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-950/95 text-white gap-4 p-6 text-center">
-                                    <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center text-destructive ring-1 ring-destructive/30">
-                                        <AlertCircle className="h-6 w-6" />
-                                    </div>
-                                    <div className="space-y-1.5 max-w-md">
-                                        <h3 className="text-base font-semibold text-foreground">视频加载失败</h3>
-                                        <p className="text-xs text-muted-foreground leading-relaxed">{playbackError}</p>
-                                        {currentEpisodeInfo && (
-                                            <p className="text-xs text-primary/80 pt-1 font-mono">线路：{currentEpisodeInfo.source} · {currentEpisodeInfo.name}</p>
-                                        )}
-                                    </div>
-                                    <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="gap-1.5 bg-white/5 border-white/10 hover:bg-white/10 text-xs"
-                                            onClick={() => {
-                                                if (currentSourceGroupIndex !== null && currentUrlIndex !== null && item?.playbackSources) {
-                                                    const group = item.playbackSources[currentSourceGroupIndex];
-                                                    const ep = group?.urls?.[currentUrlIndex];
-                                                    if (ep) handlePlayVideo(ep.url, group.sourceName, ep.name, currentSourceGroupIndex, currentUrlIndex);
-                                                }
-                                            }}
-                                        >
-                                            <RefreshCw className="h-3.5 w-3.5" /> 重新解析
-                                        </Button>
-                                        {rawEpisodeUrl && (rawEpisodeUrl.startsWith('http://') || rawEpisodeUrl.startsWith('https://')) && (
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                className="gap-1.5 bg-white/5 border-white/10 hover:bg-white/10 text-xs"
-                                                onClick={() => window.open(rawEpisodeUrl, '_blank')}
-                                            >
-                                                <ExternalLink className="h-3.5 w-3.5" /> 外部打开
-                                            </Button>
-                                        )}
-                                        {rawEpisodeUrl && (rawEpisodeUrl.startsWith('http://') || rawEpisodeUrl.startsWith('https://')) && (
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                className="text-xs text-muted-foreground hover:text-white"
-                                                onClick={() => {
-                                                    const isAntiEmbed = /4kcz|czzy|cz4k|jable|netflix/i.test(rawEpisodeUrl);
-                                                    if (isAntiEmbed) {
-                                                        window.open(rawEpisodeUrl, '_blank');
-                                                    } else {
-                                                        setUseIframeFallback(true);
-                                                        setPlaybackError(null);
-                                                    }
-                                                }}
-                                            >
-                                                <Globe className="h-3.5 w-3.5 mr-1" /> 网页播放
-                                            </Button>
-                                        )}
-                                    </div>
-                                </div>
-                            )
-                        ) : currentPlayUrl ? (
-                            <VideoPlayer
-                                item={item}
-                                src={currentPlayUrl}
-                                onPlayerInit={setPlayer}
-                                onEnded={handleNextEpisode}
-                                onEnterWebFullscreen={handleEnterWebFullscreen}
-                                isWebFullscreen={isWebFullscreen}
-                                onNextEpisode={handleNextEpisode}
-                            />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center bg-black">
                                 <p className="text-muted-foreground text-sm">请选择一集开始播放</p>
