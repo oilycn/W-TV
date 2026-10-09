@@ -269,14 +269,21 @@
   color: #ffffff !important;
 }
 
-/* 按钮微质感交互与图标 */
+/* 按钮微质感交互与图标，舒适间距避免拥挤 */
 .vds-button {
   transition: all 0.15s ease;
   border-radius: 6px;
+  margin-left: 2px;
+  margin-right: 2px;
 }
 
 .vds-button:hover {
   background-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* 控制栏右侧按钮组均匀呼吸间距 */
+.vds-controls-group {
+  gap: 4px !important;
 }
 
 /* 优化移动端触控进度条：扩大点击与拖拽热区，防止滑动手势冲突卡顿 */
