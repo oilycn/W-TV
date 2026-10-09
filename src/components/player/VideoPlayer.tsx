@@ -1,10 +1,12 @@
 
 'use client';
 
+import React, { useRef } from 'react';
 import {
   isHLSProvider,
   MediaPlayer,
   MediaProvider,
+  TimeSlider,
   type MediaProviderAdapter,
   type MediaPlayerInstance,
   AirPlayButton,
@@ -31,7 +33,10 @@ function filterAdsFromM3U8(m3u8Content: string): string {
         }
         outputLines.push(line);
     }
-    return outputLines.join('\n');
+    let res = outputLines.join('\n');
+    // 折叠连续的多余不连续标记，防止解复用器 PTS 错位导致进度条拖动卡顿
+    res = res.replace(/(#EXT-X-DISCONTINUITY\s*)+#EXT-X-DISCONTINUITY/g, '#EXT-X-DISCONTINUITY');
+    return res;
 }
 
 class CustomHlsJsLoader extends Hls.DefaultConfig.loader {
@@ -72,20 +77,54 @@ export default function VideoPlayer({
   isWebFullscreen = false,
   onNextEpisode,
 }: VideoPlayerProps) {
+  const internalPlayerRef = useRef<MediaPlayerInstance | null>(null);
+  const stallTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handlePlayerRef = (instance: MediaPlayerInstance | null) => {
+    internalPlayerRef.current = instance;
+    onPlayerInit(instance);
+  };
+
+  const handleWaiting = () => {
+    if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
+    stallTimerRef.current = setTimeout(() => {
+      const media = (internalPlayerRef.current as any)?.el?.querySelector('video');
+      if (media && !media.paused && media.readyState < 3) {
+        console.warn("播放器缓冲超时卡顿，自动尝试推动播放...");
+        media.currentTime += 0.15;
+      }
+    }, 2000);
+  };
+
+  const handlePlaying = () => {
+    if (stallTimerRef.current) {
+      clearTimeout(stallTimerRef.current);
+      stallTimerRef.current = null;
+    }
+  };
+
   const onProviderChange = (provider: MediaProviderAdapter | null) => {
     if (isHLSProvider(provider)) {
       provider.library = Hls;
       provider.config = {
         // --- 影视点播 (VoD) 优化配置 ---
         
-        // 1. 缓冲策略优化：避免频繁小块请求 (Fixes "constant loading")
-        // 移除 lowLatencyMode，因为它会强制高频拉取
-        maxBufferLength: 60,                 // 目标缓冲 60 秒（足够流畅，且不会因缓冲太大触碰内存上限频繁截断）
-        maxMaxBufferLength: 120,             // 最大允许缓冲 120 秒
-        maxBufferSize: 60 * 1024 * 1024,     // 提高内存上限至 60MB，允许一次性下载较多片段
+        // 1. 缓冲策略与后退秒播优化
+        maxBufferLength: 45,                 // 目标缓冲 45 秒
+        maxMaxBufferLength: 90,              // 最大允许缓冲 90 秒
+        maxBufferSize: 60 * 1024 * 1024,     // 提高内存上限至 60MB
+        backBufferLength: 60,                // 保留 60 秒回退缓冲（回拉秒播无需重新下载）
         enableWorker: true,                  // 开启 Web Worker 多线程解码
         
-        // 2. 强效容错与纠错：应对弱源环境
+        // 2. 关键：跨孔与自动防卡死微调（解决移动端拖动进度条卡死核心）
+        maxBufferHole: 0.8,                  // 允许跨越 0.8 秒切片空隙（默认仅 0.1 秒易卡死）
+        maxSeekHole: 2.0,                    // 拖动寻址跨越空隙放宽至 2 秒
+        nudgeOffset: 0.15,                   // 卡住时向前微移 150ms 越过坏帧/空帧
+        nudgeMaxRetry: 10,                   // 尝试微调 10 次
+        highBufferWatchdogPeriod: 1,         // 每秒检测一次播放卡死状态
+        maxFragLookUpTolerance: 0.5,         // 切片寻找容差放宽至 500ms
+        
+        // 3. 强效容错与纠错：应对弱源环境
         manifestLoadingTimeOut: 20000,
         manifestLoadingMaxRetry: 5,
         levelLoadingTimeOut: 20000,
@@ -94,15 +133,24 @@ export default function VideoPlayer({
         fragLoadingMaxRetry: 10,             // 高重试次数，应对源断开
         fragLoadingRetryDelay: 1000,
         
-        // 3. 智能生命周期管理
+        // 4. 智能生命周期管理
         autoStartLoad: true,
         startLevel: -1,                      // 自动选择最佳初始质量
-        
         loader: CustomHlsJsLoader,
       };
 
-      // 监听 HLS 致命错误并自动尝试修复 (参考 W-TV 集成脚本)
+      // 监听 HLS 错误事件并自动尝试修复与防卡死
       provider.instance?.on(Hls.Events.ERROR, (event, data) => {
+        // 捕获非致命缓冲停顿，主动微调推移
+        if (data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR || data.details === Hls.ErrorDetails.BUFFER_NUDGE_ON_STALL) {
+          console.warn("HLS 检测到缓冲停顿，自动执行播放推移...");
+          const media = provider.instance?.media;
+          if (media && !media.paused && media.readyState >= 2) {
+            media.currentTime += 0.15;
+          }
+          return;
+        }
+
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
@@ -148,7 +196,7 @@ const chineseTranslations = {
 
   return (
     <MediaPlayer
-      ref={onPlayerInit}
+      ref={handlePlayerRef}
       className={'w-full h-full bg-black'}
       src={src}
       title={item?.title}
@@ -159,6 +207,8 @@ const chineseTranslations = {
       crossOrigin="anonymous"
       onProviderChange={onProviderChange}
       onEnded={onEnded}
+      onWaiting={handleWaiting}
+      onPlaying={handlePlaying}
       onPointerEnter={(e) => {
         const target = e.currentTarget as any;
         if (target && typeof target.focus === 'function') {
@@ -166,7 +216,8 @@ const chineseTranslations = {
         }
       }}
       onPointerMove={(e) => {
-        // Force the player to wake up if it's acting insensitive
+        // Only wake up controls if pointer is not coarse (avoid frequent updates during mobile touches)
+        if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) return;
         const target = e.currentTarget as any;
         if (target && target.remoteControl) {
            target.remoteControl.changeUserIdle(false);
@@ -177,10 +228,24 @@ const chineseTranslations = {
       <DefaultVideoLayout
         icons={defaultLayoutIcons}
         translations={chineseTranslations}
+        noScrubGesture={true}
         slots={{
-          // googleCastButton: null, // Let Vidstack handle Cast if available
-          // Remove pipButton override so native PIP shows up
-          // Insert AirPlay after PIP
+          timeSlider: (
+            <TimeSlider.Root
+              className="vds-time-slider vds-slider"
+              pauseWhileDragging
+              seekingRequestThrottle={200}
+              noSwipeGesture
+            >
+              <TimeSlider.Track className="vds-slider-track" />
+              <TimeSlider.TrackFill className="vds-slider-track-fill vds-slider-track" />
+              <TimeSlider.Progress className="vds-slider-progress vds-slider-track" />
+              <TimeSlider.Thumb className="vds-slider-thumb" />
+              <TimeSlider.Preview className="vds-slider-preview">
+                <TimeSlider.Value className="vds-slider-value" />
+              </TimeSlider.Preview>
+            </TimeSlider.Root>
+          ),
           afterFullscreenButton: <AirPlayButton className="vds-button" title="隔空投屏"><AirPlayIcon className="vds-icon" /></AirPlayButton>,
           beforeCurrentTime: (
             <button

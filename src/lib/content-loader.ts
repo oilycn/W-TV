@@ -183,8 +183,15 @@ function mapApiItemToContentItem(apiItem: any): ContentItem | null {
 
   const genres = apiItem.vod_class ? String(apiItem.vod_class).split(/[,，、\s]+/).filter(Boolean) : (apiItem.type_name ? String(apiItem.type_name).split(/[,，、\s]+/).filter(Boolean) : []);
   
-  const posterUrl = apiItem.vod_pic || `https://placehold.co/400x600.png?text=${encodeURIComponent(apiItem.vod_name || 'Poster')}`;
-  const backdropUrl = apiItem.vod_pic_slide || posterUrl.replace('400x600', '1280x720');
+  let posterUrl = apiItem.vod_pic || `https://placehold.co/400x600.png?text=${encodeURIComponent(apiItem.vod_name || 'Poster')}`;
+  // 针对加密图片（如黄果短剧 wirqed.cn）或已知无法直接客户端加载的图片，自动转换为走本地图片代理
+  if (posterUrl && (posterUrl.includes('wirqed.cn') || posterUrl.includes('huangguo'))) {
+    posterUrl = `/api/proxy?url=${encodeURIComponent(posterUrl)}`;
+  }
+  let backdropUrl = apiItem.vod_pic_slide || posterUrl.replace('400x600', '1280x720');
+  if (backdropUrl && (backdropUrl.includes('wirqed.cn') || backdropUrl.includes('huangguo')) && !backdropUrl.startsWith('/api/proxy')) {
+    backdropUrl = `/api/proxy?url=${encodeURIComponent(backdropUrl)}`;
+  }
 
 
   return {

@@ -818,7 +818,7 @@ function runRuleInContext(code: string, action: string, params: any, ruleUrl: st
           candidateUrl = playRes;
         } else if (playRes && playRes.url) {
           candidateUrl = playRes.url;
-          if (playRes.headers) candidateHeaders = playRes.headers;
+          candidateHeaders = playRes.headers || playRes.header || candidateHeaders;
         }
       } catch (err) {
         console.error(`Rule play() error for ${ruleUrl}:`, err);

@@ -31,15 +31,17 @@ export function ContentCard({ item, sourceId, sourceName }: ContentCardProps) {
 
   const getPosterSrc = () => {
     if (!item.posterUrl) return '';
-    if (useProxy) {
+    if (item.posterUrl.startsWith('/api/proxy')) return item.posterUrl;
+    const needsDirectProxy = item.posterUrl.includes('wirqed.cn') || item.posterUrl.includes('huangguo');
+    if (useProxy || needsDirectProxy) {
       return `/api/proxy?url=${encodeURIComponent(item.posterUrl)}`;
     }
     return item.posterUrl;
   };
 
   const handleImageError = () => {
-    if (!useProxy && item.posterUrl && !item.posterUrl.startsWith('/')) {
-      // 首次加载失败时先尝试走安全代理
+    if (!useProxy && item.posterUrl && !item.posterUrl.startsWith('/api/proxy')) {
+      // 首次加载失败时尝试走安全代理
       setUseProxy(true);
     } else {
       setImgError(true);
