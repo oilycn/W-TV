@@ -38,10 +38,8 @@ export function getSourceMeta(source?: SourceConfig | null) {
   if (!source) {
     return {
       typeLabel: '未配置',
-      subLabel: '请添加内容源',
       badgeClass: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20',
       dotClass: 'bg-zinc-400',
-      domain: '',
       isRule: false,
     };
   }
@@ -55,31 +53,19 @@ export function getSourceMeta(source?: SourceConfig | null) {
     url.includes('rule=') ||
     url.includes('.pages.dev');
 
-  let domain = '';
-  try {
-    const parsed = new URL(url.startsWith('http') ? url : `https://${url}`);
-    domain = parsed.hostname;
-  } catch {
-    domain = url.split('/')[0] || '';
-  }
-
   if (isRule) {
     return {
-      typeLabel: '爬虫规则',
-      subLabel: 'DRpy / JS 规则',
+      typeLabel: '爬虫',
       badgeClass: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30',
       dotClass: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]',
-      domain: domain || '本地规则',
       isRule: true,
     };
   }
 
   return {
-    typeLabel: 'CMS 采集',
-    subLabel: '苹果CMS / JSON 接口',
+    typeLabel: 'CMS',
     badgeClass: 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30',
     dotClass: 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]',
-    domain: domain || 'API 接口',
     isRule: false,
   };
 }
@@ -253,8 +239,8 @@ export function AppHeader() {
           <button
             disabled={sources.length === 0}
             className={cn(
-              "group relative flex h-10 items-center gap-2 rounded-full border border-border/80 bg-background/85 pl-3.5 pr-2.5 shadow-sm backdrop-blur-md transition-all duration-200",
-              "hover:border-primary/50 hover:bg-muted/80 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+              "group relative flex h-9 items-center gap-2 rounded-full border border-border/80 bg-background/85 px-3 shadow-xs backdrop-blur-md transition-all duration-200",
+              "hover:border-primary/50 hover:bg-muted/80 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
               sources.length === 0 && "opacity-60 cursor-not-allowed"
             )}
             title={`当前影视源：${currentSource?.name || '未选择'}`}
@@ -266,36 +252,29 @@ export function AppHeader() {
             </span>
 
             {/* 源名称 */}
-            <span className="max-w-[100px] sm:max-w-[130px] truncate text-xs font-semibold text-foreground tracking-tight">
+            <span className="max-w-[110px] sm:max-w-[140px] truncate text-xs font-semibold text-foreground tracking-tight">
               {currentSource?.name || '选择内容源'}
             </span>
-
-            {/* 当前源类型彩色微徽章 */}
-            {currentSource && (
-              <span className={cn("rounded-md border px-1.5 py-0.5 text-[10px] font-medium leading-none shrink-0", currentMeta.badgeClass)}>
-                {currentMeta.typeLabel}
-              </span>
-            )}
 
             {/* 下拉微箭头 */}
             <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/70 transition-transform group-hover:text-foreground shrink-0" />
           </button>
         </DropdownMenuTrigger>
 
-        <DropdownMenuContent align="end" className="w-[300px] sm:w-[325px] rounded-2xl border-border/60 bg-popover/95 p-1.5 shadow-2xl backdrop-blur-2xl">
+        <DropdownMenuContent align="end" className="w-[240px] sm:w-[260px] rounded-xl border-border/60 bg-popover/95 p-1.5 shadow-xl backdrop-blur-2xl">
           {/* Header */}
-          <div className="flex items-center justify-between px-3 py-2 text-xs text-muted-foreground border-b border-border/50 mb-1">
+          <div className="flex items-center justify-between px-2.5 py-1.5 text-xs text-muted-foreground border-b border-border/50 mb-1">
             <span className="font-semibold text-foreground flex items-center gap-1.5">
               <Tv className="h-3.5 w-3.5 text-primary" />
               切换影视源
             </span>
-            <span className="text-[11px] font-mono text-muted-foreground/80">
-              共 {sources.length} 个可用源
+            <span className="text-[11px] font-mono text-muted-foreground/70">
+              共 {sources.length} 个
             </span>
           </div>
 
-          {/* 选项卡片列表 */}
-          <div className="max-h-[360px] overflow-y-auto space-y-1 p-0.5 scrollbar-thin">
+          {/* 选项单行列表 */}
+          <div className="max-h-[320px] overflow-y-auto space-y-0.5 p-0.5 scrollbar-thin">
             {sources.length > 0 ? (
               sources.map(source => {
                 const isSelected = source.id === (activeSourceId || sources[0]?.id);
@@ -306,29 +285,24 @@ export function AppHeader() {
                     key={source.id}
                     onClick={() => handleSourceChange(source.id)}
                     className={cn(
-                      "flex cursor-pointer items-center justify-between rounded-xl px-3 py-2.5 transition-all outline-none",
+                      "flex cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 transition-all outline-none text-xs",
                       isSelected
-                        ? "bg-primary/10 text-primary hover:bg-primary/15 border border-primary/20 shadow-xs"
+                        ? "bg-primary/10 text-primary font-medium"
                         : "hover:bg-muted/70 text-foreground"
                     )}
                   >
-                    <div className="min-w-0 flex-1 pr-2">
-                      <div className="flex items-center gap-2">
-                        <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", meta.dotClass)} />
-                        <span className="truncate text-xs font-semibold leading-none">
-                          {source.name}
-                        </span>
-                        <span className={cn("rounded-md border px-1.5 py-0.5 text-[9px] font-medium leading-none shrink-0", meta.badgeClass)}>
-                          {meta.typeLabel}
-                        </span>
-                      </div>
-                      <div className="mt-1 pl-3.5 truncate text-[11px] text-muted-foreground/75 font-mono">
-                        {meta.domain} · {meta.subLabel}
-                      </div>
+                    <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
+                      <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", meta.dotClass)} />
+                      <span className="truncate">
+                        {source.name}
+                      </span>
+                      <span className={cn("rounded border px-1.5 py-0.2 text-[10px] font-normal leading-none shrink-0", meta.badgeClass)}>
+                        {meta.typeLabel}
+                      </span>
                     </div>
 
                     {isSelected && (
-                      <Check className="h-4 w-4 text-primary shrink-0" />
+                      <Check className="h-3.5 w-3.5 text-primary shrink-0" />
                     )}
                   </DropdownMenuItem>
                 );
@@ -342,10 +316,10 @@ export function AppHeader() {
 
           {/* Footer 管理入口 */}
           <DropdownMenuSeparator className="my-1 border-border/40" />
-          <DropdownMenuItem asChild className="cursor-pointer rounded-xl text-xs py-2 text-muted-foreground hover:text-foreground justify-center font-medium">
+          <DropdownMenuItem asChild className="cursor-pointer rounded-lg text-xs py-1.5 text-muted-foreground hover:text-foreground justify-center font-medium">
             <Link href="/settings" className="flex items-center gap-1.5">
               <Settings className="h-3.5 w-3.5" />
-              管理与添加内容源
+              管理内容源
             </Link>
           </DropdownMenuItem>
         </DropdownMenuContent>

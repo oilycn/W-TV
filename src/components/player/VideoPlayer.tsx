@@ -232,6 +232,10 @@ export default function VideoPlayer({
 
   const currentGroup = playbackSources?.[activeGroupTab] || playbackSources?.[0];
   const episodeList = currentGroup?.urls || [];
+  const activeSourceGroup = playbackSources?.[currentSourceGroupIndex ?? 0] || playbackSources?.[0];
+  const activeEpisodeList = activeSourceGroup?.urls || [];
+  const activeEpFromList = activeEpisodeList[currentUrlIndex ?? 0]?.name;
+  const currentEpDisplay = currentEpisodeInfo?.name || activeEpFromList || '';
 
   return (
     <div className="relative w-full h-full bg-black select-none overflow-hidden">
@@ -239,7 +243,7 @@ export default function VideoPlayer({
         ref={handlePlayerRef}
         className={'w-full h-full bg-black'}
         src={src}
-        title={item?.title}
+        title={currentEpDisplay ? `${item?.title || ''} · ${currentEpDisplay}` : item?.title}
         poster={item?.posterUrl}
         playsInline
         autoPlay
@@ -300,7 +304,7 @@ export default function VideoPlayer({
             ),
             beforeFullscreenButton: (
               <div className="flex items-center gap-1.5 mr-0.5">
-                {/* 1. 控制层选集按钮：自适应宽度胶囊，严禁文字换行 */}
+                {/* 1. 控制层选集按钮：自适应宽度胶囊 */}
                 {playbackSources && playbackSources.length > 0 && (
                   <button
                     type="button"
@@ -314,7 +318,7 @@ export default function VideoPlayer({
                         ? "bg-primary text-primary-foreground shadow-md ring-1 ring-primary/40 font-semibold"
                         : "bg-white/10 hover:bg-white/20 text-white/90 hover:text-white"
                     )}
-                    title="选集列表"
+                    title={`选集列表 (当前：${currentEpDisplay || '1'})`}
                     aria-label="选集列表"
                   >
                     <ListVideo className="w-3.5 h-3.5 shrink-0" />

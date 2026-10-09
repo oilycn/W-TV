@@ -233,14 +233,15 @@
   border-radius: 2px;
 }
 
-/* YouTube 经典动态圆点 Thumb：平时收缩隐藏，Hover/拖拽时弹出 */
+/* YouTube 经典动态圆点 Thumb：平时收缩隐藏，Hover/拖拽时弹出，始终严格居中 */
 .vds-time-slider .vds-slider-thumb {
   width: var(--slider-thumb-size) !important;
   height: var(--slider-thumb-size) !important;
   background-color: #ff0000 !important;
   border-radius: 50% !important;
   box-shadow: 0 0 6px rgba(255, 0, 0, 0.5);
-  transform: scale(0);
+  top: 50% !important;
+  transform: translate(-50%, -50%) scale(0) !important;
   opacity: 0;
   transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.12s ease !important;
 }
@@ -248,7 +249,7 @@
 .vds-time-slider:hover .vds-slider-thumb,
 .vds-time-slider[data-dragging] .vds-slider-thumb,
 .vds-time-slider:focus-visible .vds-slider-thumb {
-  transform: scale(1) !important;
+  transform: translate(-50%, -50%) scale(1) !important;
   opacity: 1 !important;
 }
 
@@ -286,18 +287,19 @@
   gap: 4px !important;
 }
 
-/* 优化移动端触控进度条：扩大点击与拖拽热区，防止滑动手势冲突卡顿 */
+/* 优化移动端触控进度条：保持圆点完美居中与合适尺寸 */
 @media (pointer: coarse) {
   .vds-time-slider {
-    --slider-thumb-size: 16px;
-    --slider-height: 6px;
-    padding-top: 12px;
-    padding-bottom: 12px;
+    --slider-thumb-size: 14px;
+    --slider-height: 5px;
+    padding-top: 10px;
+    padding-bottom: 10px;
     touch-action: none;
   }
   .vds-time-slider .vds-slider-thumb {
     opacity: 1 !important;
-    transform: scale(1) !important;
+    top: 50% !important;
+    transform: translate(-50%, -50%) scale(1) !important;
   }
 }
 
