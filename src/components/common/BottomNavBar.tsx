@@ -48,7 +48,7 @@ export function BottomNavBar() {
 
   return (
     <div className="fixed bottom-0 left-0 z-50 w-full border-t border-border/70 bg-background/95 backdrop-blur-xl md:hidden pb-[env(safe-area-inset-bottom)]" suppressHydrationWarning>
-      <div className="mx-auto flex h-16 max-w-md items-center justify-around px-2">
+      <div className="mx-auto flex h-[50px] max-w-md items-center justify-around px-2">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = getIsActive(item.href);
@@ -62,11 +62,11 @@ export function BottomNavBar() {
                   }
               }}
               className={cn(
-                "flex h-12 flex-1 flex-col items-center justify-center gap-1 rounded-lg text-muted-foreground transition-colors",
-                isActive ? "bg-muted text-foreground" : "hover:text-foreground"
+                "flex h-[42px] flex-1 flex-col items-center justify-center gap-0.5 rounded-lg py-1 text-muted-foreground transition-colors",
+                isActive ? "bg-muted text-foreground font-semibold" : "hover:text-foreground"
             )}>
-              <Icon className="h-5 w-5" />
-              <span className="text-xs font-medium">{item.label}</span>
+              <Icon className="h-4 w-4" />
+              <span className="text-[11px] leading-tight">{item.label}</span>
             </Link>
           );
         })}

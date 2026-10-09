@@ -96,7 +96,7 @@ export default function RootLayout({
                 <Suspense fallback={<AppHeaderFallback />}>
                   <AppHeader />
                 </Suspense>
-                <main className="flex-1 overflow-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-6">
+                <main className="flex-1 overflow-auto pb-[calc(50px+env(safe-area-inset-bottom))] md:pb-6">
                   {children}
                 </main>
                 <BottomNavBar />
